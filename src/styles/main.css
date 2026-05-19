@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply h-full bg-bg-primary text-gray-100 font-sans antialiased;
+    overscroll-behavior: none;
+  }
+  body {
+    @apply min-h-screen;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  #app {
+    @apply min-h-screen flex flex-col;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-md font-medium transition-colors duration-150 active:scale-95;
+  }
+  .btn-primary {
+    @apply btn bg-blue-600 hover:bg-blue-500 text-white;
+  }
+  .btn-secondary {
+    @apply btn bg-bg-tertiary hover:bg-slate-700 text-gray-100;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 hover:bg-red-500 text-white;
+  }
+  .panel {
+    @apply bg-bg-secondary border border-slate-700 rounded-lg p-4;
+  }
+  .panel-tight {
+    @apply bg-bg-secondary border border-slate-700 rounded p-2;
+  }
+  /* 배경 위에 떠 있는 반투명 카드 (외부 배경이 비치게) */
+  .panel-glass {
+    @apply bg-bg-secondary/55 border border-slate-700/80 rounded-lg p-4 backdrop-blur-sm;
+  }
+  .console {
+    @apply bg-bg-primary border border-slate-800 rounded-md p-3 font-mono text-sm;
+    line-height: 1.5;
+  }
+  .log-line {
+    @apply opacity-0 animate-pulse;
+    animation: log-fade 200ms ease-out forwards;
+  }
+  .tier-1, .tier-2, .tier-3, .tier-4 { @apply text-trait-low; }
+  .tier-5, .tier-6, .tier-7, .tier-8 { @apply text-trait-common; }
+  .tier-9, .tier-10, .tier-11, .tier-12 { @apply text-trait-rare; }
+  .tier-13, .tier-14, .tier-15, .tier-16 { @apply text-trait-special; }
+}
+
+@keyframes log-fade {
+  to {
+    opacity: 1;
+  }
+}

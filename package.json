@@ -1,0 +1,31 @@
+{
+  "name": "climetop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "이번 판은 똥템으로 탑을 오르겠습니다 — 100층 로그라이크 탑 등정 RPG (Android + PC)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "android": "npm run build && npx cap sync android && npx cap open android",
+    "android:build": "npm run build && npx cap sync android",
+    "cap:init": "npx cap init climetop com.climetop.app --web-dir=dist"
+  },
+  "dependencies": {
+    "vue": "^3.4.27",
+    "pinia": "^2.1.7"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.13",
+    "vue-tsc": "^2.0.21",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/android": "^6.0.0"
+  }
+}

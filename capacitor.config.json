@@ -1,0 +1,11 @@
+{
+  "appId": "com.climetop.app",
+  "appName": "이번 판은 똥템으로 탑을 오르겠습니다",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": true
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
