@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useGameStore } from './stores/game'
 import MainMenu from './screens/MainMenu.vue'
 import CharacterCreation from './screens/CharacterCreation.vue'
@@ -14,6 +14,7 @@ import DialogModal from './ui/components/DialogModal.vue'
 import InputModal from './ui/components/InputModal.vue'
 import ListModal from './ui/components/ListModal.vue'
 import SpeedControl from './ui/components/SpeedControl.vue'
+import { playBgm, stopBgm } from './ui/sound'
 
 const game = useGameStore()
 
@@ -22,8 +23,28 @@ const currentScreen = computed(() => game.screen)
 // 페이지 로드 시 1회 스플래시. 클릭으로 닫힘. 새로고침하면 다시 표시.
 const showSplash = ref(true)
 function dismissSplash() {
-  showSplash.value = false
+  // 스플래시 클릭 = 첫 사용자 액션 → AudioContext 활성화 가능
+  // 짧게 splash BGM 재생 후 menu BGM 으로 전환
+  playBgm('splash')
+  // 0.8초 후 메뉴 BGM 전환 + 스플래시 닫기
+  setTimeout(() => {
+    showSplash.value = false
+    playBgm('menu')
+  }, 800)
 }
+
+// 화면 전환에 따른 BGM 전환
+//   - combat: 무음 (전투 효과음에 집중)
+//   - gameover: 무음
+//   - 그 외: menu BGM 유지
+watch(currentScreen, (s) => {
+  if (showSplash.value) return  // 스플래시 중엔 이미 splash BGM
+  if (s === 'combat' || s === 'gameover') {
+    stopBgm()
+  } else {
+    playBgm('menu')
+  }
+})
 </script>
 
 <template>

@@ -1,20 +1,29 @@
 // ============================================================
-// 사운드 시스템 — Web Audio API 기반 프로시저럴 SFX
+// 사운드 시스템 — Web Audio API 기반 프로시저럴 SFX + BGM
 // ============================================================
 // 외부 mp3/wav 없이 oscillator+envelope으로 8bit-style 효과음 생성.
 // 음소거 토글 + 음량 localStorage 영속화.
 //
 // 사용:
-//   sfx.attack(), sfx.hit(), sfx.crit(), sfx.skill(), sfx.death(), ...
+//   sfx.attack(), sfx.crit(), sfx.click(), …
+//   sfx.skills['화염구']()      → 스킬별 고유 사운드
+//   sfx.monsterHit('metal')    → 몬스터 카테고리 피격음
+//   sfx.monsterDeath('beast')  → 몬스터 카테고리 사망음
+//   playBgm('splash' | 'menu') → BGM 재생 (loop)
+//   stopBgm()                  → BGM 정지
 //
 // 모든 함수는 AudioContext lazy init. 첫 사용자 인터랙션 후 활성화 (브라우저 정책).
+// 시뮬레이터 등 window 가 없는 환경에서도 안전 (noop).
 
 interface SoundConfig {
   enabled: boolean
-  volume: number  // 0~1
+  volume: number  // 0~1 (SFX)
+  bgmVolume: number  // 0~1 (BGM 별도)
+  bgmEnabled: boolean
 }
 
 const STORAGE_KEY = 'climetop:sound:v1'
+const IS_BROWSER = typeof window !== 'undefined'
 
 function loadConfig(): SoundConfig {
   try {
@@ -24,10 +33,12 @@ function loadConfig(): SoundConfig {
       return {
         enabled: parsed.enabled ?? true,
         volume: typeof parsed.volume === 'number' ? Math.max(0, Math.min(1, parsed.volume)) : 0.3,
+        bgmVolume: typeof parsed.bgmVolume === 'number' ? Math.max(0, Math.min(1, parsed.bgmVolume)) : 0.15,
+        bgmEnabled: parsed.bgmEnabled ?? true,
       }
     }
   } catch {}
-  return { enabled: true, volume: 0.3 }
+  return { enabled: true, volume: 0.3, bgmVolume: 0.15, bgmEnabled: true }
 }
 
 function saveConfig(cfg: SoundConfig) {
@@ -40,6 +51,7 @@ let config = loadConfig()
 
 let audioCtx: AudioContext | null = null
 function getCtx(): AudioContext | null {
+  if (!IS_BROWSER) return null
   if (audioCtx) return audioCtx
   try {
     const AC: typeof AudioContext = (window as any).AudioContext ?? (window as any).webkitAudioContext
@@ -62,6 +74,8 @@ interface ToneOpts {
   release?: number   // duration 끝의 페이드아웃 ms
   freqEnd?: number   // freq sweep 목표 (없으면 일정)
   gain?: number      // 0~1 음량 곱
+  detune?: number    // 음정 디튠 (cents)
+  delay?: number     // 시작 지연 (ms)
 }
 
 function playTone(opts: ToneOpts) {
@@ -74,7 +88,7 @@ function playTone(opts: ToneOpts) {
     ctx.resume().catch(() => {})
   }
 
-  const now = ctx.currentTime
+  const startAt = ctx.currentTime + (opts.delay ?? 0) / 1000
   const dur = opts.duration / 1000
   const attack = (opts.attack ?? 5) / 1000
   const release = (opts.release ?? 30) / 1000
@@ -84,31 +98,32 @@ function playTone(opts: ToneOpts) {
   const gainNode = ctx.createGain()
 
   osc.type = opts.type ?? 'square'
-  osc.frequency.setValueAtTime(opts.freq, now)
+  osc.frequency.setValueAtTime(opts.freq, startAt)
+  if (opts.detune !== undefined) osc.detune.setValueAtTime(opts.detune, startAt)
   if (opts.freqEnd !== undefined) {
-    osc.frequency.exponentialRampToValueAtTime(Math.max(1, opts.freqEnd), now + dur)
+    osc.frequency.exponentialRampToValueAtTime(Math.max(1, opts.freqEnd), startAt + dur)
   }
 
   // envelope: 0 → localGain (attack) → localGain (sustain) → 0 (release)
-  gainNode.gain.setValueAtTime(0, now)
-  gainNode.gain.linearRampToValueAtTime(localGain, now + attack)
-  gainNode.gain.setValueAtTime(localGain, now + dur - release)
-  gainNode.gain.linearRampToValueAtTime(0, now + dur)
+  gainNode.gain.setValueAtTime(0, startAt)
+  gainNode.gain.linearRampToValueAtTime(localGain, startAt + attack)
+  gainNode.gain.setValueAtTime(localGain, startAt + dur - release)
+  gainNode.gain.linearRampToValueAtTime(0, startAt + dur)
 
   osc.connect(gainNode)
   gainNode.connect(ctx.destination)
-  osc.start(now)
-  osc.stop(now + dur + 0.05)
+  osc.start(startAt)
+  osc.stop(startAt + dur + 0.05)
 }
 
 // 노이즈 (찰칵·타격 등 비주기 사운드용)
-function playNoise(durationMs: number, gain = 1, filterFreq = 2000) {
+function playNoise(durationMs: number, gain = 1, filterFreq = 2000, delayMs = 0) {
   if (!config.enabled) return
   const ctx = getCtx()
   if (!ctx) return
   if (ctx.state === 'suspended') ctx.resume().catch(() => {})
 
-  const now = ctx.currentTime
+  const startAt = ctx.currentTime + delayMs / 1000
   const dur = durationMs / 1000
   const localGain = gain * config.volume * 0.5  // noise는 좀 작게
 
@@ -125,21 +140,21 @@ function playNoise(durationMs: number, gain = 1, filterFreq = 2000) {
   // 저역 필터 통과로 high-freq 톤을 줄임
   const filter = ctx.createBiquadFilter()
   filter.type = 'lowpass'
-  filter.frequency.setValueAtTime(filterFreq, now)
+  filter.frequency.setValueAtTime(filterFreq, startAt)
 
   const gainNode = ctx.createGain()
-  gainNode.gain.setValueAtTime(localGain, now)
-  gainNode.gain.exponentialRampToValueAtTime(0.001, now + dur)
+  gainNode.gain.setValueAtTime(localGain, startAt)
+  gainNode.gain.exponentialRampToValueAtTime(0.001, startAt + dur)
 
   noise.connect(filter)
   filter.connect(gainNode)
   gainNode.connect(ctx.destination)
-  noise.start(now)
-  noise.stop(now + dur + 0.05)
+  noise.start(startAt)
+  noise.stop(startAt + dur + 0.05)
 }
 
 // ============================================================
-// 고수준: 게임 이벤트별 SFX 프리셋
+// 고수준: 기본 게임 이벤트별 SFX 프리셋
 // ============================================================
 export const sfx = {
   // 평타 — 짧은 둔탁 (square 440 → 220 sweep)
@@ -156,15 +171,15 @@ export const sfx = {
   // 크리티컬 — 고음 알림
   crit() {
     playTone({ freq: 880, type: 'square', duration: 60, gain: 0.5 })
-    playTone({ freq: 1320, type: 'square', duration: 100, gain: 0.5 })
+    playTone({ freq: 1320, type: 'square', duration: 100, gain: 0.5, delay: 40 })
   },
 
-  // 스킬 — 마법 느낌 sweep
+  // 스킬 — 마법 느낌 sweep (fallback)
   skill() {
     playTone({ freq: 220, freqEnd: 880, type: 'triangle', duration: 200, gain: 0.4 })
   },
 
-  // 마법 — 더 높은 sweep
+  // 마법 — 더 높은 sweep (fallback)
   magic() {
     playTone({ freq: 660, freqEnd: 1760, type: 'sine', duration: 250, gain: 0.4 })
     playTone({ freq: 880, freqEnd: 1320, type: 'triangle', duration: 200, gain: 0.3 })
@@ -175,16 +190,16 @@ export const sfx = {
     playTone({ freq: 1200, freqEnd: 600, type: 'sine', duration: 80, gain: 0.25 })
   },
 
-  // 픽업 (아이템/골드) — 상승음
+  // 픽업 (아이템) — 상승음
   pickup() {
     playTone({ freq: 660, type: 'triangle', duration: 60, gain: 0.4 })
-    setTimeout(() => playTone({ freq: 990, type: 'triangle', duration: 80, gain: 0.4 }), 60)
+    playTone({ freq: 990, type: 'triangle', duration: 80, gain: 0.4, delay: 60 })
   },
 
   // 골드 획득
   gold() {
     playTone({ freq: 1320, type: 'sine', duration: 50, gain: 0.3 })
-    setTimeout(() => playTone({ freq: 1980, type: 'sine', duration: 70, gain: 0.3 }), 50)
+    playTone({ freq: 1980, type: 'sine', duration: 70, gain: 0.3, delay: 50 })
   },
 
   // 사망 — 하강음
@@ -195,13 +210,13 @@ export const sfx = {
   // 승리 — 팡파레
   victory() {
     const notes = [523, 659, 784, 1046]  // C-E-G-C
-    notes.forEach((f, i) => setTimeout(() => playTone({ freq: f, type: 'square', duration: 150, gain: 0.4 }), i * 100))
+    notes.forEach((f, i) => playTone({ freq: f, type: 'square', duration: 150, gain: 0.4, delay: i * 100 }))
   },
 
   // 레벨업/등급 향상
   rankUp() {
     const notes = [440, 554, 659, 880]
-    notes.forEach((f, i) => setTimeout(() => playTone({ freq: f, type: 'triangle', duration: 100, gain: 0.4 }), i * 70))
+    notes.forEach((f, i) => playTone({ freq: f, type: 'triangle', duration: 100, gain: 0.4, delay: i * 70 }))
   },
 
   // 클릭 / UI 인터랙션
@@ -213,6 +228,412 @@ export const sfx = {
   transition() {
     playTone({ freq: 330, freqEnd: 660, type: 'sine', duration: 150, gain: 0.3 })
   },
+
+  // ============================================================
+  // 스킬별 고유 사운드
+  // ============================================================
+  skills: {
+    // ─── 물리 공격 ───
+    스매쉬() {
+      // 무거운 둔탁 — 낮은 square down + 노이즈
+      playNoise(80, 0.7, 400)
+      playTone({ freq: 150, freqEnd: 60, type: 'square', duration: 220, gain: 0.55 })
+    },
+    피어스() {
+      // 빠른 찌르기 — 짧고 날카로운 휘파람
+      playTone({ freq: 1400, freqEnd: 2200, type: 'sine', duration: 60, gain: 0.35 })
+      playTone({ freq: 700, type: 'square', duration: 50, gain: 0.3, delay: 30 })
+    },
+    연속공격() {
+      // 3연타
+      for (let i = 0; i < 3; i++) {
+        playTone({ freq: 500 + i * 60, freqEnd: 280 + i * 40, type: 'square', duration: 70, gain: 0.4, delay: i * 70 })
+      }
+    },
+    정밀타격() {
+      // 메탈릭 'tink' — 고음 sine + triangle
+      playTone({ freq: 1760, type: 'triangle', duration: 80, gain: 0.4 })
+      playTone({ freq: 2640, type: 'sine', duration: 120, gain: 0.3, delay: 20 })
+    },
+    급습() {
+      // 빠른 swoosh + 타격
+      playNoise(100, 0.4, 3000)
+      playTone({ freq: 800, freqEnd: 400, type: 'sawtooth', duration: 150, gain: 0.45, delay: 50 })
+    },
+
+    // ─── 물리 방어 ───
+    방어() {
+      // low thud — 두꺼운 방어막
+      playTone({ freq: 110, type: 'square', duration: 180, gain: 0.5 })
+      playTone({ freq: 165, type: 'square', duration: 180, gain: 0.3 })
+    },
+    회피() {
+      // 짧은 swoosh
+      playNoise(120, 0.45, 4000)
+    },
+    패링() {
+      // metallic clang — sawtooth chord
+      playTone({ freq: 880, type: 'sawtooth', duration: 200, gain: 0.4 })
+      playTone({ freq: 1318, type: 'triangle', duration: 180, gain: 0.35, delay: 20 })
+      playTone({ freq: 1760, type: 'sine', duration: 250, gain: 0.25, delay: 40 })
+    },
+    불굴의의지() {
+      // slow chord build-up — 영웅적
+      playTone({ freq: 220, type: 'triangle', duration: 400, gain: 0.4 })
+      playTone({ freq: 330, type: 'triangle', duration: 400, gain: 0.4, delay: 80 })
+      playTone({ freq: 440, type: 'sine', duration: 500, gain: 0.4, delay: 160 })
+    },
+
+    // ─── 마법 공격 (속성별) ───
+    빙결의화살() {
+      // crystalline — high sine glissando + 떨림
+      playTone({ freq: 1760, freqEnd: 2200, type: 'sine', duration: 180, gain: 0.4 })
+      playTone({ freq: 2640, type: 'sine', duration: 100, gain: 0.25, delay: 100 })
+      playNoise(60, 0.2, 6000, 150)
+    },
+    화염구() {
+      // bass roar + noise burst
+      playNoise(180, 0.6, 1500)
+      playTone({ freq: 110, freqEnd: 200, type: 'sawtooth', duration: 250, gain: 0.5 })
+      playTone({ freq: 330, freqEnd: 660, type: 'square', duration: 200, gain: 0.3, delay: 30 })
+    },
+    폭풍칼날() {
+      // wind noise + multiple high tones
+      playNoise(220, 0.5, 5000)
+      for (let i = 0; i < 3; i++) {
+        playTone({ freq: 1200 + i * 200, type: 'triangle', duration: 80, gain: 0.3, delay: i * 60 })
+      }
+    },
+    바위충격() {
+      // deep boom + 잔향
+      playTone({ freq: 80, type: 'square', duration: 300, gain: 0.6 })
+      playNoise(250, 0.7, 500)
+      playTone({ freq: 55, type: 'sawtooth', duration: 400, gain: 0.4, delay: 50 })
+    },
+    번개창() {
+      // sharp crack — filtered noise + high tone
+      playNoise(50, 0.8, 8000)
+      playTone({ freq: 2200, freqEnd: 4400, type: 'square', duration: 60, gain: 0.4, delay: 20 })
+      playTone({ freq: 660, type: 'sawtooth', duration: 150, gain: 0.3, delay: 60 })
+    },
+    그림자일격() {
+      // dark bass swell — descending eerie
+      playTone({ freq: 220, freqEnd: 55, type: 'sine', duration: 350, gain: 0.5 })
+      playTone({ freq: 330, freqEnd: 110, type: 'triangle', duration: 300, gain: 0.3, delay: 50 })
+    },
+    정화의광선() {
+      // heavenly chord — multiple sines (C-E-G-B)
+      const chord = [523, 659, 784, 988]
+      chord.forEach((f, i) => playTone({ freq: f, type: 'sine', duration: 400, gain: 0.3, delay: i * 30 }))
+      playTone({ freq: 1046, type: 'sine', duration: 500, gain: 0.25, delay: 150 })
+    },
+
+    // ─── 마법 방어 ───
+    배리어() {
+      // rising shimmer
+      playTone({ freq: 440, freqEnd: 880, type: 'sine', duration: 300, gain: 0.4 })
+      playTone({ freq: 660, freqEnd: 1320, type: 'triangle', duration: 280, gain: 0.3, delay: 50 })
+    },
+    마력충전() {
+      // gentle sparkle — 상승 아르페지오
+      const notes = [523, 659, 784, 988, 1175]
+      notes.forEach((f, i) => playTone({ freq: f, type: 'triangle', duration: 100, gain: 0.3, delay: i * 50 }))
+    },
+    저항의결계() {
+      // slow pad build — 두꺼운 패드
+      playTone({ freq: 110, type: 'triangle', duration: 600, gain: 0.4 })
+      playTone({ freq: 165, type: 'sine', duration: 600, gain: 0.3, delay: 100 })
+      playTone({ freq: 220, type: 'sine', duration: 600, gain: 0.3, delay: 200 })
+      playTone({ freq: 330, type: 'sine', duration: 600, gain: 0.25, delay: 300 })
+    },
+  },
+
+  // ============================================================
+  // 몬스터 카테고리별 피격/사망 사운드
+  // ============================================================
+  // 카테고리: soft (슬라임/식물), bone (언데드/스켈), metal (기계/골렘),
+  //          beast (야수/그리폰), fire (불/용암), magical (영혼/그림자/환영)
+  monsterHit(category: MonsterSfxCategory) {
+    switch (category) {
+      case 'soft':
+        // 끈적한 plop
+        playNoise(80, 0.45, 700)
+        playTone({ freq: 180, freqEnd: 90, type: 'sine', duration: 100, gain: 0.3 })
+        break
+      case 'bone':
+        // 마른 rattle — 짧고 건조한
+        playNoise(60, 0.5, 3000)
+        playTone({ freq: 220, type: 'square', duration: 60, gain: 0.25 })
+        break
+      case 'metal':
+        // 금속 ring
+        playTone({ freq: 1320, type: 'sawtooth', duration: 100, gain: 0.4 })
+        playTone({ freq: 1980, type: 'sine', duration: 150, gain: 0.3, delay: 20 })
+        playNoise(40, 0.3, 4000)
+        break
+      case 'beast':
+        // yelp/growl — 낮은 동물 신음
+        playTone({ freq: 330, freqEnd: 220, type: 'sawtooth', duration: 150, gain: 0.4 })
+        playNoise(70, 0.4, 1500)
+        break
+      case 'fire':
+        // sizzle hiss — 화염 피격
+        playNoise(120, 0.55, 2500)
+        playTone({ freq: 440, freqEnd: 880, type: 'triangle', duration: 100, gain: 0.3 })
+        break
+      case 'magical':
+        // ethereal blur — 환영
+        playTone({ freq: 660, freqEnd: 330, type: 'sine', duration: 180, gain: 0.35 })
+        playTone({ freq: 990, freqEnd: 495, type: 'triangle', duration: 160, gain: 0.25, delay: 30 })
+        break
+    }
+  },
+
+  monsterDeath(category: MonsterSfxCategory) {
+    switch (category) {
+      case 'soft':
+        // 꺼지는 plop
+        playNoise(200, 0.6, 500)
+        playTone({ freq: 220, freqEnd: 55, type: 'sine', duration: 350, gain: 0.4 })
+        break
+      case 'bone':
+        // 뼈 부서지는 dry crack
+        playNoise(150, 0.7, 4000)
+        playTone({ freq: 165, freqEnd: 80, type: 'square', duration: 250, gain: 0.4, delay: 30 })
+        break
+      case 'metal':
+        // 금속 폭발 — 강한 clang + boom
+        playTone({ freq: 880, freqEnd: 220, type: 'sawtooth', duration: 300, gain: 0.5 })
+        playNoise(250, 0.7, 1500, 50)
+        playTone({ freq: 110, freqEnd: 55, type: 'square', duration: 400, gain: 0.4, delay: 100 })
+        break
+      case 'beast':
+        // 동물 death cry (descending)
+        playTone({ freq: 440, freqEnd: 110, type: 'sawtooth', duration: 500, gain: 0.5 })
+        playNoise(200, 0.4, 2000, 100)
+        break
+      case 'fire':
+        // 화염 꺼지기 — fizzle out
+        playNoise(300, 0.6, 800)
+        playTone({ freq: 660, freqEnd: 165, type: 'triangle', duration: 350, gain: 0.4 })
+        break
+      case 'magical':
+        // ethereal fade dissolve — 천천히 사라짐
+        playTone({ freq: 880, freqEnd: 110, type: 'sine', duration: 700, gain: 0.45 })
+        playTone({ freq: 660, freqEnd: 220, type: 'triangle', duration: 600, gain: 0.3, delay: 80 })
+        break
+    }
+  },
+}
+
+export type MonsterSfxCategory = 'soft' | 'bone' | 'metal' | 'beast' | 'fire' | 'magical'
+
+// 스킬 키 → 사운드 함수 라우터 (없으면 fallback)
+export function playSkillSound(key: string, kind?: string) {
+  const fn = (sfx.skills as Record<string, (() => void) | undefined>)[key]
+  if (fn) {
+    fn()
+    return
+  }
+  // fallback by kind
+  if (kind === 'magic_atk' || kind === 'magic_def') sfx.magic()
+  else sfx.skill()
+}
+
+// ============================================================
+// BGM (배경음악) — 절차적 멜로디 시퀀서
+// ============================================================
+// 두 가지 분위기:
+//   - splash:  웅장하고 음울 (C minor, slow tempo)
+//   - menu:    몽환적이고 발랄 (C major, mid tempo, bell-like)
+// 음표 시퀀스를 setTimeout 으로 스케줄, loopMs 후 자동 반복.
+
+interface BgmNote {
+  freq: number          // Hz (0 = rest)
+  startMs: number       // 마디 시작부터 오프셋 ms
+  durationMs: number    // 음 길이 ms
+  type?: OscillatorType
+  gain?: number         // 절대 곱 (이미 bgmVolume 적용 안 됨, 함수 내에서 적용)
+  attack?: number
+  release?: number
+}
+
+interface BgmTrack {
+  notes: BgmNote[]
+  loopMs: number  // 한 루프 길이
+}
+
+// ── splash BGM: 웅장/음울 (C minor 90BPM, 1마디 = 2666ms (4/4))
+// 멜로디(상): C5 Eb5 G5 Ab5 G5 F5 Eb5 D5 …
+// 베이스: C2 - G2 - Ab2 - F2 (느린 워킹)
+const SPLASH_BGM: BgmTrack = (() => {
+  const notes: BgmNote[] = []
+  // 베이스 라인 (4개 음, 길게)
+  const bass = [65.4, 65.4, 49.0, 77.8]  // C2 C2 G1 Eb2 (음울)
+  bass.forEach((f, i) => {
+    notes.push({ freq: f, startMs: i * 1500, durationMs: 1400, type: 'sawtooth', gain: 0.35, attack: 200, release: 300 })
+  })
+  // 멜로디 (상성부) — 음울한 단조 멜로디
+  const mel = [
+    { f: 523, off: 0 },     // C5
+    { f: 622, off: 600 },   // Eb5
+    { f: 783, off: 1200 },  // G5
+    { f: 698, off: 1800 },  // F5
+    { f: 622, off: 2400 },  // Eb5
+    { f: 587, off: 3200 },  // D5
+    { f: 523, off: 4000 },  // C5
+    { f: 466, off: 4800 },  // Bb4
+    { f: 523, off: 5400 },  // C5
+  ]
+  mel.forEach(({ f, off }) => {
+    notes.push({ freq: f, startMs: off, durationMs: 500, type: 'triangle', gain: 0.25, attack: 30, release: 100 })
+  })
+  return { notes, loopMs: 6000 }
+})()
+
+// ── menu BGM: 몽환적/발랄 (C major 120BPM, bell-like)
+// 코드 진행: C - G - Am - F (pop progression)
+// 멜로디: 상승하는 sine 아르페지오
+const MENU_BGM: BgmTrack = (() => {
+  const notes: BgmNote[] = []
+  // 베이스 (4코드, 각 1000ms)
+  const bassNotes = [130.8, 98.0, 110.0, 87.3]  // C3 G2 A2 F2
+  bassNotes.forEach((f, i) => {
+    notes.push({ freq: f, startMs: i * 1000, durationMs: 900, type: 'triangle', gain: 0.3, attack: 50, release: 150 })
+  })
+  // 아르페지오 (각 코드 위 3음, 8분음표)
+  const arps: number[][] = [
+    [523, 659, 784],  // C major
+    [392, 587, 784],  // G major
+    [440, 523, 659],  // A minor
+    [349, 440, 523],  // F major
+  ]
+  arps.forEach((chord, ci) => {
+    const startBase = ci * 1000
+    // 1코드당 8개 8분음표 (125ms 간격)
+    for (let i = 0; i < 8; i++) {
+      const f = chord[i % 3]
+      notes.push({
+        freq: f,
+        startMs: startBase + i * 125,
+        durationMs: 120,
+        type: 'sine',
+        gain: 0.18,
+        attack: 5,
+        release: 60,
+      })
+    }
+  })
+  // 하이라이트 sparkle (랜덤 위치)
+  const sparklePositions = [375, 1500, 2625, 3750]
+  sparklePositions.forEach(off => {
+    notes.push({ freq: 1046, startMs: off, durationMs: 200, type: 'triangle', gain: 0.15, attack: 5, release: 100 })
+    notes.push({ freq: 1568, startMs: off + 60, durationMs: 200, type: 'sine', gain: 0.12, attack: 5, release: 100 })
+  })
+  return { notes, loopMs: 4000 }
+})()
+
+const BGM_TRACKS: Record<BgmKind, BgmTrack> = {
+  splash: SPLASH_BGM,
+  menu: MENU_BGM,
+}
+
+export type BgmKind = 'splash' | 'menu'
+
+let bgmTimer: number | null = null
+let bgmCurrent: BgmKind | null = null
+let bgmScheduledOscillators: { osc: OscillatorNode; gain: GainNode; stopAt: number }[] = []
+
+function scheduleBgmLoop(track: BgmTrack, ctxStartTime: number) {
+  const ctx = getCtx()
+  if (!ctx) return
+  for (const note of track.notes) {
+    if (note.freq <= 0) continue
+    const startAt = ctxStartTime + note.startMs / 1000
+    const dur = note.durationMs / 1000
+    const attack = (note.attack ?? 10) / 1000
+    const release = (note.release ?? 80) / 1000
+    const localGain = (note.gain ?? 0.3) * config.bgmVolume
+
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = note.type ?? 'sine'
+    osc.frequency.setValueAtTime(note.freq, startAt)
+    gain.gain.setValueAtTime(0, startAt)
+    gain.gain.linearRampToValueAtTime(localGain, startAt + attack)
+    gain.gain.setValueAtTime(localGain, startAt + Math.max(attack, dur - release))
+    gain.gain.linearRampToValueAtTime(0, startAt + dur)
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start(startAt)
+    osc.stop(startAt + dur + 0.05)
+    bgmScheduledOscillators.push({ osc, gain, stopAt: startAt + dur + 0.05 })
+  }
+}
+
+function clearOldBgmOscillators() {
+  if (!IS_BROWSER) return
+  const ctx = getCtx()
+  if (!ctx) return
+  const now = ctx.currentTime
+  bgmScheduledOscillators = bgmScheduledOscillators.filter(item => {
+    if (item.stopAt < now) return false  // 이미 끝남
+    return true
+  })
+}
+
+export function playBgm(kind: BgmKind) {
+  if (!IS_BROWSER) return
+  if (bgmCurrent === kind) return  // 이미 같은 BGM
+  stopBgm()
+  if (!config.enabled || !config.bgmEnabled) {
+    bgmCurrent = kind  // 토글 켜졌을 때 시작할 수 있게 기억
+    return
+  }
+  const ctx = getCtx()
+  if (!ctx) return
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {})
+
+  const track = BGM_TRACKS[kind]
+  if (!track) return
+  bgmCurrent = kind
+
+  // 첫 루프 즉시 스케줄, 이후 setInterval 로 반복
+  scheduleBgmLoop(track, ctx.currentTime)
+  bgmTimer = (setInterval(() => {
+    const c = getCtx()
+    if (!c) return
+    clearOldBgmOscillators()
+    scheduleBgmLoop(track, c.currentTime)
+  }, track.loopMs) as unknown) as number
+}
+
+export function stopBgm() {
+  if (!IS_BROWSER) return
+  if (bgmTimer !== null) {
+    clearInterval(bgmTimer)
+    bgmTimer = null
+  }
+  // 현재 재생 중인 모든 BGM 오실레이터를 빠르게 페이드아웃
+  const ctx = getCtx()
+  if (ctx) {
+    const now = ctx.currentTime
+    const fade = 0.15
+    for (const item of bgmScheduledOscillators) {
+      try {
+        item.gain.gain.cancelScheduledValues(now)
+        item.gain.gain.setValueAtTime(item.gain.gain.value, now)
+        item.gain.gain.linearRampToValueAtTime(0, now + fade)
+        item.osc.stop(now + fade + 0.05)
+      } catch {}
+    }
+  }
+  bgmScheduledOscillators = []
+  bgmCurrent = null
+}
+
+export function getCurrentBgm(): BgmKind | null {
+  return bgmCurrent
 }
 
 // ============================================================
@@ -229,11 +650,30 @@ export function getSoundVolume(): number {
 export function setSoundEnabled(v: boolean) {
   config.enabled = v
   saveConfig(config)
+  // 비활성화 시 BGM 정지, 활성화 시 마지막 BGM 재시작
+  if (!v) {
+    const remembered = bgmCurrent
+    stopBgm()
+    bgmCurrent = remembered
+  } else if (bgmCurrent) {
+    const kind = bgmCurrent
+    bgmCurrent = null  // playBgm 가 중복 체크하므로 초기화
+    playBgm(kind)
+  }
 }
 
 export function setSoundVolume(v: number) {
   config.volume = Math.max(0, Math.min(1, v))
   saveConfig(config)
+}
+
+export function setBgmVolume(v: number) {
+  config.bgmVolume = Math.max(0, Math.min(1, v))
+  saveConfig(config)
+}
+
+export function getBgmVolume(): number {
+  return config.bgmVolume
 }
 
 export function toggleSound() {

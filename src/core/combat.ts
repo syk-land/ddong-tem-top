@@ -15,6 +15,7 @@ import {
   dispatchOnHpThreshold,
   dispatchOnDeath,
 } from './monsterTraits'
+import { playMonsterHit, playMonsterDeath } from './monsterSfx'
 
 export interface LogEntry {
   text: string
@@ -228,6 +229,8 @@ export function playerBasicAttack(ctx: CombatContext) {
   } else {
     pushLog(ctx, `${target.template.name}에게 ${finalDmg} 데미지`, 'damage')
   }
+  // 피격음 (몬스터 카테고리 기반) — 살아있을 때만, 사망음은 별도
+  if (target.hp > 0) playMonsterHit(target)
 
   // 흡혈
   if (eff.lifesteal > 0) {
@@ -345,6 +348,8 @@ export function checkMonsterDeath(ctx: CombatContext) {
       }
       m._deathLogged = true
       pushLog(ctx, `${m.template.name}을(를) 처치했다!`, 'reward')
+      // 몬스터 카테고리별 사망음
+      playMonsterDeath(m)
     }
   }
   // 모든 적 사망 시 종료

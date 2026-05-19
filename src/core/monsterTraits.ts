@@ -648,7 +648,11 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   laser_charge: {
     key: 'laser_charge',
-    description: '레이저 차징 — 30틱마다 차징 5틱 후 ×3 데미지 (거대 메카닉 타이탄)',
+    description: '레이저 차징 — 30틱마다 차징 5틱 후 ×1.8 데미지. 평타 -20% (거대 메카닉 타이탄)',
+    onSpawn({ monster }) {
+      // 메카닉 타이탄: 평타는 약하지만 차징이 주력 데미지
+      monster.atk = Math.round(monster.atk * 0.8)
+    },
     onTickStart({ ctx, monster }) {
       // 30틱마다 차징 시작
       if (ctx.tick > 0 && ctx.tick % 30 === 0 && (monster._chargingTicks ?? 0) <= 0) {
@@ -660,7 +664,8 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
       if ((monster._chargingTicks ?? 0) > 0) {
         monster._chargingTicks!--
         if (monster._chargingTicks === 0) {
-          const dmg = Math.round(monster.atk * 3.0)
+          // 평타 -20% 보정한 atk 기준 ×1.8 (총 원래 atk × 1.44)
+          const dmg = Math.round(monster.atk * 1.8)
           damagePlayer(ctx, dmg, `${monster.template.name}: 레이저 발사`)
         }
       }
@@ -731,12 +736,15 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   aerial_invincible: {
     key: 'aerial_invincible',
-    description: '비행 무적 — 물리 공격 무효, 마법만 적중 (천공의 심판자 키메라)',
+    description: '비행 회피 — 물리 공격 50% 감소, 마법은 정상 적중 (천공의 심판자 키메라)',
     onAfterAttacked(p) {
       if (p.isPhysical) {
-        // 물리 데미지 전체 회복
-        p.monster.hp = Math.min(p.monster.maxHp, p.monster.hp + p.damage)
-        pushLog(p.ctx, `${p.monster.template.name}: 비행 무적! 물리 무효`, 'miss')
+        // 물리 데미지 50% 환원 (= 절반만 피격)
+        const refund = Math.round(p.damage * 0.5)
+        if (refund > 0) {
+          p.monster.hp = Math.min(p.monster.maxHp, p.monster.hp + refund)
+          pushLog(p.ctx, `${p.monster.template.name}: 비행 회피! 물리 -50%`, 'miss')
+        }
       }
     },
   },

@@ -9,6 +9,8 @@ import { clamp } from './rng'
 import type { Character, ItemInstance, MonsterInstance, StatusKind } from '@/types'
 import { computeArmorAutoProc, computeWeaponSkillProc } from './buildBalance'
 import { dispatchOnAfterAttacked, dispatchOnHpThreshold } from './monsterTraits'
+import { playSkillSound } from '@/ui/sound'
+import { playMonsterHit } from './monsterSfx'
 
 // 스킬 효과는 키별로 직접 처리
 export function useSkill(ctx: CombatContext, key: string): boolean {
@@ -34,6 +36,8 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
   }
   ctx.player.mp -= mpCost
   if (mpCost > 0) pushLog(ctx, `${skill.name} 사용 (MP -${mpCost})`, 'skill')
+  // 스킬별 고유 효과음 (없으면 fallback)
+  playSkillSound(key, skill.kind)
 
   switch (key) {
     case '스매쉬':
@@ -209,6 +213,8 @@ function attackSkill(
   } else {
     pushLog(ctx, `${target.template.name}에게 ${finalDmg} 데미지`, 'damage')
   }
+  // 피격음 (살아있을 때만)
+  if (target.hp > 0) playMonsterHit(target)
 
   // 흡혈
   if (eff.lifesteal > 0) {
@@ -268,6 +274,8 @@ function magicAttackOnTarget(
   } else {
     pushLog(ctx, `${target.template.name}에게 ${dmg} 마법 데미지`, 'damage')
   }
+  // 피격음 (살아있을 때만; 사망음은 checkMonsterDeath에서)
+  if (target.hp > 0) playMonsterHit(target)
 
   if (statusKind && procChance > 0) {
     const luckBonus = 1 + eff.행운 * 0.005

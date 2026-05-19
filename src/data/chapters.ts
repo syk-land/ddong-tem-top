@@ -159,13 +159,15 @@ export function getNormalMonsterBaseline(chapter: number): BaselineStats {
   }
 }
 
-// v3 보스 밸런싱 — 가산식 + LOL K=30 환경에서 클리어 가능하도록 약화
+// v4 보스 밸런싱 — 시뮬레이션 기반 조정 (2026-05-20)
+//   목표: 노말 50% / 레어 60% / 스페셜 70% 평균 클리어률
+//   조정: hp × 3.5 → 4.3 (+23%), atk × 1.2 → 1.3 (+8%)
 export function getBossBaseline(chapter: number): BaselineStats {
   const n = getNormalMonsterBaseline(chapter)
   return {
-    hp: n.hp * 3.5,    // 5 → 3.5
-    atk: n.atk * 1.2,
-    def: n.def * 1.3,  // 1.6 → 1.3
+    hp: n.hp * 4.3,    // 3.5 → 4.3 (+23%)
+    atk: n.atk * 1.3,  // 1.2 → 1.3 (+8%)
+    def: n.def * 1.3,
     speed: 10,
   }
 }
