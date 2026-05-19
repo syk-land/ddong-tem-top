@@ -27,6 +27,16 @@ const traitDef = computed(() =>
   isWeapon.value ? WEAPON_TRAITS[props.item.trait] : ARMOR_TRAITS[props.item.trait]
 )
 const traitBase = computed(() => traitDef.value?.effects ?? {})
+
+// 현재 장착 중인 동일 슬롯 아이템 (인벤토리 비교용)
+const currentEquipped = computed(() => {
+  if (!props.character) return null
+  const slot = isWeapon.value ? 'weapon' : 'armor'
+  const cur = props.character[slot]
+  // 이 ItemDetail 이 현재 장착품을 표시 중이면 비교 무의미
+  if (!cur || cur.id === props.item.id) return null
+  return cur
+})
 const coef = computed(() => props.item.coef)
 const effects = computed(() => props.item.effects)
 
@@ -318,6 +328,112 @@ const equipChanges = computed<EquipDelta[]>(() => {
   return out
 })
 
+// 현재 장착품과의 교체 비교 라인 (Δ 공격력 / Δ 방어력 등)
+interface CompareDelta {
+  label: string
+  delta: number
+  pctDelta?: number  // 현재 대비 변화율 (%)
+  kind: EquipDeltaKind
+}
+
+const compareChanges = computed<CompareDelta[]>(() => {
+  if (!props.character || !currentEquipped.value) return []
+  const cur = currentEquipped.value
+  const out: CompareDelta[] = []
+
+  // 무기 비교
+  if (weaponBase.value) {
+    const curBase = WEAPONS[cur.baseKey]
+    const curTrait = WEAPON_TRAITS[cur.trait]?.effects ?? {}
+    if (!curBase) return out
+
+    // 신규 무기 공격력
+    const newAtkPct = (traitBase.value.공격력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
+    const newAtk = weaponBase.value.baseAtk * (coef.value + newAtkPct)
+    // 현재 무기 공격력
+    const curAtkPct = (curTrait.공격력_pct ?? 0) + (curTrait.전스탯_pct ?? 0)
+    const curAtk = curBase.baseAtk * (cur.coef + curAtkPct)
+
+    const dAtk = newAtk - curAtk
+    if (Math.abs(dAtk) > 0.01) {
+      out.push({
+        label: '공격력',
+        delta: dAtk,
+        pctDelta: curAtk > 0 ? (dAtk / curAtk) * 100 : 0,
+        kind: 'atk',
+      })
+    }
+
+    // 속도 비교
+    const newSpeed = weaponBase.value.speedCoef * (1 + (traitBase.value.속도_pct ?? 0))
+    const curSpeed = curBase.speedCoef * (1 + (curTrait.속도_pct ?? 0))
+    const dSpeed = newSpeed - curSpeed
+    if (Math.abs(dSpeed) > 0.01) {
+      out.push({
+        label: '공속',
+        delta: dSpeed,
+        pctDelta: curSpeed > 0 ? (dSpeed / curSpeed) * 100 : 0,
+        kind: 'atk',
+      })
+    }
+  }
+
+  // 갑옷 비교
+  if (armorBase.value) {
+    const curBase = ARMORS[cur.baseKey as keyof typeof ARMORS]
+    const curTrait = ARMOR_TRAITS[cur.trait]?.effects ?? {}
+    if (!curBase) return out
+
+    // 신규 갑옷 방어력
+    const newDefPct = (traitBase.value.방어력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
+    const newDef = armorBase.value.baseDef * 2.0 * (coef.value + newDefPct)
+    // 현재 갑옷 방어력
+    const curDefPct = (curTrait.방어력_pct ?? 0) + (curTrait.전스탯_pct ?? 0)
+    const curDef = curBase.baseDef * 2.0 * (cur.coef + curDefPct)
+
+    const dDef = newDef - curDef
+    if (Math.abs(dDef) > 0.01) {
+      out.push({
+        label: '방어력',
+        delta: dDef,
+        pctDelta: curDef > 0 ? (dDef / curDef) * 100 : 0,
+        kind: 'def',
+      })
+    }
+
+    // 공속배율 비교
+    const newSpeedMult = armorBase.value.speedMult * (1 + (traitBase.value.속도_pct ?? 0))
+    const curSpeedMult = curBase.speedMult * (1 + (curTrait.속도_pct ?? 0))
+    const dSpeedMult = newSpeedMult - curSpeedMult
+    if (Math.abs(dSpeedMult) > 0.01) {
+      out.push({
+        label: '공속배율',
+        delta: dSpeedMult,
+        pctDelta: curSpeedMult > 0 ? (dSpeedMult / curSpeedMult) * 100 : 0,
+        kind: 'atk',
+      })
+    }
+
+    // 마력 (마법공격력 영향)
+    const newMp = armorBase.value.mpBonus + (effects.value.마력 ?? 0)
+    const curMp = curBase.mpBonus + (cur.effects.마력 ?? 0)
+    const dMp = newMp - curMp
+    if (dMp !== 0) {
+      out.push({ label: '마력', delta: dMp, kind: 'atk' })
+    }
+
+    // 회피
+    const newEva = armorBase.value.evasion + (effects.value.회피 ?? 0)
+    const curEva = curBase.evasion + (cur.effects.회피 ?? 0)
+    const dEva = newEva - curEva
+    if (Math.abs(dEva) > 0.01) {
+      out.push({ label: '회피', delta: dEva, kind: 'def' })
+    }
+  }
+
+  return out
+})
+
 // 던전 등급 변화 한 줄 (6챕터부터 표시)
 const rankLine = computed(() => {
   if (!props.character) return null
@@ -383,6 +499,28 @@ const rankLine = computed(() => {
               ({{ ch.pct >= 0 ? '+' : '' }}{{ ch.pct.toFixed(0) }}%)
             </span>
             <span v-if="i < equipChanges.length - 1" class="text-gray-600 mx-0.5">·</span>
+          </template>
+        </div>
+        <!-- 현재 장착품과의 교체 비교 (Δ 표시) -->
+        <div v-if="compareChanges.length" class="text-[10px] mt-0.5 leading-tight border-t border-gray-700/50 pt-0.5">
+          <span class="text-gray-500">교체 시 Δ:</span>
+          <template v-for="(ch, i) in compareChanges" :key="`cmp-${i}`">
+            <span
+              :class="[
+                ch.delta >= 0 ? 'text-log-reward' : 'text-status-burn',
+                'font-bold ml-1',
+              ]"
+            >
+              {{ ch.label }}
+              {{ ch.delta >= 0 ? '+' : '' }}{{ ch.delta.toFixed(2) }}
+            </span>
+            <span
+              v-if="ch.pctDelta !== undefined"
+              :class="[ch.pctDelta >= 0 ? 'text-log-reward' : 'text-status-burn']"
+            >
+              ({{ ch.pctDelta >= 0 ? '+' : '' }}{{ ch.pctDelta.toFixed(0) }}%)
+            </span>
+            <span v-if="i < compareChanges.length - 1" class="text-gray-600 mx-0.5">·</span>
           </template>
         </div>
       </div>

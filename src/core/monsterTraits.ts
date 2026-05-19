@@ -421,12 +421,15 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   silence_chance: {
     key: 'silence_chance',
-    description: '침묵 — 20% 확률 (샤도우 가고일). 단계 2 에서 스킬 봉인 UI 연결',
+    description: '침묵 — 20% 확률로 플레이어 스킬 사용 20틱간 봉인 (샤도우 가고일)',
     onBeforeAttack({ ctx, monster }) {
       if (Math.random() < 0.2) {
-        // 임시 표현: 둔화로 대체 (스킬 봉인 시스템 미구현)
-        applyStatus(ctx.player, '둔화', monster.atk, ctx.tick, 0)
-        pushLog(ctx, `${monster.template.name}: 침묵 (둔화 효과 임시 대체)`, 'status')
+        const dur = 20
+        const until = ctx.tick + dur
+        if ((ctx.player.silencedUntilTick ?? 0) < until) {
+          ctx.player.silencedUntilTick = until
+        }
+        pushLog(ctx, `${monster.template.name}: 침묵! ${dur}틱 스킬 봉인`, 'status')
       }
     },
   },
@@ -701,24 +704,27 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   screen_darken: {
     key: 'screen_darken',
-    description: '시야 차단 — HP 50% 에서 플레이어 명중 영구 -20 (실루엣 크로우)',
+    description: '시야 차단 — HP 50% 에서 플레이어에게 강력한 암흑 (40틱) 적용 (실루엣 크로우)',
     onHpThreshold({ ctx, monster, threshold }) {
       if (threshold !== 0.5) return
-      // 플레이어 명중률 영구 -20 (스탯 직접 조정)
-      ctx.player.stats.명중률 = Math.max(0, ctx.player.stats.명중률 - 20)
-      pushLog(ctx, `${monster.template.name}: 시야 차단! 명중률 -20`, 'status')
+      // 시야 차단 = 암흑 상태 4스택 부여 (1스택 -25, 4스택 ≈ -65 명중)
+      // 층 클리어 시 자동 정화되므로 영구 문제 없음
+      for (let i = 0; i < 4; i++) {
+        applyStatus(ctx.player, '암흑', monster.atk, ctx.tick, 0)
+      }
+      pushLog(ctx, `${monster.template.name}: 시야 차단! 강력한 암흑 (4스택)`, 'status')
     },
   },
 
   silence_all: {
     key: 'silence_all',
-    description: '전체 침묵 — 30틱마다 MP 0 (공허의 군주)',
+    description: '전체 침묵 — 30틱마다 MP 0 + 30틱 스킬 봉인 (공허의 군주)',
     onTickStart({ ctx, monster }) {
       if (ctx.tick > 0 && ctx.tick % 30 === 0) {
-        if (ctx.player.mp > 0) {
-          ctx.player.mp = 0
-          pushLog(ctx, `${monster.template.name}: 침묵! MP 봉인`, 'status')
-        }
+        ctx.player.mp = 0
+        const dur = 30
+        ctx.player.silencedUntilTick = ctx.tick + dur
+        pushLog(ctx, `${monster.template.name}: 침묵! MP 0 + ${dur}틱 스킬 봉인`, 'status')
       }
     },
   },

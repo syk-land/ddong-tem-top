@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import type {
   Screen, TowerRun, MetaBonuses, Stats, StatKey, ItemInstance,
 } from '@/types'
-import { createCharacter, generateRandomStats, uniformStartingStats } from '@/core/character'
+import { createCharacter, generateRandomStats, uniformStartingStats, computeMaxMp } from '@/core/character'
 import { makeTowerRun, currentChapter, currentFloor, advanceFloor } from '@/core/tower'
 import { loadMeta, saveMeta, saveRun, loadRun, clearRun, defaultMeta, commitClearBonus, computePendingBonus, type PendingClearBonus } from '@/core/meta'
 import { createCombatContext, type CombatContext, advanceTick, checkActionReady, consumeAction, playerBasicAttack, monsterAttack, makeMonster, pushLog } from '@/core/combat'
@@ -28,10 +28,12 @@ import {
   isActiveSkillForbidden, isBasicAttackForbidden, canEquipItem,
   onSmithBet, onRouletteResult, onAltarUsed, onAltarOffered,
   onBlackMarketUsed, onPvpHit, onPlayerHitByTheme,
+  shopForbidden, shopRefreshForbidden, healingSpringForbidden,
   mergedFlags,
 } from '@/core/challengeRuntime'
 import { computeWeaponSkillProc } from '@/core/buildBalance'
 import { npcIconUrl, pickRandomUserAvatars, isValidAvatarKey } from '@/ui/images'
+import { sfx } from '@/ui/sound'
 import { computeEffectiveStats } from '@/core/stats'
 import { SKILLS as SKILLS_REF } from '@/data/skills'
 import { CHALLENGES_MAP as CHALLENGES_MAP_REF } from '@/data/challenges'
@@ -395,6 +397,12 @@ export const useGameStore = defineStore('game', {
           break
         }
         case 'shop': {
+          // 챌린지: 불매 운동 (noShop) — 상점 진입 차단
+          if (this.challengeContext && shopForbidden(this.challengeContext)) {
+            this.alertModal('💸 불매 운동 챌린지: 상점 이용 불가', '챌린지 제약')
+              .then(() => this.advance())
+            break
+          }
           this.shop = createShop(chapterNum)
           this.screen = 'shop'
           break
@@ -404,6 +412,13 @@ export const useGameStore = defineStore('game', {
           break
         }
         case 'healing_spring': {
+          // 챌린지: 절대 정수 (noHealingSpring) — 회복샘 사용 차단
+          if (this.challengeContext && healingSpringForbidden(this.challengeContext)) {
+            this.combat = null
+            this.alertModal('⛲ 절대 정수 챌린지: 회복샘 이용 불가', '챌린지 제약')
+              .then(() => this.advance())
+            break
+          }
           const heal = Math.round(this.run.character.maxHp * 0.30)
           this.run.character.hp = Math.min(this.run.character.maxHp, this.run.character.hp + heal)
           this.combat = null
@@ -526,6 +541,7 @@ export const useGameStore = defineStore('game', {
       }
       this.run.inventory.push(item)
       c[slot] = null
+      this.recomputeDerivedStats()
       saveRun(this.run)
       return { ok: true }
     },
@@ -551,8 +567,26 @@ export const useGameStore = defineStore('game', {
       } else {
         this.run.inventory.splice(idx, 1)
       }
+      this.recomputeDerivedStats()
       saveRun(this.run)
       return { ok: true }
+    },
+
+    // 장비 변경 시 maxMp 재계산 (마력 보너스가 갑옷/트레잇에서 변경됨)
+    //   character.maxMp 는 생성 시점 stats.마력 만 반영 → 동적 갱신 필요
+    recomputeDerivedStats() {
+      if (!this.run) return
+      const c = this.run.character
+      const eff = computeEffectiveStats(c)
+      const newMaxMp = computeMaxMp(eff.마력)
+      // mpCapFixed 챌린지가 있으면 그 값 유지
+      const flags = this.challengeContext ? mergedFlags(this.challengeContext) : {}
+      if (flags.mpCapFixed !== undefined) {
+        c.maxMp = flags.mpCapFixed
+      } else {
+        c.maxMp = newMaxMp
+      }
+      c.mp = Math.min(c.mp, c.maxMp)
     },
 
     // 인벤토리 슬롯 판매 (buyback 가격)
@@ -585,8 +619,10 @@ export const useGameStore = defineStore('game', {
     // 층 이동
     advance() {
       if (!this.run) return
-      // 층 클리어 시 플레이어 상태이상 전체 제거 (점화/출혈/독/둔화/암흑/감전)
+      sfx.transition()
+      // 층 클리어 시 플레이어 상태이상 + 침묵 전체 제거
       this.run.character.statuses = []
+      this.run.character.silencedUntilTick = undefined
       // 챕터 종료 직전 훅 (현재 챕터 마지막 층이면)
       const ch = currentChapter(this.run)
       const willEndChapter = ch.currentFloor + 1 >= ch.floors.length
@@ -614,6 +650,7 @@ export const useGameStore = defineStore('game', {
 
     handleTowerClear() {
       if (!this.run) return
+      sfx.victory()
       if (this.challengeContext) {
         evaluateFinalChallenges(this.challengeContext, this.run.character)
       }
@@ -1050,6 +1087,7 @@ export const useGameStore = defineStore('game', {
       if (!this.combat || !this.run) return
       if (!this.combat.victory) {
         // 사망 → 게임 오버
+        sfx.death()
         clearRun()
         this.savedRunExists = false
         this.screen = 'gameover'
@@ -1088,7 +1126,13 @@ export const useGameStore = defineStore('game', {
       pushLog(this.combat, `골드 +${reward}`, 'gold')
 
       // 보스/미믹 처치 시 드랍 아이템 (다수 전투는 드랍 X — 골드만)
-      if (isBossFight) {
+      // item_block trait 가진 적이 전투에 포함되어 있으면 드랍 차단 (그리폰 등)
+      const blockedByItemBlock = this.combat.monsters.some(
+        (m) => m.template.trait === 'item_block',
+      )
+      if (blockedByItemBlock) {
+        pushLog(this.combat, '🚫 아이템 봉쇄 — 드랍 차단됨', 'info')
+      } else if (isBossFight) {
         const drop = rollItem({ kind: Math.random() < 0.5 ? 'weapon' : 'armor', chapter: chapterNum, source: 'boss' })
         this.receiveItem(drop)
         pushLog(this.combat, `보스 드랍: ${drop.trait} ${drop.grade} ${drop.baseKey}`, 'reward')
@@ -1179,6 +1223,7 @@ export const useGameStore = defineStore('game', {
       // 장착
       c[slotKey] = item
       if (this.challengeContext) onEquipItem(this.challengeContext, item, prev)
+      this.recomputeDerivedStats()
 
       // 상점 인벤토리에서 제거
       if (this.shop) {
@@ -1206,11 +1251,17 @@ export const useGameStore = defineStore('game', {
         }
       }
       this.run.character[slot] = null
+      this.recomputeDerivedStats()
       saveRun(this.run)
     },
 
     refreshShopAction(): boolean {
       if (!this.run || !this.shop) return false
+      // 챌린지: 리롤 금지령 (noShopRefresh) — 새로고침 차단
+      if (this.challengeContext && shopRefreshForbidden(this.challengeContext)) {
+        this.alertModal('🔄 리롤 금지령 챌린지: 새로고침 불가', '챌린지 제약')
+        return false
+      }
       const chapter = currentChapter(this.run).chapter
       const ok = refreshShop(this.shop, this.run.refreshState, chapter)
       if (ok) {

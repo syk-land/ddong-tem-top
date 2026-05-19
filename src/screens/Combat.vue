@@ -7,6 +7,7 @@ import ItemName from '@/ui/components/ItemName.vue'
 import StatusBadges from '@/ui/components/StatusBadges.vue'
 import { logColorClass, logPrefix } from '@/ui/colors'
 import { themeBgUrl, skillIconUrl, monsterImageUrl, playerImageUrl } from '@/ui/images'
+import { sfx } from '@/ui/sound'
 
 const game = useGameStore()
 const combat = computed(() => game.combat!)
@@ -160,10 +161,37 @@ watch(
 
 watch(
   () => log.value.length,
-  () => {
+  (newLen, oldLen) => {
     requestAnimationFrame(() => {
       if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight
     })
+    // 새 로그 항목 → 사운드 트리거 (로그 kind 기반)
+    if (oldLen != null && newLen > oldLen) {
+      for (let i = oldLen; i < newLen; i++) {
+        const entry = log.value[i]
+        if (!entry) continue
+        switch (entry.kind) {
+          case 'critical': sfx.crit(); break
+          case 'damage': sfx.attack(); break
+          case 'enemy':
+            // 적의 공격 OR 적 사망 로그 — 데미지 받은 경우만 hit 사운드
+            if (entry.text.includes('피해')) sfx.hit()
+            break
+          case 'miss': sfx.miss(); break
+          case 'skill':
+            // 마법 vs 물리 구분: 마법 키워드 포함 시 magic sound
+            if (/마법|화염|빙결|번개|폭풍|바위|그림자|정화|배리어|결계|마력 충전/.test(entry.text)) sfx.magic()
+            else sfx.skill()
+            break
+          case 'heal': /* 회복 사운드 — 작게 */ break
+          case 'reward':
+            if (entry.text.includes('드랍')) sfx.pickup()
+            else if (entry.text.includes('처치')) { /* 처치 알림은 일반 attack 으로 커버 */ }
+            break
+          case 'gold': sfx.gold(); break
+        }
+      }
+    }
   }
 )
 

@@ -4,7 +4,7 @@ import { useGameStore } from '@/stores/game'
 import type { Stats, StatKey } from '@/types'
 import { statColorClass } from '@/ui/colors'
 import { uniformStartingStats } from '@/core/character'
-import { mainImageUrl, userAvatarUrl } from '@/ui/images'
+import { mainImageUrl, userAvatarUrl, userAvatarLabel } from '@/ui/images'
 
 const bgUrl = mainImageUrl()
 
@@ -106,10 +106,13 @@ const usedDice = computed(() => 3 - game.rollsLeft)
         >
           <img
             :src="userAvatarUrl(key)"
-            :alt="key"
+            :alt="userAvatarLabel(key)"
             class="w-full aspect-square object-contain"
             @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
           />
+          <div class="text-[10px] text-center mt-1 text-gray-300 leading-tight">
+            {{ userAvatarLabel(key) }}
+          </div>
         </div>
       </div>
     </div>

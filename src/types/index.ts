@@ -226,6 +226,8 @@ export interface Character {
   gold: number
   statuses: StatusInstance[]
   actionGauge: number
+  // 침묵 효과 (silence_chance trait 등) — 이 틱까지 스킬 사용 봉인
+  silencedUntilTick?: number
 }
 
 // ====== 게임 진행 ======

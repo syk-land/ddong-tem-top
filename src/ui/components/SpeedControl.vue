@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useGameStore } from '@/stores/game'
+import { isSoundEnabled, toggleSound, sfx } from '@/ui/sound'
 
 const game = useGameStore()
 const speeds = [1, 2, 4] as const
@@ -8,6 +9,9 @@ const speeds = [1, 2, 4] as const
 // 펼침 상태 — localStorage 영속화
 const expanded = ref(true)
 const STORAGE_KEY = 'climetop:speedControl:expanded:v1'
+
+// 사운드 토글 상태 (reactive)
+const soundOn = ref(isSoundEnabled())
 
 onMounted(() => {
   try {
@@ -18,6 +22,7 @@ onMounted(() => {
 
 function setSpeed(s: number) {
   game.setCombatSpeed(s)
+  sfx.click()
 }
 
 function toggle() {
@@ -25,6 +30,13 @@ function toggle() {
   try {
     localStorage.setItem(STORAGE_KEY, expanded.value ? '1' : '0')
   } catch {}
+}
+
+function onToggleSound() {
+  toggleSound()
+  soundOn.value = isSoundEnabled()
+  // 새로 켰을 때 확인 사운드
+  if (soundOn.value) sfx.click()
 }
 </script>
 
@@ -57,5 +69,14 @@ function toggle() {
 
     <!-- 접힘 상태: 현재 속도만 작게 표시 -->
     <span v-else class="text-[10px] text-gray-300 font-bold pr-1">{{ game.combatSpeed }}x</span>
+
+    <!-- 사운드 토글 — 항상 표시 -->
+    <button
+      class="w-5 h-5 flex items-center justify-center rounded text-sm text-gray-200 hover:bg-slate-700 ml-1"
+      :title="soundOn ? '사운드 끄기' : '사운드 켜기'"
+      @click="onToggleSound"
+    >
+      {{ soundOn ? '🔊' : '🔇' }}
+    </button>
   </div>
 </template>

@@ -15,6 +15,12 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
   const skill = SKILLS[key]
   if (!skill) return false
 
+  // 침묵: silenceUntilTick 까지 스킬 사용 불가
+  if (ctx.player.silencedUntilTick !== undefined && ctx.tick < ctx.player.silencedUntilTick) {
+    pushLog(ctx, `🔇 침묵 상태 — 스킬 사용 불가`, 'info')
+    return false
+  }
+
   const eff = computeEffectiveStats(ctx.player)
   let mpCost = skill.mp
   // 마법 무기는 MP 보정 적용

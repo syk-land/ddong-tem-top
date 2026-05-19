@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "android": "npm run build && npx cap sync android && npx cap open android",
     "android:build": "npm run build && npx cap sync android",
-    "cap:init": "npx cap init climetop com.climetop.app --web-dir=dist"
+    "cap:init": "npx cap init climetop com.climetop.app --web-dir=dist",
+    "sim": "npx tsx src/core/__sim__/runChapter.ts"
   },
   "dependencies": {
     "vue": "^3.4.27",
