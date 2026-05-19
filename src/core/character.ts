@@ -25,10 +25,10 @@ export function generateRandomStats(): Stats {
   return stats
 }
 
-// 스탯 → 실수치 변환 (균등 1.0 가치 기준)
-// 체력 1pt = +5 HP = 평균 받는 dmg 5 기준 +1 hit 회피
+// 스탯 → 실수치 변환 (v3 재밸런싱)
+// 체력 1pt = +10 HP (받는 dmg 평균 10 기준 +1 hit 회피)
 export function computeMaxHp(체력: number): number {
-  return 체력 * 5 + 50
+  return 체력 * 10 + 50
 }
 
 // 마력 1pt = +15 MP + 모든 공격 데미지 +1 가산 (stats.ts에서 처리)

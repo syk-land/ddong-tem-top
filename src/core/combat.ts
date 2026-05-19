@@ -140,7 +140,7 @@ export function computeDamage(
   //   def 100 → 20% (방어 빌드)
   //   def 200 → 11% (탱커 빌드)
   //   def 500 → 4.8% (극한, 절대 0 아님)
-  const DEF_K = 25
+  const DEF_K = 30
   const effectiveDef = Math.max(0, defender.방어 - attackerStats.관통 * penBoost)
   let dmg = Math.max(1, effectiveAtk * DEF_K / (DEF_K + effectiveDef))
 
@@ -236,7 +236,7 @@ export function monsterAttack(ctx: CombatContext, attacker: MonsterInstance) {
   const defMult = buff.defMult ?? 1
   const effDef = eff.방어력_effective * defMult
   // LOL 방어 공식 (게임 스케일 K=25): damage = atk × 25 / (25 + def)
-  const DEF_K = 25
+  const DEF_K = 30
   const finalDmg = Math.max(1, Math.round(attacker.atk * DEF_K / (DEF_K + Math.max(0, effDef))))
 
   // 갑옷 데미지 흡혈 (피격 시 HP 회복)

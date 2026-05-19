@@ -8,15 +8,21 @@ import { ARMORS, ARMOR_KEYS } from '@/data/armor'
 import { WEAPON_TRAITS, WEAPON_TRAIT_POOL, ARMOR_TRAITS, ARMOR_TRAIT_POOL } from '@/data/traits'
 import { randFloat, pickOne, weightedChoice, clamp, uniqueId } from './rng'
 
-// 4.5 16-tier 인덱스 공식
+// 16-tier 인덱스 — v3 등급 우선 공식
+// tier = (grade_level - 1) × 4 + trait_level
+//   하급-노말 1   보통-노말 2   희귀-노말 3   특별-노말 4
+//   하급-레어 5   보통-레어 6   ...           특별-레어 8
+//   하급-스페셜 9 ...                          특별-스페셜 12
+//   하급-레전드 13                              특별-레전드 16
+// → 등급이 주, 트레잇이 부 (특별-노말 ≈ 하급-레어 인접 tier로 매칭)
 export function tierIndex(traitTier: TraitTier, grade: Grade): number {
-  return (TRAIT_TIER_LEVEL[traitTier] - 1) * 4 + GRADE_LEVEL[grade]
+  return (GRADE_LEVEL[grade] - 1) * 4 + TRAIT_TIER_LEVEL[traitTier]
 }
 
 export function tierToCombo(tier: number): { trait_tier: TraitTier; grade: Grade } {
   const t = clamp(tier, 1, 16)
-  const traitLevel = Math.floor((t - 1) / 4) + 1
-  const gradeLevel = ((t - 1) % 4) + 1
+  const gradeLevel = Math.floor((t - 1) / 4) + 1
+  const traitLevel = ((t - 1) % 4) + 1
   const traitTiers: TraitTier[] = ['하급', '보통', '희귀', '특별']
   const grades: Grade[] = ['노말', '레어', '스페셜', '레전드']
   return {

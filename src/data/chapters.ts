@@ -159,12 +159,13 @@ export function getNormalMonsterBaseline(chapter: number): BaselineStats {
   }
 }
 
+// v3 보스 밸런싱 — 가산식 + LOL K=30 환경에서 클리어 가능하도록 약화
 export function getBossBaseline(chapter: number): BaselineStats {
   const n = getNormalMonsterBaseline(chapter)
   return {
-    hp: n.hp * 5,
+    hp: n.hp * 3.5,    // 5 → 3.5
     atk: n.atk * 1.2,
-    def: n.def * 1.6,
+    def: n.def * 1.3,  // 1.6 → 1.3
     speed: 10,
   }
 }
