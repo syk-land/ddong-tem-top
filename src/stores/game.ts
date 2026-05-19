@@ -26,7 +26,8 @@ import {
   onMimicFlee, onBossFightEnd, onTick, onChapterEnd,
   recordActiveSkillUse, recordBasicAttackUse, evaluateFinalChallenges,
   isActiveSkillForbidden, isBasicAttackForbidden, canEquipItem,
-  onSmithBet, onRouletteResult, onAltarUsed, onBlackMarketUsed,
+  onSmithBet, onRouletteResult, onAltarUsed, onAltarOffered,
+  onBlackMarketUsed, onPvpHit, onPlayerHitByTheme,
   mergedFlags,
 } from '@/core/challengeRuntime'
 import { computeWeaponSkillProc } from '@/core/buildBalance'
@@ -213,6 +214,12 @@ export const useGameStore = defineStore('game', {
     init() {
       this.meta = loadMeta()
       this.savedRunExists = loadRun() !== null
+      // 저장된 게임 속도 복원 (1/2/4 만 허용)
+      try {
+        const raw = localStorage.getItem('climetop:speed:v1')
+        const n = raw ? Number(raw) : NaN
+        if (n === 1 || n === 2 || n === 4) this.combatSpeed = n
+      } catch {}
       // 캐릭터 생성 중 상태 복원
       const c = loadCreation()
       if (c) {
@@ -578,6 +585,8 @@ export const useGameStore = defineStore('game', {
     // 층 이동
     advance() {
       if (!this.run) return
+      // 층 클리어 시 플레이어 상태이상 전체 제거 (점화/출혈/독/둔화/암흑/감전)
+      this.run.character.statuses = []
       // 챕터 종료 직전 훅 (현재 챕터 마지막 층이면)
       const ch = currentChapter(this.run)
       const willEndChapter = ch.currentFloor + 1 >= ch.floors.length
@@ -653,9 +662,16 @@ export const useGameStore = defineStore('game', {
 
       // 각 살아있는 몬스터의 행동
       const ready = checkActionReady(this.combat)
+      const themeName = currentChapter(this.run).theme  // 환영 챕터 식별용
       for (const m of ready.readyMonsters) {
         if (this.combat.ended) break
+        const hpBefore = this.combat.player.hp
         monsterAttack(this.combat, m)
+        const damageTaken = hpBefore - this.combat.player.hp
+        if (damageTaken > 0 && this.challengeContext) {
+          if (this.combat.isPvp) onPvpHit(this.challengeContext, damageTaken)
+          onPlayerHitByTheme(this.challengeContext, themeName, damageTaken)
+        }
         consumeAction(m)
       }
 
@@ -705,6 +721,9 @@ export const useGameStore = defineStore('game', {
 
     setCombatSpeed(speed: number) {
       this.combatSpeed = speed
+      try {
+        localStorage.setItem('climetop:speed:v1', String(speed))
+      } catch {}
     },
 
     // ========================================
@@ -837,6 +856,7 @@ export const useGameStore = defineStore('game', {
       }
       const monster = makeMonster(template, chapter + 1, 'normal')
       this.combat = createCombatContext(this.run.character, monster)
+      this.combat.isPvp = true
       pushLog(this.combat, '악당 모험가와의 PVP!', 'info')
       this.screen = 'combat'
       return true
@@ -909,6 +929,10 @@ export const useGameStore = defineStore('game', {
 
     async eventExchangeAltar() {
       if (!this.run) return
+      // 챌린지 트래킹: 제단이 이 챕터에 등장했음을 기록
+      if (this.challengeContext) {
+        onAltarOffered(this.challengeContext, currentChapter(this.run).chapter)
+      }
       const allStats: StatKey[] = ['공격력', '방어력', '체력', '마력']
       let exchangeCount = 0
       while (exchangeCount < 3) {
@@ -1010,6 +1034,7 @@ export const useGameStore = defineStore('game', {
       }
       const monster = makeMonster(template, chapter, 'normal')
       this.combat = createCombatContext(c, monster)
+      this.combat.isPvp = true
       pushLog(this.combat, '격노한 수집가와의 전투!', 'info')
       this.screen = 'combat'
       return true

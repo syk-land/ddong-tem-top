@@ -6,6 +6,15 @@ import { applyStatus, getAccuracyModifier, getDamageTakenModifier, getSpeedModif
 import { clamp, randFloat, randInt } from './rng'
 import { getNormalMonsterBaseline, getBossBaseline, getMimicBaseline } from '@/data/chapters'
 import type { LogKind } from '@/ui/colors'
+import {
+  dispatchOnSpawn,
+  dispatchOnBeforeAttack,
+  dispatchOnAfterAttacked,
+  dispatchOnPlayerHit,
+  dispatchOnTickStart,
+  dispatchOnHpThreshold,
+  dispatchOnDeath,
+} from './monsterTraits'
 
 export interface LogEntry {
   text: string
@@ -22,6 +31,8 @@ export interface CombatContext {
   buffs: Map<string, { duration: number; effect: TempBuff }>  // 일시 버프 (방어 스킬 등)
   ended: boolean
   victory: boolean
+  // PVP 전투 (위기 모험가 / 탐욕 수집가) — 챌린지 트래커가 참조
+  isPvp?: boolean
 }
 
 // 현재 타겟 (첫 살아있는 몬스터). 모두 죽었으면 null
@@ -70,7 +81,7 @@ export function makeMonster(template: MonsterTemplate, chapter: number, kind: 'n
 
 export function createCombatContext(player: Character, monsters: MonsterInstance | MonsterInstance[]): CombatContext {
   const arr = Array.isArray(monsters) ? monsters : [monsters]
-  return {
+  const ctx: CombatContext = {
     player,
     monsters: arr,
     tick: 0,
@@ -79,12 +90,44 @@ export function createCombatContext(player: Character, monsters: MonsterInstance
     ended: false,
     victory: false,
   }
+  // trait onSpawn 발화 (HP/스탯 보정 등)
+  for (const m of arr) dispatchOnSpawn(ctx, m)
+  return ctx
 }
 
 export function pushLog(ctx: CombatContext, text: string, kind: LogKind = 'info') {
   ctx.log.push({ text, kind, tick: ctx.tick })
   // 최근 200개만 유지
   if (ctx.log.length > 200) ctx.log.shift()
+}
+
+// 플레이어 HP 회복 시 살아있는 적의 회복 간섭 trait 효과를 반영한다.
+// raw: 트레잇 보정 전 원본 회복량. 반환값: 실제로 적용해야 할 회복량 (음수면 데미지 처리).
+//
+// 효과:
+//   heal_reduction  (구울)    : ×0.5
+//   heal_pollution  (역병 쥐) : ×0.3 (오염 — 더 강함)
+//   heal_reverse    (보스)    : ×-1  (역전)
+//
+// 여러 효과가 동시 존재 시 곱셈 누적. 살아있는 적만 영향.
+export function applyHealing(ctx: CombatContext, raw: number): number {
+  if (raw <= 0) return raw
+  let mult = 1
+  let reversed = false
+  for (const m of ctx.monsters) {
+    if (m.hp <= 0) continue
+    const t = m.template.trait
+    if (t === 'heal_reduction') mult *= 0.5
+    else if (t === 'heal_pollution') mult *= 0.3
+    else if (t === 'heal_reverse') { mult *= -1; reversed = true }
+  }
+  if (reversed) {
+    // heal_reverse: 회복이 데미지로 전환됨을 로그에 명시 (호출지에서 healAmount 음수 처리)
+    pushLog(ctx, `회복 역전: ${raw} → ${Math.abs(Math.round(raw * mult))} 피해`, 'status')
+  } else if (mult < 1) {
+    pushLog(ctx, `회복 감소: ${raw} → ${Math.round(raw * mult)}`, 'status')
+  }
+  return Math.round(raw * mult)
 }
 
 // 3.3 명중 공식
@@ -179,6 +222,7 @@ export function playerBasicAttack(ctx: CombatContext) {
   const finalDmg = Math.round(dmg * shockMult)
 
   target.hp -= finalDmg
+  target._hitsTaken = (target._hitsTaken ?? 0) + 1
   if (isCrit) {
     pushLog(ctx, `⚡ 크리티컬! ${target.template.name}에게 ${finalDmg} 데미지`, 'critical')
   } else {
@@ -187,15 +231,21 @@ export function playerBasicAttack(ctx: CombatContext) {
 
   // 흡혈
   if (eff.lifesteal > 0) {
-    const heal = Math.round(finalDmg * eff.lifesteal)
+    const heal = applyHealing(ctx, Math.round(finalDmg * eff.lifesteal))
     if (heal > 0) {
       ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal)
       pushLog(ctx, `흡혈로 HP +${heal}`, 'heal')
+    } else if (heal < 0) {
+      ctx.player.hp = Math.max(0, ctx.player.hp + heal)
     }
   }
 
   // 트레잇 기반 상태이상 발동 (무기) — 현재 타겟에 적용
   rollStatusProcs(ctx, eff, target)
+
+  // trait: 피격 후 훅 (반사 등) + 페이즈 임계값 체크
+  dispatchOnAfterAttacked(ctx, target, finalDmg, { isMagic: false, isPhysical: true })
+  dispatchOnHpThreshold(ctx, target)
 
   checkMonsterDeath(ctx)
 }
@@ -224,32 +274,51 @@ function rollStatusProcs(ctx: CombatContext, eff: EffectiveStats, target: Monste
 // 적의 공격 (지정 attacker)
 export function monsterAttack(ctx: CombatContext, attacker: MonsterInstance) {
   if (attacker.hp <= 0) return
+
+  // trait: 공격 직전 훅 (custom action 으로 평타 스킵 가능)
+  const before = dispatchOnBeforeAttack(ctx, attacker)
+  if (before.skipBasicAttack) {
+    attacker._attacksMade = (attacker._attacksMade ?? 0) + 1
+    return
+  }
+
   const eff = computeEffectiveStats(ctx.player)
   const buff = activeBuff(ctx)
   const blindMod = getAccuracyModifier(attacker)
 
   if (!rollHit(0, eff.회피율 + (buff.evaBonus ?? 0), blindMod)) {
     pushLog(ctx, `${attacker.template.name}의 공격을 회피했다.`, 'miss')
+    attacker._attacksMade = (attacker._attacksMade ?? 0) + 1
     return
   }
 
   const defMult = buff.defMult ?? 1
-  const effDef = eff.방어력_effective * defMult
+  let effDef = eff.방어력_effective * defMult
+  // trait: 마법 공격자는 플레이어 방어를 절반만 적용 (S1-Q1 결정)
+  if (attacker.template.trait === 'magic_attacker') {
+    effDef *= 0.5
+  }
   // LOL 방어 공식 (게임 스케일 K=25): damage = atk × 25 / (25 + def)
   const DEF_K = 30
   const finalDmg = Math.max(1, Math.round(attacker.atk * DEF_K / (DEF_K + Math.max(0, effDef))))
 
   // 갑옷 데미지 흡혈 (피격 시 HP 회복)
   if (eff.damageTakenHealPct > 0) {
-    const heal = Math.round(finalDmg * eff.damageTakenHealPct)
+    const heal = applyHealing(ctx, Math.round(finalDmg * eff.damageTakenHealPct))
     if (heal > 0) {
       ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal)
       pushLog(ctx, `피해 흡수 +${heal}`, 'heal')
+    } else if (heal < 0) {
+      ctx.player.hp = Math.max(0, ctx.player.hp + heal)
     }
   }
 
   ctx.player.hp = Math.max(0, ctx.player.hp - finalDmg)
   pushLog(ctx, `${attacker.template.name}의 공격! ${finalDmg} 피해`, 'enemy')
+
+  // trait: 플레이어 피격 후 훅 (블러드 스트라이크 카운트, 챌린지 트래커 진입점)
+  attacker._attacksMade = (attacker._attacksMade ?? 0) + 1
+  if (finalDmg > 0) dispatchOnPlayerHit(ctx, attacker, finalDmg)
 
   // 반사 데미지 (방어/패링 버프) — 공격한 적에게 반사
   if (buff.reflect && buff.reflect > 0) {
@@ -265,9 +334,15 @@ export function monsterAttack(ctx: CombatContext, attacker: MonsterInstance) {
 }
 
 export function checkMonsterDeath(ctx: CombatContext) {
-  // 새로 죽은 몬스터 로그
+  // 새로 죽은 몬스터: trait onDeath 훅 → 부활 가능
   for (const m of ctx.monsters) {
     if (m.hp <= 0 && !m._deathLogged) {
+      // trait: 부활 기회 (revive_chance 등)
+      const { revived } = dispatchOnDeath(ctx, m)
+      if (revived && m.hp > 0) {
+        // onDeath 핸들러가 hp 를 복구한 경우 — 사망 로그 생략하고 계속 진행
+        continue
+      }
       m._deathLogged = true
       pushLog(ctx, `${m.template.name}을(를) 처치했다!`, 'reward')
     }
@@ -300,7 +375,7 @@ export function advanceTick(ctx: CombatContext) {
     }
   }
 
-  // 각 몬스터 상태이상
+  // 각 몬스터 상태이상 + trait 매 틱 효과
   for (const m of ctx.monsters) {
     if (m.hp <= 0) continue
     const mTick = tickStatuses(m, ctx.tick)
@@ -310,6 +385,8 @@ export function advanceTick(ctx: CombatContext) {
         pushLog(ctx, `${m.template.name}: ${ev.kind} ${ev.stacks}스택 -${ev.dmg}`, 'status')
       }
     }
+    // trait: 환경 오라/차징 등 매 틱 효과
+    dispatchOnTickStart(ctx, m)
   }
 
   // 자해 (저주의 트레잇)

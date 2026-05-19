@@ -204,6 +204,14 @@ export interface MonsterInstance {
   statuses: StatusInstance[]
   actionGauge: number
   _deathLogged?: boolean  // 사망 로그 1회만 출력
+  // ── trait 시스템 런타임 카운터 (monsterTraits.ts 에서 참조) ──
+  _hitsTaken?: number          // 피격 횟수 (first_hit_immune 등)
+  _attacksMade?: number        // 자신이 시도한 공격 수 (first_attack_dodge 등)
+  _revived?: boolean           // revive_chance 1회 소진 플래그
+  _phase?: number              // 보스 페이즈 0/1/2 — onHpThreshold 단방향
+  _phaseTriggered?: Record<string, boolean>  // 보스 페이즈 훅 단방향 플래그 (키 = threshold)
+  _chargingTicks?: number      // laser_charge 등 차징 카운트다운
+  _spawnedBy?: string          // 미니언이면 부모 보스 식별 (선택)
 }
 
 // ====== 캐릭터 ======

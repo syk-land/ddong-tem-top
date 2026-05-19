@@ -58,7 +58,7 @@ async function unequipSlot(slot: 'weapon' | 'armor') {
               @click="unequipSlot('weapon')"
             >해제</button>
           </div>
-          <ItemDetail v-if="c.weapon" :item="c.weapon" />
+          <ItemDetail v-if="c.weapon" :item="c.weapon" :character="c" />
           <div v-else class="text-xs text-gray-600 text-center py-2">맨손</div>
         </div>
         <!-- 갑옷 -->
@@ -71,7 +71,7 @@ async function unequipSlot(slot: 'weapon' | 'armor') {
               @click="unequipSlot('armor')"
             >해제</button>
           </div>
-          <ItemDetail v-if="c.armor" :item="c.armor" />
+          <ItemDetail v-if="c.armor" :item="c.armor" :character="c" />
           <div v-else class="text-xs text-gray-600 text-center py-2">없음</div>
         </div>
       </section>

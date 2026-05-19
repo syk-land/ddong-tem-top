@@ -15,6 +15,7 @@ export interface ActiveChallenge {
     nonTier1EverEquipped?: boolean
     traitedEverEquipped?: boolean
     altarChapterUsage?: Record<number, number>  // 챕터별 교환 횟수
+    altarOfferedChapters?: Record<number, boolean>  // 제단 등장한 챕터
     refreshUsedByChapter?: Record<number, boolean>
     totalGoldSpent?: number
     mimicFled?: boolean
@@ -22,6 +23,7 @@ export interface ActiveChallenge {
     rouletteGreatCount?: number
     smith80PctSuccess?: boolean
     betrayalHits?: number
+    mirageHit?: boolean   // 환영 챕터 피격 여부
     longestBossTick?: number
     lowHpTickAccum?: number
     cursedRemoved?: boolean
@@ -46,6 +48,22 @@ export function makeChallengeContext(challengeKeys: string[]): ChallengeContext 
 
 // 즉시 보상 적용
 export function applyInstantRewards(character: Character, ctx: ChallengeContext) {
+  // 1) 운칠기삼: 행운 외 모든 4종 스탯을 최소(3)으로 강제, 잉여를 행운으로
+  //    스탯 분배 결과를 무시하고 행운 일점투자 빌드로 시작
+  for (const ac of ctx.active) {
+    const def = CHALLENGES_MAP[ac.key]
+    if (def?.flags?.trackLuckOnly) {
+      const base = ['공격력', '방어력', '체력', '마력'] as StatKey[]
+      let surplus = 0
+      for (const k of base) {
+        surplus += Math.max(0, character.stats[k] - 3)
+        character.stats[k] = 3
+      }
+      character.stats.행운 = (character.stats.행운 ?? 0) + surplus
+    }
+  }
+
+  // 2) 즉시 보상 스탯 / 골드
   for (const ac of ctx.active) {
     const def = CHALLENGES_MAP[ac.key]
     if (!def || def.category !== 'instant') continue
@@ -404,6 +422,34 @@ export function onAltarUsed(ctx: ChallengeContext, chapter: number) {
   })
 }
 
+/** 제단 등장 (열렸을 때) — 챕터 단위 기록 */
+export function onAltarOffered(ctx: ChallengeContext, chapter: number) {
+  forActive(ctx, (ac, def) => {
+    if (def.flags?.trackAltarEveryChapter) {
+      if (!ac.counters.altarOfferedChapters) ac.counters.altarOfferedChapters = {}
+      ac.counters.altarOfferedChapters[chapter] = true
+    }
+  })
+}
+
+/** PVP 전투에서 플레이어 피격 (배신 저항군) */
+export function onPvpHit(ctx: ChallengeContext, _damage: number) {
+  forActive(ctx, (ac, def) => {
+    if (def.flags?.trackBetrayalPerfect) {
+      ac.counters.betrayalHits = (ac.counters.betrayalHits ?? 0) + 1
+    }
+  })
+}
+
+/** 플레이어 피격 (테마별) — 환영 파괴자 추적 */
+export function onPlayerHitByTheme(ctx: ChallengeContext, theme: string, _damage: number) {
+  forActive(ctx, (ac, def) => {
+    if (def.flags?.trackDodgeAllMirage && theme === '환영') {
+      ac.counters.mirageHit = true
+    }
+  })
+}
+
 /** 최종 클리어 시 모든 챌린지 검증 */
 export function evaluateFinalChallenges(ctx: ChallengeContext, character: Character) {
   forActive(ctx, (ac, def) => {
@@ -451,6 +497,26 @@ export function evaluateFinalChallenges(ctx: ChallengeContext, character: Charac
     // 미믹 사냥꾼: 도주 X
     if (f.trackKillAllMimics) {
       if (ac.counters.mimicFled) ac.failed = true
+    }
+    // 배신 저항군: PVP 피격 ≤ 3
+    if (f.trackBetrayalPerfect) {
+      if ((ac.counters.betrayalHits ?? 0) > 3) ac.failed = true
+    }
+    // 환영 파괴자: 환영 챕터 무피격
+    if (f.trackDodgeAllMirage) {
+      if (ac.counters.mirageHit) ac.failed = true
+    }
+    // 철저한 등가교환: 제단이 등장한 모든 챕터에서 3회 교환 사용
+    if (f.trackAltarEveryChapter) {
+      const offered = ac.counters.altarOfferedChapters ?? {}
+      const usage = ac.counters.altarChapterUsage ?? {}
+      for (const chKey of Object.keys(offered)) {
+        const ch = Number(chKey)
+        if ((usage[ch] ?? 0) < 3) {
+          ac.failed = true
+          break
+        }
+      }
     }
   })
 }

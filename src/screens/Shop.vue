@@ -82,7 +82,7 @@ async function sellAll() {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div class="bg-bg-tertiary rounded p-2 space-y-2">
           <div class="text-[10px] text-gray-500">⚔️ 무기</div>
-          <ItemDetail v-if="player.weapon" :item="player.weapon" />
+          <ItemDetail v-if="player.weapon" :item="player.weapon" :character="player" />
           <div v-else class="text-xs text-gray-600">맨손</div>
           <button v-if="player.weapon" class="w-full text-xs px-2 py-1 rounded bg-stat-luck/30 text-stat-luck hover:bg-stat-luck/50" @click="sellSlot('weapon')">
             +{{ player.weapon.buyback }}G 판매
@@ -90,7 +90,7 @@ async function sellAll() {
         </div>
         <div class="bg-bg-tertiary rounded p-2 space-y-2">
           <div class="text-[10px] text-gray-500">🛡️ 갑옷</div>
-          <ItemDetail v-if="player.armor" :item="player.armor" />
+          <ItemDetail v-if="player.armor" :item="player.armor" :character="player" />
           <div v-else class="text-xs text-gray-600">없음</div>
           <button v-if="player.armor" class="w-full text-xs px-2 py-1 rounded bg-stat-luck/30 text-stat-luck hover:bg-stat-luck/50" @click="sellSlot('armor')">
             +{{ player.armor.buyback }}G 판매

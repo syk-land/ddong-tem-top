@@ -1,13 +1,14 @@
 import type { CombatContext } from './combat'
-import { computeDamage, pushLog, checkMonsterDeath, rollHit, currentTarget } from './combat'
+import { computeDamage, pushLog, checkMonsterDeath, rollHit, currentTarget, aliveMonsters, applyHealing } from './combat'
 import { computeEffectiveStats } from './stats'
 import { applyStatus, purgeDebuffs } from './status'
 import { SKILLS } from '@/data/skills'
 import { WEAPONS } from '@/data/weapons'
 import { ARMORS } from '@/data/armor'
 import { clamp } from './rng'
-import type { Character, ItemInstance } from '@/types'
+import type { Character, ItemInstance, MonsterInstance, StatusKind } from '@/types'
 import { computeArmorAutoProc, computeWeaponSkillProc } from './buildBalance'
+import { dispatchOnAfterAttacked, dispatchOnHpThreshold } from './monsterTraits'
 
 // 스킬 효과는 키별로 직접 처리
 export function useSkill(ctx: CombatContext, key: string): boolean {
@@ -70,43 +71,85 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       pushLog(ctx, '패링 자세 (10틱)', 'skill')
       break
     case '불굴의의지': {
-      const heal = Math.round(ctx.player.maxHp * 0.05)
-      ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal)
+      const heal = applyHealing(ctx, Math.round(ctx.player.maxHp * 0.05))
+      if (heal > 0) {
+        ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal)
+        pushLog(ctx, `불굴의 의지: HP +${heal}`, 'heal')
+      } else if (heal < 0) {
+        ctx.player.hp = Math.max(0, ctx.player.hp + heal)
+      }
       ctx.buffs.set('iron_will', { duration: 10, effect: { statusResistMult: 30 } })
-      pushLog(ctx, `불굴의 의지: HP +${heal}`, 'heal')
       break
     }
 
     // === 마법 스킬: 통합 공격력 사용. 물리 대비 +30~50% 데미지 ===
-    case '빙결의화살':
-      magicAttack(ctx, 2.0, '둔화', 1.0)  // 1.5 → 2.0
+    //   광역/분산 타겟팅 적용 (단계 2 — 다수 몬스터 의미 부여)
+    case '빙결의화살': {
+      // 관통: 살아있는 적 앞에서 최대 3마리 일렬 적중
+      const alive = aliveMonsters(ctx).slice(0, 3)
+      if (alive.length === 0) break
+      magicAttackMulti(ctx, alive, 2.0, '둔화', 1.0)
+      if (alive.length > 1) pushLog(ctx, `빙결의 화살: ${alive.length}마리 관통`, 'skill')
       break
-    case '화염구':
-      magicAttack(ctx, 2.4, '점화', 0.25)  // 1.8 → 2.4
-      break
-    case '폭풍칼날': {
-      for (let i = 0; i < 3; i++) {
-        const t = currentTarget(ctx)
-        if (!t || t.hp <= 0) break
-        magicAttack(ctx, 0.95, undefined, 0, { accBonus: 50 })  // 0.7 → 0.95 (3히트 총 ×2.85)
+    }
+    case '화염구': {
+      // 메인 100% + 스플래시 40%(나머지 적)
+      const main = currentTarget(ctx)
+      if (!main) break
+      magicAttackOnTarget(ctx, main, 2.4, '점화', 0.25)
+      const splash = aliveMonsters(ctx).filter((m) => m !== main)
+      if (splash.length > 0) {
+        pushLog(ctx, `화염구 스플래시: ${splash.length}마리에 화상 비산`, 'skill')
+        magicAttackMulti(ctx, splash, 2.4 * 0.4, undefined, 0, { accBonus: 20 })
       }
       break
     }
-    case '바위충격':
-      magicAttack(ctx, 2.1, '둔화', 0.40)  // 1.6 → 2.1
+    case '폭풍칼날': {
+      // 3히트 분산: 살아있는 적 ≤3 → 1마리씩 / ≥4 → 무작위 3마리
+      const alive = aliveMonsters(ctx)
+      if (alive.length === 0) break
+      const picks = alive.length <= 3 ? alive : shuffled(alive).slice(0, 3)
+      magicAttackMulti(ctx, picks, 0.95, undefined, 0, { accBonus: 50 })
+      if (picks.length > 1) pushLog(ctx, `폭풍 칼날: ${picks.length}마리 동시 가격`, 'skill')
       break
-    case '번개창':
-      magicAttack(ctx, 2.7, '감전', 0.15)  // 2.0 → 2.7
-      {
-        const t = currentTarget(ctx)
-        if (t) t.actionGauge = Math.max(0, t.actionGauge - 10)
+    }
+    case '바위충격': {
+      // 전체 70% 데미지, 둔화는 메인에만
+      const main = currentTarget(ctx)
+      if (!main) break
+      magicAttackOnTarget(ctx, main, 2.1, '둔화', 0.40)
+      const rest = aliveMonsters(ctx).filter((m) => m !== main)
+      if (rest.length > 0) {
+        magicAttackMulti(ctx, rest, 2.1 * 0.7, undefined, 0)
+        pushLog(ctx, `바위 충격: 광역 진동`, 'skill')
       }
       break
+    }
+    case '번개창': {
+      // 메인 + 연쇄 2 (확률 60% / 30%), 메인 게이지 -10
+      const main = currentTarget(ctx)
+      if (!main) break
+      magicAttackOnTarget(ctx, main, 2.7, '감전', 0.15)
+      main.actionGauge = Math.max(0, main.actionGauge - 10)
+      const remaining = aliveMonsters(ctx).filter((m) => m !== main)
+      if (remaining.length > 0 && Math.random() < 0.6) {
+        const chain1 = remaining[0]
+        magicAttackOnTarget(ctx, chain1, 2.7 * 0.5, '감전', 0.10)
+        pushLog(ctx, `번개 연쇄 1단: ${chain1.template.name}`, 'skill')
+        const remaining2 = remaining.filter((m) => m !== chain1 && m.hp > 0)
+        if (remaining2.length > 0 && Math.random() < 0.3) {
+          const chain2 = remaining2[0]
+          magicAttackOnTarget(ctx, chain2, 2.7 * 0.25, '감전', 0.05)
+          pushLog(ctx, `번개 연쇄 2단: ${chain2.template.name}`, 'skill')
+        }
+      }
+      break
+    }
     case '그림자일격':
-      magicAttack(ctx, 2.0, '암흑', 1.0)  // 1.5 → 2.0
+      magicAttack(ctx, 2.0, '암흑', 1.0)  // 단일 타겟 유지
       break
     case '정화의광선': {
-      magicAttack(ctx, 1.6, undefined, 0)  // 1.2 → 1.6
+      magicAttack(ctx, 1.6, undefined, 0)  // 단일 타겟 + 자기 정화
       const purged = purgeDebuffs(ctx.player)
       if (purged.length > 0) pushLog(ctx, `디버프 ${purged.length}개 정화`, 'heal')
       break
@@ -154,6 +197,7 @@ function attackSkill(
   )
   const finalDmg = opts.critMultiplier && isCrit ? Math.round(dmg * (opts.critMultiplier / 2)) : dmg
   target.hp -= finalDmg
+  target._hitsTaken = (target._hitsTaken ?? 0) + 1
   if (isCrit) {
     pushLog(ctx, `⚡ 크리티컬! ${target.template.name}에게 ${finalDmg} 데미지`, 'critical')
   } else {
@@ -162,12 +206,18 @@ function attackSkill(
 
   // 흡혈
   if (eff.lifesteal > 0) {
-    const heal = Math.round(finalDmg * eff.lifesteal)
+    const heal = applyHealing(ctx, Math.round(finalDmg * eff.lifesteal))
     if (heal > 0) {
       ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal)
       pushLog(ctx, `흡혈 +${heal}`, 'heal')
+    } else if (heal < 0) {
+      ctx.player.hp = Math.max(0, ctx.player.hp + heal)
     }
   }
+
+  // trait: 피격 후 훅 (물리)
+  dispatchOnAfterAttacked(ctx, target, finalDmg, { isMagic: false, isPhysical: true })
+  dispatchOnHpThreshold(ctx, target)
 
   checkMonsterDeath(ctx)
 }
@@ -181,17 +231,32 @@ function magicAttack(
 ) {
   const target = currentTarget(ctx)
   if (!target) return
+  magicAttackOnTarget(ctx, target, multiplier, statusKind, procChance, opts)
+}
+
+// 명시적 타겟에 마법 공격 1회 (광역 스킬 헬퍼)
+//   마법 스킬은 eff.마법공격력 사용 (= 물리 공격력 + 갑옷 mpBonus + 트레잇 마력)
+function magicAttackOnTarget(
+  ctx: CombatContext,
+  target: MonsterInstance,
+  multiplier: number,
+  statusKind: StatusKind | undefined,
+  procChance: number,
+  opts: { accBonus?: number; silent?: boolean } = {}
+) {
+  if (target.hp <= 0) return
   const eff = computeEffectiveStats(ctx.player)
   if (!rollHit(eff.명중률 + (opts.accBonus ?? 0), 0)) {
-    pushLog(ctx, '마법이 빗나갔다.', 'miss')
+    if (!opts.silent) pushLog(ctx, '마법이 빗나갔다.', 'miss')
     return
   }
   const { dmg, isCrit } = computeDamage(
-    { 공격력: eff.공격력, 행운: eff.행운, 관통: eff.관통 },
+    { 공격력: eff.마법공격력, 행운: eff.행운, 관통: eff.관통 },
     { 방어: target.def },
     { multiplier }
   )
   target.hp -= dmg
+  target._hitsTaken = (target._hitsTaken ?? 0) + 1
   if (isCrit) {
     pushLog(ctx, `⚡ 크리티컬! ${target.template.name}에게 ${dmg} 마법 데미지`, 'critical')
   } else {
@@ -202,12 +267,42 @@ function magicAttack(
     const luckBonus = 1 + eff.행운 * 0.005
     const finalChance = clamp(procChance * luckBonus, 0, 0.95)
     if (Math.random() < finalChance) {
-      const ok = applyStatus(target, statusKind, eff.공격력, ctx.tick, 0)
+      // 마법 스킬 발 상태이상은 마법공격력 스냅샷 (DoT 데미지 스케일링)
+      const ok = applyStatus(target, statusKind, eff.마법공격력, ctx.tick, 0)
       if (ok) pushLog(ctx, `${target.template.name}에게 ${statusKind} 발동!`, 'status')
     }
   }
 
+  // trait: 피격 후 훅 (마법)
+  dispatchOnAfterAttacked(ctx, target, dmg, { isMagic: true, isPhysical: false })
+  dispatchOnHpThreshold(ctx, target)
+
   checkMonsterDeath(ctx)
+}
+
+// 살아있는 적 N마리에 같은 공격 적용 (분산형 광역)
+function magicAttackMulti(
+  ctx: CombatContext,
+  targets: MonsterInstance[],
+  multiplier: number,
+  statusKind: StatusKind | undefined,
+  procChance: number,
+  opts: { accBonus?: number } = {}
+) {
+  for (const t of targets) {
+    if (t.hp <= 0) continue
+    magicAttackOnTarget(ctx, t, multiplier, statusKind, procChance, opts)
+  }
+}
+
+// 셔플 (Fisher-Yates) — 폭풍칼날 등 무작위 타겟 분배용
+function shuffled<T>(arr: T[]): T[] {
+  const a = arr.slice()
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
 }
 
 // 무기 자동 부여 스킬 + 갑옷 자동 스킬
