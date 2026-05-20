@@ -33,12 +33,12 @@ function loadConfig(): SoundConfig {
       return {
         enabled: parsed.enabled ?? true,
         volume: typeof parsed.volume === 'number' ? Math.max(0, Math.min(1, parsed.volume)) : 0.3,
-        bgmVolume: typeof parsed.bgmVolume === 'number' ? Math.max(0, Math.min(1, parsed.bgmVolume)) : 0.15,
+        bgmVolume: typeof parsed.bgmVolume === 'number' ? Math.max(0, Math.min(1, parsed.bgmVolume)) : 0.4,
         bgmEnabled: parsed.bgmEnabled ?? true,
       }
     }
   } catch {}
-  return { enabled: true, volume: 0.3, bgmVolume: 0.15, bgmEnabled: true }
+  return { enabled: true, volume: 0.3, bgmVolume: 0.4, bgmEnabled: true }
 }
 
 function saveConfig(cfg: SoundConfig) {
@@ -354,73 +354,77 @@ export const sfx = {
   // 카테고리: soft (슬라임/식물), bone (언데드/스켈), metal (기계/골렘),
   //          beast (야수/그리폰), fire (불/용암), magical (영혼/그림자/환영)
   monsterHit(category: MonsterSfxCategory) {
+    // 카테고리 음은 평타/스킬 사운드보다 약 30ms 늦게 시작 → 색채를 또렷이 분리
     switch (category) {
       case 'soft':
-        // 끈적한 plop
-        playNoise(80, 0.45, 700)
-        playTone({ freq: 180, freqEnd: 90, type: 'sine', duration: 100, gain: 0.3 })
+        // 끈적한 plop — 약간 더 무겁게
+        playNoise(100, 0.65, 700, 30)
+        playTone({ freq: 180, freqEnd: 80, type: 'sine', duration: 140, gain: 0.5, delay: 30 })
         break
       case 'bone':
         // 마른 rattle — 짧고 건조한
-        playNoise(60, 0.5, 3000)
-        playTone({ freq: 220, type: 'square', duration: 60, gain: 0.25 })
+        playNoise(80, 0.7, 3000, 30)
+        playTone({ freq: 220, type: 'square', duration: 90, gain: 0.45, delay: 30 })
+        playTone({ freq: 330, type: 'square', duration: 60, gain: 0.3, delay: 50 })
         break
       case 'metal':
         // 금속 ring
-        playTone({ freq: 1320, type: 'sawtooth', duration: 100, gain: 0.4 })
-        playTone({ freq: 1980, type: 'sine', duration: 150, gain: 0.3, delay: 20 })
-        playNoise(40, 0.3, 4000)
+        playTone({ freq: 1320, type: 'sawtooth', duration: 130, gain: 0.6, delay: 30 })
+        playTone({ freq: 1980, type: 'sine', duration: 180, gain: 0.45, delay: 50 })
+        playNoise(50, 0.45, 4000, 30)
         break
       case 'beast':
         // yelp/growl — 낮은 동물 신음
-        playTone({ freq: 330, freqEnd: 220, type: 'sawtooth', duration: 150, gain: 0.4 })
-        playNoise(70, 0.4, 1500)
+        playTone({ freq: 330, freqEnd: 220, type: 'sawtooth', duration: 180, gain: 0.6, delay: 30 })
+        playNoise(80, 0.55, 1500, 30)
         break
       case 'fire':
         // sizzle hiss — 화염 피격
-        playNoise(120, 0.55, 2500)
-        playTone({ freq: 440, freqEnd: 880, type: 'triangle', duration: 100, gain: 0.3 })
+        playNoise(140, 0.75, 2500, 30)
+        playTone({ freq: 440, freqEnd: 880, type: 'triangle', duration: 130, gain: 0.5, delay: 30 })
         break
       case 'magical':
         // ethereal blur — 환영
-        playTone({ freq: 660, freqEnd: 330, type: 'sine', duration: 180, gain: 0.35 })
-        playTone({ freq: 990, freqEnd: 495, type: 'triangle', duration: 160, gain: 0.25, delay: 30 })
+        playTone({ freq: 660, freqEnd: 330, type: 'sine', duration: 220, gain: 0.55, delay: 30 })
+        playTone({ freq: 990, freqEnd: 495, type: 'triangle', duration: 190, gain: 0.4, delay: 60 })
         break
     }
   },
 
   monsterDeath(category: MonsterSfxCategory) {
+    // 사망음은 처치 직후 단독으로 울리므로 delay 없음, gain 만 강화
     switch (category) {
       case 'soft':
         // 꺼지는 plop
-        playNoise(200, 0.6, 500)
-        playTone({ freq: 220, freqEnd: 55, type: 'sine', duration: 350, gain: 0.4 })
+        playNoise(220, 0.75, 500)
+        playTone({ freq: 220, freqEnd: 55, type: 'sine', duration: 400, gain: 0.55 })
         break
       case 'bone':
         // 뼈 부서지는 dry crack
-        playNoise(150, 0.7, 4000)
-        playTone({ freq: 165, freqEnd: 80, type: 'square', duration: 250, gain: 0.4, delay: 30 })
+        playNoise(170, 0.85, 4000)
+        playTone({ freq: 165, freqEnd: 80, type: 'square', duration: 280, gain: 0.55, delay: 30 })
+        playTone({ freq: 110, freqEnd: 55, type: 'square', duration: 320, gain: 0.4, delay: 100 })
         break
       case 'metal':
         // 금속 폭발 — 강한 clang + boom
-        playTone({ freq: 880, freqEnd: 220, type: 'sawtooth', duration: 300, gain: 0.5 })
-        playNoise(250, 0.7, 1500, 50)
-        playTone({ freq: 110, freqEnd: 55, type: 'square', duration: 400, gain: 0.4, delay: 100 })
+        playTone({ freq: 880, freqEnd: 220, type: 'sawtooth', duration: 330, gain: 0.65 })
+        playNoise(280, 0.85, 1500, 50)
+        playTone({ freq: 110, freqEnd: 55, type: 'square', duration: 450, gain: 0.55, delay: 100 })
         break
       case 'beast':
         // 동물 death cry (descending)
-        playTone({ freq: 440, freqEnd: 110, type: 'sawtooth', duration: 500, gain: 0.5 })
-        playNoise(200, 0.4, 2000, 100)
+        playTone({ freq: 440, freqEnd: 110, type: 'sawtooth', duration: 550, gain: 0.65 })
+        playNoise(220, 0.55, 2000, 100)
         break
       case 'fire':
         // 화염 꺼지기 — fizzle out
-        playNoise(300, 0.6, 800)
-        playTone({ freq: 660, freqEnd: 165, type: 'triangle', duration: 350, gain: 0.4 })
+        playNoise(330, 0.75, 800)
+        playTone({ freq: 660, freqEnd: 165, type: 'triangle', duration: 400, gain: 0.55 })
         break
       case 'magical':
         // ethereal fade dissolve — 천천히 사라짐
-        playTone({ freq: 880, freqEnd: 110, type: 'sine', duration: 700, gain: 0.45 })
-        playTone({ freq: 660, freqEnd: 220, type: 'triangle', duration: 600, gain: 0.3, delay: 80 })
+        playTone({ freq: 880, freqEnd: 110, type: 'sine', duration: 750, gain: 0.6 })
+        playTone({ freq: 660, freqEnd: 220, type: 'triangle', duration: 650, gain: 0.45, delay: 80 })
         break
     }
   },
@@ -582,17 +586,57 @@ function clearOldBgmOscillators() {
   })
 }
 
+// 브라우저 autoplay 정책 우회 — AudioContext 가 suspended 면
+// 페이지 첫 사용자 인터랙션(pointer/key/touch) 시 자동으로 BGM 시작.
+let pendingBgmKind: BgmKind | null = null
+let unlockHandler: ((this: Window, ev: Event) => void) | null = null
+
+function attachUnlockListener() {
+  if (!IS_BROWSER || unlockHandler) return
+  const handler = () => {
+    const ctx = getCtx()
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {})
+    }
+    if (unlockHandler) {
+      window.removeEventListener('pointerdown', unlockHandler)
+      window.removeEventListener('keydown', unlockHandler)
+      window.removeEventListener('touchstart', unlockHandler)
+      unlockHandler = null
+    }
+    if (pendingBgmKind) {
+      const k = pendingBgmKind
+      pendingBgmKind = null
+      bgmCurrent = null
+      playBgm(k)
+    }
+  }
+  unlockHandler = handler
+  window.addEventListener('pointerdown', handler, { once: true })
+  window.addEventListener('keydown', handler, { once: true })
+  window.addEventListener('touchstart', handler, { once: true })
+}
+
 export function playBgm(kind: BgmKind) {
   if (!IS_BROWSER) return
   if (bgmCurrent === kind) return  // 이미 같은 BGM
   stopBgm()
-  if (!config.enabled || !config.bgmEnabled) {
+  if (!config.bgmEnabled) {
     bgmCurrent = kind  // 토글 켜졌을 때 시작할 수 있게 기억
     return
   }
   const ctx = getCtx()
   if (!ctx) return
-  if (ctx.state === 'suspended') ctx.resume().catch(() => {})
+  if (ctx.state === 'suspended') {
+    // autoplay 차단 — 첫 인터랙션 시 자동 재생되도록 예약
+    ctx.resume().catch(() => {})
+    if (ctx.state === 'suspended') {
+      pendingBgmKind = kind
+      bgmCurrent = kind  // UI 토글이 즉시 반영되도록 기억만 해둠
+      attachUnlockListener()
+      return
+    }
+  }
 
   const track = BGM_TRACKS[kind]
   if (!track) return
@@ -648,18 +692,9 @@ export function getSoundVolume(): number {
 }
 
 export function setSoundEnabled(v: boolean) {
+  // SFX 만 제어 — BGM 은 setBgmEnabled 로 분리
   config.enabled = v
   saveConfig(config)
-  // 비활성화 시 BGM 정지, 활성화 시 마지막 BGM 재시작
-  if (!v) {
-    const remembered = bgmCurrent
-    stopBgm()
-    bgmCurrent = remembered
-  } else if (bgmCurrent) {
-    const kind = bgmCurrent
-    bgmCurrent = null  // playBgm 가 중복 체크하므로 초기화
-    playBgm(kind)
-  }
 }
 
 export function setSoundVolume(v: number) {
@@ -674,6 +709,25 @@ export function setBgmVolume(v: number) {
 
 export function getBgmVolume(): number {
   return config.bgmVolume
+}
+
+export function isBgmEnabled(): boolean {
+  return config.bgmEnabled
+}
+
+export function setBgmEnabled(v: boolean) {
+  config.bgmEnabled = v
+  saveConfig(config)
+  if (!v) {
+    // BGM off — 트랙은 정지하지만 bgmCurrent 는 기억 (재활성 시 같은 트랙 재개)
+    const remembered = bgmCurrent
+    stopBgm()
+    bgmCurrent = remembered
+  } else if (bgmCurrent) {
+    const kind = bgmCurrent
+    bgmCurrent = null  // playBgm 중복 체크 우회
+    playBgm(kind)
+  }
 }
 
 export function toggleSound() {

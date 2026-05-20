@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useGameStore } from './stores/game'
 import MainMenu from './screens/MainMenu.vue'
 import CharacterCreation from './screens/CharacterCreation.vue'
@@ -20,27 +20,33 @@ const game = useGameStore()
 
 const currentScreen = computed(() => game.screen)
 
+// 페이지 로드 직후 웅장 BGM 예약. 브라우저 autoplay 정책상 AudioContext 가
+// suspended 면 playBgm 내부에서 첫 사용자 인터랙션(pointerdown/keydown/touchstart)
+// 까지 자동 대기 후 시작. 결과적으로 사용자가 페이지에서 처음 어떤 동작을 하는
+// 즉시 BGM 이 흐름 — 스플래시 클릭이든 다른 곳 클릭이든 동일.
+onMounted(() => {
+  playBgm('splash')
+})
+
 // 페이지 로드 시 1회 스플래시. 클릭으로 닫힘. 새로고침하면 다시 표시.
 const showSplash = ref(true)
 function dismissSplash() {
-  // 스플래시 클릭 = 첫 사용자 액션 → AudioContext 활성화 가능
-  // 짧게 splash BGM 재생 후 menu BGM 으로 전환
+  // 첫 인터랙션 시점이면 위 onMounted 의 예약이 자동 발동되어 이미 재생 중.
+  // playBgm 은 같은 kind 중복 호출을 무시하므로 안전.
   playBgm('splash')
-  // 0.8초 후 메뉴 BGM 전환 + 스플래시 닫기
-  setTimeout(() => {
-    showSplash.value = false
-    playBgm('menu')
-  }, 800)
+  showSplash.value = false
 }
 
-// 화면 전환에 따른 BGM 전환
-//   - combat: 무음 (전투 효과음에 집중)
-//   - gameover: 무음
-//   - 그 외: menu BGM 유지
+// 화면 전환 BGM 라우팅
+//   - menu (메인 메뉴):       splash BGM (웅장) — 캐릭터 생성 버튼 누르기 전까지 유지
+//   - create 이후 (캐릭터 생성/던전/상점/승리): menu BGM (발랄)
+//   - combat / gameover:      무음 (효과음 집중)
 watch(currentScreen, (s) => {
-  if (showSplash.value) return  // 스플래시 중엔 이미 splash BGM
+  if (showSplash.value) return
   if (s === 'combat' || s === 'gameover') {
     stopBgm()
+  } else if (s === 'menu') {
+    playBgm('splash')
   } else {
     playBgm('menu')
   }

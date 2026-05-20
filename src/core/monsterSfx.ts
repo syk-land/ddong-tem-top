@@ -78,11 +78,24 @@ export function inferSfxCategory(template: MonsterTemplate): MonsterSfxCategory 
   return 'beast'
 }
 
-// 편의 함수
+// 다단히트 스킬(화염구 스플래시/번개창 연쇄/폭풍칼날 3히트)에서 같은 카테고리
+// 음이 동시에 겹쳐 마스킹되는 걸 방지. 같은 카테고리가 60ms 이내에 다시
+// 요청되면 첫 음을 살리고 나머지는 스킵.
+let lastHitTs = 0
+let lastHitCat: MonsterSfxCategory | null = null
+
 export function playMonsterHit(monster: MonsterInstance) {
-  sfx.monsterHit(inferSfxCategory(monster.template))
+  const cat = inferSfxCategory(monster.template)
+  if (typeof performance !== 'undefined') {
+    const now = performance.now()
+    if (cat === lastHitCat && now - lastHitTs < 60) return
+    lastHitTs = now
+    lastHitCat = cat
+  }
+  sfx.monsterHit(cat)
 }
 
 export function playMonsterDeath(monster: MonsterInstance) {
+  // 사망은 몬스터당 1회만 발생하므로 throttle 불필요
   sfx.monsterDeath(inferSfxCategory(monster.template))
 }
