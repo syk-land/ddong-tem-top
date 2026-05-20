@@ -4,7 +4,8 @@ import { useGameStore } from '@/stores/game'
 import type { Stats, StatKey } from '@/types'
 import { statColorClass } from '@/ui/colors'
 import { uniformStartingStats } from '@/core/character'
-import { mainImageUrl, userAvatarUrl, userAvatarLabel } from '@/ui/images'
+import { mainImageUrl } from '@/ui/images'
+import { START_STAT_BASE } from '@/core/realboss'
 
 const bgUrl = mainImageUrl()
 
@@ -44,12 +45,6 @@ function adjust(stat: StatKey, delta: number) {
 function isSelected(key: string) {
   return game.selectedChallengeKey === key
 }
-function selectAvatar(key: string) {
-  game.selectAvatar(key)
-}
-function isAvatarSelected(key: string) {
-  return game.selectedAvatar === key
-}
 function toggle(key: string) {
   game.selectChallenge(isSelected(key) ? null : key)
 }
@@ -69,6 +64,10 @@ async function resetAll() {
 
 // 사용한 주사위 수
 const usedDice = computed(() => 3 - game.rollsLeft)
+
+// 도전 보너스
+const startBonus = computed(() => game.meta.pendingStartBonus ?? 0)
+const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) * 100))
 </script>
 
 <template>
@@ -84,36 +83,15 @@ const usedDice = computed(() => 3 - game.rollsLeft)
       </div>
     </header>
 
-    <!-- 캐릭터 외형 선택 (4명 랜덤) -->
-    <div class="panel space-y-3">
-      <div class="flex items-baseline justify-between">
-        <div class="text-sm">
-          <span class="text-grade-legend font-bold">👤 캐릭터 외형 선택</span>
-          <div class="text-xs text-gray-500 mt-0.5">4명 중 1명을 선택하세요 (외형만, 능력치 영향 없음)</div>
-        </div>
+    <!-- 도전 보너스 안내 (있을 때만) -->
+    <div v-if="startBonus > 0" class="panel space-y-1 border border-grade-legend/40 bg-grade-legend/5">
+      <div class="text-sm text-grade-legend font-bold">⚔️ 탑의 빚 — 진짜 보스 도전 보상</div>
+      <div class="text-xs text-gray-300">
+        이전 도전에서 보스 체력 <span class="text-trait-special font-mono font-bold">{{ drainPct }}/100</span> 깎았다.
       </div>
-      <div class="grid grid-cols-4 gap-2">
-        <div
-          v-for="key in game.avatarOptions"
-          :key="key"
-          @click="selectAvatar(key)"
-          :class="[
-            'cursor-pointer border-2 rounded-lg p-1 transition-all bg-bg-tertiary',
-            isAvatarSelected(key)
-              ? 'border-grade-legend bg-grade-legend/10 scale-105'
-              : 'border-slate-700 hover:bg-bg-hover',
-          ]"
-        >
-          <img
-            :src="userAvatarUrl(key)"
-            :alt="userAvatarLabel(key)"
-            class="w-full aspect-square object-contain"
-            @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
-          />
-          <div class="text-[10px] text-center mt-1 text-gray-300 leading-tight">
-            {{ userAvatarLabel(key) }}
-          </div>
-        </div>
+      <div class="text-xs text-log-reward">
+        시작 능력치 총합 {{ START_STAT_BASE }} → <span class="font-mono font-bold">{{ START_STAT_BASE + startBonus }}pt</span>
+        (+{{ startBonus }}pt, 공·방·체·마 자동 분배)
       </div>
     </div>
 

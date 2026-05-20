@@ -30,6 +30,9 @@ Thumbs.db
 # 원본 이미지 (public/images/로 복사된 것만 사용)
 /images/
 
+# 이미지 워터마크 제거 전 백업
+public/images/main.original.png
+
 # Vite 캐시
 node_modules/.vite/
 

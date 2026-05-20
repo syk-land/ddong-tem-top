@@ -113,8 +113,19 @@ export function shopIconUrl(): string {
 }
 
 // 게임 메인 일러스트 (최초 실행 화면)
+// ?v 쿼리는 워터마크 제거 후 브라우저 캐시 무효화용
 export function mainImageUrl(): string {
-  return '/images/main.png'
+  return '/images/main.png?v=3'
+}
+
+// 진짜 보스 도전 이미지 (챕터 테마 → 보스 일러스트)
+export function realBossImageUrl(theme: ChapterTheme): string {
+  return `/images/REALBOSS/${theme}.png`
+}
+
+// 인트로 만화 페이지 (1, 2, 3) — v=3 캐시 무효화
+export function tutorialImageUrl(page: 1 | 2 | 3): string {
+  return `/images/TUTORIAL/${page}.png?v=3`
 }
 
 // 플레이어 캐릭터 이미지 — 사용자 선택 (없으면 fallback)

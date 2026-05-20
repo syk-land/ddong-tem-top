@@ -282,9 +282,40 @@ export interface MetaBonuses {
   clearCount: number
   totalBonusStats: number   // 누적 자유 분배 가능 포인트
   allocations: Partial<Stats>  // 어떤 스탯에 얼마나 분배했는지 (다음 캐릭터에 자동 적용)
+  // ── 진짜 보스 도전 시스템 ──
+  runsSinceLastChallenge: number    // 마지막 도전 이후 진행한 런 수 (0부터)
+  nextChallengeAt: number           // 이 횟수 도달 시 도전 발동 (5~10 랜덤)
+  characterHistory: CharacterRecord[]  // 클리어 캐릭터 누적 (최대 50)
+  pendingStartBonus: number         // 다음 캐릭터 1회 시작 스탯 +N (도전 결과)
+  lastBossDrainRatio: number        // 가장 최근 도전에서 깎은 비율 0~1 (UI 표시용)
+  realBossCompleted: boolean        // 도전 모드 한 번이라도 전투 완료했는지 (t3 잠금 해제용)
+}
+
+// 도전 모드용 캐릭터 스냅샷 (클리어 시 저장)
+export interface CharacterRecord {
+  stats: Stats
+  score: number
+  rank: string
+  avatarKey: string | null
+  weaponBaseKey: string | null
+  weaponTrait: string | null
+  weaponGrade: string | null
+  weaponTier: number
+  armorBaseKey: string | null
+  armorTrait: string | null
+  armorGrade: string | null
+  armorTier: number
+  gold: number
+  hp: number
+  maxHp: number
+  mp: number
+  maxMp: number
+  lastChapterTheme: ChapterTheme
+  recordedAt: number
 }
 
 // ====== 화면 라우팅 ======
 export type Screen =
   | 'menu' | 'create' | 'dungeon' | 'combat' | 'shop'
   | 'gameover' | 'victory' | 'event' | 'inventory'
+  | 'intro' | 'realboss' | 'realboss_result'

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { themeColorClass, statColorClass } from '@/ui/colors'
 import HpMpBar from '@/ui/components/HpMpBar.vue'
@@ -8,7 +8,7 @@ import GrowthPenaltyPanel from '@/ui/components/GrowthPenaltyPanel.vue'
 import StatusBadges from '@/ui/components/StatusBadges.vue'
 import StatusModal from '@/ui/components/StatusModal.vue'
 import InventoryModal from '@/ui/components/InventoryModal.vue'
-import { themeBgUrl, floorContentImage } from '@/ui/images'
+import { themeBgUrl, floorContentImage, playerImageUrl, userAvatarLabel } from '@/ui/images'
 
 const game = useGameStore()
 const c = computed(() => game.run!.character)
@@ -23,6 +23,41 @@ const inventoryOpen = ref(false)
 function enter() {
   game.enterCurrentFloor()
 }
+
+// 자동 진입: 일반몬스터/보스/치유샘만 자동 진입.
+// 상점/보물/특별이벤트는 사용자 선택을 위해 자동 진입 X.
+const AUTO_ENTER_TYPES = new Set(['monster', 'boss', 'healing_spring'])
+let autoEnterTimer: ReturnType<typeof setTimeout> | null = null
+
+function tryAutoEnter() {
+  if (!game.autoEnter) return
+  // 모달이 떠 있으면 자동 진입 막음 (사용자 결정 대기 중)
+  if (game.dialog || game.inputDialog || game.listDialog || game.pendingPickup) return
+  if (game.screen !== 'dungeon') return
+  const f = game.currentFloorEvent
+  if (!f || f.cleared) return
+  if (!AUTO_ENTER_TYPES.has(f.type)) return
+  if (autoEnterTimer) clearTimeout(autoEnterTimer)
+  // 짧은 지연으로 UI 보여주고 자동 진입 — 속도에 따라 단축
+  const delay = Math.max(120, 500 / Math.max(1, game.combatSpeed))
+  autoEnterTimer = setTimeout(() => {
+    autoEnterTimer = null
+    // 한번 더 가드 (타이머 도중 사용자 상호작용으로 상태 변경 가능)
+    if (game.autoEnter && game.screen === 'dungeon'
+        && !game.dialog && !game.inputDialog && !game.listDialog && !game.pendingPickup) {
+      game.enterCurrentFloor()
+    }
+  }, delay)
+}
+
+onMounted(tryAutoEnter)
+onUnmounted(() => {
+  if (autoEnterTimer) clearTimeout(autoEnterTimer)
+})
+watch(
+  () => [game.screen, game.run?.currentChapterIndex, game.run?.chapters?.[game.run?.currentChapterIndex ?? 0]?.currentFloor, game.autoEnter],
+  tryAutoEnter,
+)
 async function quit() {
   const ok = await game.confirmModal('현재 진행을 저장하고 메인 메뉴로 돌아갑니다.', { title: '메뉴로' })
   if (ok) game.setScreen('menu')
@@ -113,6 +148,19 @@ const floorLabel = computed(() => {
 
     <!-- ④ 내 상태 -->
     <div class="panel space-y-2">
+      <!-- 캐릭터 얼굴 + 라벨 (자동 랜덤 선택된 외형) -->
+      <div class="flex items-center gap-2">
+        <img
+          v-if="game.runAvatar"
+          :src="playerImageUrl(game.runAvatar)"
+          :alt="userAvatarLabel(game.runAvatar)"
+          class="w-10 h-10 rounded-full object-cover border border-slate-700 shrink-0"
+          @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+        />
+        <div class="text-[11px] text-gray-400 truncate">
+          {{ game.runAvatar ? userAvatarLabel(game.runAvatar) : '모험가' }}
+        </div>
+      </div>
       <div class="grid grid-cols-2 gap-3">
         <HpMpBar :current="c.hp" :max="c.maxHp" kind="hp" />
         <HpMpBar :current="c.mp" :max="c.maxMp" kind="mp" />

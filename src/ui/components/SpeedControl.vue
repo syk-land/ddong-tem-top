@@ -38,11 +38,20 @@ function setSpeed(s: number) {
   sfx.click()
 }
 
+function toggleAutoEnter() {
+  game.setAutoEnter(!game.autoEnter)
+  sfx.click()
+}
+
 function toggle() {
   expanded.value = !expanded.value
   try {
     localStorage.setItem(STORAGE_KEY, expanded.value ? '1' : '0')
   } catch {}
+}
+
+function openIntro() {
+  game.openIntroComic('replay')
 }
 
 // ── 효과음 ──
@@ -145,9 +154,22 @@ const summaryIcon = computed(() => {
         >
           {{ s }}x
         </button>
+        <!-- 자동 진입 토글 (몬스터/보스/치유샘만 자동) -->
+        <button
+          class="px-2 py-0.5 rounded text-[11px] transition-colors ml-1"
+          :class="game.autoEnter
+            ? 'bg-log-reward text-black font-bold'
+            : 'bg-slate-800/70 text-gray-200 hover:bg-slate-700'"
+          :title="game.autoEnter ? '자동 진입 ON (몬스터/보스/치유샘)' : '자동 진입 OFF'"
+          @click="toggleAutoEnter"
+        >
+          {{ game.autoEnter ? '자동 ✓' : '자동' }}
+        </button>
       </template>
 
-      <span v-else class="text-[10px] text-gray-300 font-bold pr-1">{{ game.combatSpeed }}x</span>
+      <span v-else class="text-[10px] text-gray-300 font-bold pr-1">
+        {{ game.combatSpeed }}x<span v-if="game.autoEnter" class="text-log-reward">·자</span>
+      </span>
 
       <span class="text-sm ml-1">{{ summaryIcon }}</span>
     </div>
@@ -202,6 +224,18 @@ const summaryIcon = computed(() => {
           />
           <span class="text-gray-400">음소거</span>
         </label>
+      </div>
+
+      <!-- 인트로 만화 다시 보기 -->
+      <div class="flex items-center justify-center pt-1 border-t border-slate-700/50">
+        <button
+          class="flex items-center gap-1.5 px-2 py-1 rounded text-[11px] text-gray-300 hover:bg-slate-700"
+          title="인트로 만화 다시 보기"
+          @click="openIntro"
+        >
+          <span class="text-base leading-none">📖</span>
+          <span>인트로 만화</span>
+        </button>
       </div>
     </div>
   </div>

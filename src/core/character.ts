@@ -62,7 +62,11 @@ export function uniformStartingStats(): Stats {
   }
 }
 
-export function createCharacter(bonusStats: Partial<Stats> = {}, customStats?: Stats): Character {
+export function createCharacter(
+  bonusStats: Partial<Stats> = {},
+  customStats?: Stats,
+  pendingStartBonus = 0,
+): Character {
   // customStats 가 주어지면 그대로 사용 (주사위 결과), 아니면 균등 시작
   const stats = customStats ?? uniformStartingStats()
 
@@ -70,6 +74,16 @@ export function createCharacter(bonusStats: Partial<Stats> = {}, customStats?: S
   for (const key in bonusStats) {
     const k = key as StatKey
     stats[k] = (stats[k] ?? 0) + (bonusStats[k] ?? 0)
+  }
+
+  // 도전 보너스 (탑의 빚): 4스탯에 균등 + 나머지는 공격력
+  if (pendingStartBonus > 0) {
+    const four: StatKey[] = ['공격력', '방어력', '체력', '마력']
+    const base = Math.floor(pendingStartBonus / 4)
+    let rem = pendingStartBonus - base * 4
+    for (const k of four) stats[k] += base
+    // 나머지는 공격력에
+    stats['공격력'] += rem
   }
 
   const maxHp = computeMaxHp(stats.체력)

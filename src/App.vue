@@ -9,6 +9,9 @@ import Shop from './screens/Shop.vue'
 import GameOver from './screens/GameOver.vue'
 import VictoryScreen from './screens/VictoryScreen.vue'
 import SplashScreen from './screens/SplashScreen.vue'
+import RealBossChallenge from './screens/RealBossChallenge.vue'
+import RealBossResult from './screens/RealBossResult.vue'
+import IntroComic from './ui/components/IntroComic.vue'
 import PickupModal from './ui/components/PickupModal.vue'
 import DialogModal from './ui/components/DialogModal.vue'
 import InputModal from './ui/components/InputModal.vue'
@@ -35,6 +38,8 @@ function dismissSplash() {
   // playBgm 은 같은 kind 중복 호출을 무시하므로 안전.
   playBgm('splash')
   showSplash.value = false
+  // 최초 실행이면 인트로 만화 자동 표시 (main → t1 → t2 → menu)
+  game.autoShowIntroIfFirstTime()
 }
 
 // 화면 전환 BGM 라우팅
@@ -62,14 +67,18 @@ watch(currentScreen, (s) => {
     <Shop v-else-if="currentScreen === 'shop'" />
     <GameOver v-else-if="currentScreen === 'gameover'" />
     <VictoryScreen v-else-if="currentScreen === 'victory'" />
+    <RealBossChallenge v-else-if="currentScreen === 'realboss'" />
+    <RealBossResult v-else-if="currentScreen === 'realboss_result'" />
+    <!-- 인트로 만화 (스플래시 후 자동/설정 다시보기) -->
+    <IntroComic v-if="game.introVisible" />
     <!-- 인벤토리 풀 알림 모달 (모든 화면 위에 오버레이) -->
     <PickupModal />
     <!-- 범용 모달 (alert/confirm/prompt/list 대체) -->
     <ListModal />
     <InputModal />
     <DialogModal />
-    <!-- 게임 속도 컨트롤 (전역, combat 화면은 인라인 사용하므로 제외, 스플래시 동안 숨김) -->
-    <SpeedControl v-if="!showSplash && currentScreen !== 'combat'" />
+    <!-- 게임 속도 컨트롤 (전역, 스플래시 동안만 숨김 — combat 화면에도 표시) -->
+    <SpeedControl v-if="!showSplash" />
     <!-- 최초 실행 스플래시 (클릭 시 닫힘) -->
     <SplashScreen v-if="showSplash" @dismiss="dismissSplash" />
   </main>

@@ -146,12 +146,49 @@ onMounted(() => {
 onUnmounted(() => stopAutoTick())
 
 // 전투 종료 감지: 자동 정지
+let autoAdvanceTimer: ReturnType<typeof setTimeout> | null = null
+function maybeAutoAdvance() {
+  if (!game.autoEnter) return
+  if (!combat.value || !combat.value.ended) return
+  // 패배(사망)는 자동 진행 X — 게임오버 화면에서 사용자 확인
+  if (!combat.value.victory) return
+  // 드랍 인벤토리 풀 모달 떠있으면 대기
+  if (game.pendingPickup) return
+  // 일반 모달도 대기
+  if (game.dialog || game.inputDialog || game.listDialog) return
+  if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer)
+  const delay = Math.max(300, Math.round(900 / Math.max(1, game.combatSpeed)))
+  autoAdvanceTimer = setTimeout(() => {
+    autoAdvanceTimer = null
+    if (combat.value?.ended && combat.value?.victory
+        && !game.pendingPickup && !game.dialog && !game.inputDialog && !game.listDialog) {
+      game.closeCombat()
+    }
+  }, delay)
+}
+
 watch(
   () => combat.value?.ended,
   (ended) => {
-    if (ended) stopAutoTick()
+    if (ended) {
+      stopAutoTick()
+      maybeAutoAdvance()
+    }
   }
 )
+// pendingPickup이 사라지면 (사용자가 드랍 결정 완료) 자동 진행 재시도
+watch(
+  () => game.pendingPickup,
+  (p) => {
+    if (!p) maybeAutoAdvance()
+  }
+)
+onUnmounted(() => {
+  if (autoAdvanceTimer) {
+    clearTimeout(autoAdvanceTimer)
+    autoAdvanceTimer = null
+  }
+})
 
 // 속도 변경 → 타이머 재시작
 watch(

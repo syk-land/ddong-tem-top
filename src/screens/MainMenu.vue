@@ -6,9 +6,15 @@ import { mainImageUrl } from '@/ui/images'
 const game = useGameStore()
 const bgUrl = mainImageUrl()
 
-onMounted(() => game.init())
+onMounted(() => {
+  game.init()
+  // 도전 카운터 도달이면 도전 화면으로 자동 전환
+  game.triggerRealBossIfDue()
+})
 
 function startNew() {
+  // 캐릭터 생성 진입 직전에도 도전 카운터 도달 시 도전부터
+  if (game.triggerRealBossIfDue()) return
   game.startCharacterCreation()
 }
 function loadGame() {
@@ -19,6 +25,8 @@ async function resetMeta() {
   if (ok) {
     localStorage.removeItem('climetop:meta:v1')
     localStorage.removeItem('climetop:run:v1')
+    localStorage.removeItem('climetop:tutorialSeen:v1')
+    localStorage.removeItem('climetop:creation:v1')
     location.reload()
   }
 }

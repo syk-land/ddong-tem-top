@@ -1,10 +1,17 @@
 import { defineStore } from 'pinia'
 import type {
-  Screen, TowerRun, MetaBonuses, Stats, StatKey, ItemInstance,
+  Screen, TowerRun, MetaBonuses, Stats, StatKey, ItemInstance, MonsterInstance, ChapterTheme, CharacterRecord,
 } from '@/types'
 import { createCharacter, generateRandomStats, uniformStartingStats, computeMaxMp } from '@/core/character'
 import { makeTowerRun, currentChapter, currentFloor, advanceFloor } from '@/core/tower'
-import { loadMeta, saveMeta, saveRun, loadRun, clearRun, defaultMeta, commitClearBonus, computePendingBonus, type PendingClearBonus } from '@/core/meta'
+import {
+  loadMeta, saveMeta, saveRun, loadRun, clearRun, defaultMeta, commitClearBonus,
+  computePendingBonus, type PendingClearBonus,
+  pushCharacterHistory, incrementRunCounter, consumeChallengeTrigger,
+} from '@/core/meta'
+import {
+  isChallengeDue, pickWeakestRecord, makeRealBoss, computeStartBonusFromDrain,
+} from '@/core/realboss'
 import { createCombatContext, type CombatContext, advanceTick, checkActionReady, consumeAction, playerBasicAttack, monsterAttack, makeMonster, pushLog } from '@/core/combat'
 import { useSkill, getAvailableSkills, pickAutoAction } from '@/core/skills'
 import { createShop, refreshShop } from '@/core/shop'
@@ -32,7 +39,7 @@ import {
   mergedFlags,
 } from '@/core/challengeRuntime'
 import { computeWeaponSkillProc } from '@/core/buildBalance'
-import { npcIconUrl, pickRandomUserAvatars, isValidAvatarKey } from '@/ui/images'
+import { npcIconUrl, pickRandomUserAvatars, isValidAvatarKey, allUserAvatarKeys } from '@/ui/images'
 import { sfx } from '@/ui/sound'
 import { computeEffectiveStats } from '@/core/stats'
 import { SKILLS as SKILLS_REF } from '@/data/skills'
@@ -52,7 +59,8 @@ interface CreationPersistState {
   rollsLeft: number
   challengeKeys: string[]
   selectedKey: string | null
-  avatarOptions?: string[]      // 랜덤 4개 후보
+  // (deprecated) 이전 빌드는 4명 선택 후보 + 사용자 선택. 이제 자동 1개 랜덤.
+  avatarOptions?: string[]
   selectedAvatar?: string | null
 }
 function saveCreation(s: CreationPersistState) {
@@ -88,6 +96,8 @@ interface GameState {
   challengeContext: ChallengeContext | null
   // 자동 전투 속도 (배수)
   combatSpeed: number
+  // 자동 진입 토글 — 일반몬스터/보스/치유샘만 자동 진입 (상점/보물/이벤트는 사용자 입력)
+  autoEnter: boolean
   // 현재 챕터에서 새로고침 사용 여부 (트래킹용)
   refreshUsedThisChapter: boolean
   // 저장된 진행 중인 런 존재 여부 (reactive)
@@ -97,11 +107,20 @@ interface GameState {
   // 캐릭터 생성: 주사위 굴림 결과 + 남은 회수
   rolledStats: Stats | null
   rollsLeft: number
-  // 캐릭터 생성: 아바타 선택
-  avatarOptions: string[]          // 후보 4개
-  selectedAvatar: string | null    // 사용자 선택
+  // 캐릭터 생성: 자동 랜덤 아바타 (선택 UI 없음)
+  selectedAvatar: string | null
   // 진행 중 런의 캐릭터 아바타 (영구 저장)
   runAvatar: string | null
+  // 진짜 보스 도전 화면용
+  realBossTheme: ChapterTheme | null
+  realBossMonster: MonsterInstance | null
+  realBossWeakRecord: CharacterRecord | null
+  realBossInitialMaxHp: number   // 도전 시작 시 보스 최대 HP (깎은 비율 계산용)
+  realBossResultRatio: number    // 결과 화면에서 표시할 깎은 비율
+  // 인트로 만화 (스플래시 후 만화 → 다시보기)
+  introVisible: boolean
+  introPage: number              // 0=main 화면, 1=tutorial1, 2=tutorial2, 3=tutorial3
+  introFlow: 'first' | 'replay' | 'afterRealBoss'  // first=최초 main->t1->t2->menu, afterRealBoss=t1->t2->t3->create, replay=설정에서 다시 보기
   // 범용 다이얼로그 (alert/confirm 대체)
   dialog: DialogState | null
   // 텍스트 입력 다이얼로그 (prompt 대체)
@@ -165,6 +184,7 @@ export const useGameStore = defineStore('game', {
     selectedChallengeKey: null,
     challengeContext: null,
     combatSpeed: 1,
+    autoEnter: false,
     refreshUsedThisChapter: false,
     savedRunExists: false,
     pendingPickup: null,
@@ -173,9 +193,16 @@ export const useGameStore = defineStore('game', {
     listDialog: null,
     rolledStats: null,
     rollsLeft: 3,
-    avatarOptions: [],
     selectedAvatar: null,
     runAvatar: null,
+    realBossTheme: null,
+    realBossMonster: null,
+    realBossWeakRecord: null,
+    realBossInitialMaxHp: 0,
+    realBossResultRatio: 0,
+    introVisible: false,
+    introPage: 0,
+    introFlow: 'first',
   }),
 
   getters: {
@@ -222,6 +249,10 @@ export const useGameStore = defineStore('game', {
         const n = raw ? Number(raw) : NaN
         if (n === 1 || n === 2 || n === 4) this.combatSpeed = n
       } catch {}
+      // 자동 진입 토글 복원
+      try {
+        this.autoEnter = localStorage.getItem('climetop:autoEnter:v1') === '1'
+      } catch {}
       // 캐릭터 생성 중 상태 복원
       const c = loadCreation()
       if (c) {
@@ -231,14 +262,10 @@ export const useGameStore = defineStore('game', {
           .map((k) => CHALLENGES_MAP_REF[k])
           .filter(Boolean)
         this.selectedChallengeKey = c.selectedKey
-        // 빈 배열 / 옛 키 형식이면 새로 추첨 (구세이브 마이그레이션)
-        const validOptions = c.avatarOptions?.filter(isValidAvatarKey) ?? []
-        this.avatarOptions = validOptions.length >= 4
-          ? validOptions.slice(0, 4)
-          : pickRandomUserAvatars(4)
+        // 아바타: 저장된 selectedAvatar 있으면 유지, 없으면 새 랜덤 1개
         this.selectedAvatar = c.selectedAvatar && isValidAvatarKey(c.selectedAvatar)
           ? c.selectedAvatar
-          : null
+          : pickRandomUserAvatars(1)[0]
       }
       // 진행 중인 런이 있으면 runAvatar도 복원
       const loaded = loadRun()
@@ -263,26 +290,17 @@ export const useGameStore = defineStore('game', {
         this.selectedChallengeKey = c.selectedKey
         this.rolledStats = c.rolledStats
         this.rollsLeft = c.rollsLeft
-        // 빈 배열 / 옛 키 형식이면 새로 추첨 (구세이브 마이그레이션)
-        const validOptions = c.avatarOptions?.filter(isValidAvatarKey) ?? []
-        if (validOptions.length >= 4) {
-          this.avatarOptions = validOptions.slice(0, 4)
-        } else {
-          this.avatarOptions = pickRandomUserAvatars(4)
-          this.persistCreation()
-        }
         this.selectedAvatar = c.selectedAvatar && isValidAvatarKey(c.selectedAvatar)
           ? c.selectedAvatar
-          : null
+          : pickRandomUserAvatars(1)[0]
       } else {
         this.challengeOptions = pickThreeRandomChallenges()
         this.selectedChallengeKey = null
         this.rolledStats = null
         this.rollsLeft = 3
-        this.avatarOptions = pickRandomUserAvatars(4)
-        this.selectedAvatar = null
-        this.persistCreation()
+        this.selectedAvatar = pickRandomUserAvatars(1)[0]
       }
+      this.persistCreation()
       this.screen = 'create'
     },
 
@@ -292,14 +310,7 @@ export const useGameStore = defineStore('game', {
       this.selectedChallengeKey = null
       this.rolledStats = null
       this.rollsLeft = 3
-      this.avatarOptions = pickRandomUserAvatars(4)
-      this.selectedAvatar = null
-      this.persistCreation()
-    },
-
-    // 아바타 선택
-    selectAvatar(key: string) {
-      this.selectedAvatar = key
+      this.selectedAvatar = pickRandomUserAvatars(1)[0]
       this.persistCreation()
     },
 
@@ -310,7 +321,6 @@ export const useGameStore = defineStore('game', {
         rollsLeft: this.rollsLeft,
         challengeKeys: this.challengeOptions.map((c) => c.key),
         selectedKey: this.selectedChallengeKey,
-        avatarOptions: this.avatarOptions,
         selectedAvatar: this.selectedAvatar,
       })
     },
@@ -330,11 +340,17 @@ export const useGameStore = defineStore('game', {
       this.persistCreation()
     },
 
-    // 새 게임 시작 (챌린지 + 메타 보너스 자유분배 + 주사위 결과 적용)
+    // 새 게임 시작 (챌린지 + 메타 보너스 자유분배 + 주사위 결과 + 도전 보너스)
     newGame(bonusAllocation: Partial<Stats> = {}) {
       // 주사위 굴린 결과가 있으면 사용, 없으면 균등 시작 (모두 8)
       const customStats = this.rolledStats ?? uniformStartingStats()
-      const character = createCharacter(bonusAllocation, customStats)
+      const pending = this.meta.pendingStartBonus ?? 0
+      const character = createCharacter(bonusAllocation, customStats, pending)
+      // 도전 보너스 소진
+      if (pending > 0) {
+        this.meta.pendingStartBonus = 0
+        saveMeta(this.meta)
+      }
       // 챌린지 적용
       const challengeKeys = this.selectedChallengeKey ? [this.selectedChallengeKey] : []
       const cctx = makeChallengeContext(challengeKeys)
@@ -415,14 +431,22 @@ export const useGameStore = defineStore('game', {
           // 챌린지: 절대 정수 (noHealingSpring) — 회복샘 사용 차단
           if (this.challengeContext && healingSpringForbidden(this.challengeContext)) {
             this.combat = null
-            this.alertModal('⛲ 절대 정수 챌린지: 회복샘 이용 불가', '챌린지 제약')
-              .then(() => this.advance())
+            if (this.autoEnter) {
+              this.advance()
+            } else {
+              this.alertModal('⛲ 절대 정수 챌린지: 회복샘 이용 불가', '챌린지 제약')
+                .then(() => this.advance())
+            }
             break
           }
           const heal = Math.round(this.run.character.maxHp * 0.30)
           this.run.character.hp = Math.min(this.run.character.maxHp, this.run.character.hp + heal)
           this.combat = null
-          this.alertModal(`회복샘에서 HP +${heal} 회복했다.`, '⛲ 회복샘').then(() => this.advance())
+          if (this.autoEnter) {
+            this.advance()
+          } else {
+            this.alertModal(`회복샘에서 HP +${heal} 회복했다.`, '⛲ 회복샘').then(() => this.advance())
+          }
           break
         }
         case 'special_event': {
@@ -662,6 +686,14 @@ export const useGameStore = defineStore('game', {
           this.pendingClear.bonus += extra
         }
       }
+      // 캐릭터 히스토리 적재 (도전 모드용) — 마지막 도달 챕터 테마 기준
+      const lastChIdx = Math.max(0, this.run.currentChapterIndex)
+      const lastCh = this.run.chapters[lastChIdx] ?? this.run.chapters[this.run.chapters.length - 1]
+      const score = this.pendingClear?.score ?? computeClearScore(this.run.character, 10)
+      const rank = this.pendingClear?.rank ?? getClearRank(score).rank
+      pushCharacterHistory(this.meta, this.run.character, score, rank, this.runAvatar, lastCh.theme)
+      // 런 카운터 증가
+      incrementRunCounter(this.meta)
       this.screen = 'victory'
     },
 
@@ -670,7 +702,12 @@ export const useGameStore = defineStore('game', {
       this.run = null
       clearRun()
       this.savedRunExists = false
-      this.screen = 'menu'
+      // 도전 시점이면 메인메뉴 대신 도전으로
+      if (isChallengeDue(this.meta)) {
+        this.startRealBoss()
+      } else {
+        this.screen = 'menu'
+      }
     },
 
     // 도주 (수동 — 자동 전투 중에도 유저가 트리거 가능)
@@ -760,6 +797,13 @@ export const useGameStore = defineStore('game', {
       this.combatSpeed = speed
       try {
         localStorage.setItem('climetop:speed:v1', String(speed))
+      } catch {}
+    },
+
+    setAutoEnter(on: boolean) {
+      this.autoEnter = on
+      try {
+        localStorage.setItem('climetop:autoEnter:v1', on ? '1' : '0')
       } catch {}
     },
 
@@ -1084,10 +1128,17 @@ export const useGameStore = defineStore('game', {
     },
 
     handleCombatEnd() {
-      if (!this.combat || !this.run) return
+      if (!this.combat) return
+      // 진짜 보스 도전 모드: run 없이 진행. 승패 무관하게 결과 화면
+      if (this.realBossMonster) {
+        this.finishRealBossCombat()
+        return
+      }
+      if (!this.run) return
       if (!this.combat.victory) {
-        // 사망 → 게임 오버
+        // 사망 → 게임 오버 — 런 카운터 증가
         sfx.death()
+        incrementRunCounter(this.meta)
         clearRun()
         this.savedRunExists = false
         this.screen = 'gameover'
@@ -1147,6 +1198,11 @@ export const useGameStore = defineStore('game', {
     },
 
     closeCombat() {
+      // 도전 모드면 결과 화면으로 (handleCombatEnd가 이미 처리했을 수도 있음)
+      if (this.realBossMonster) {
+        this.finishRealBossCombat()
+        return
+      }
       this.combat = null
       this.advance()
     },
@@ -1287,6 +1343,164 @@ export const useGameStore = defineStore('game', {
       this.pendingClear = null
       this.savedRunExists = false
       this.screen = 'menu'
+    },
+
+    // ========================================
+    // 진짜 보스 도전 모드
+    // ========================================
+    // 메인 메뉴 진입 시 카운터 도달했는지 확인하고 도전 화면으로 전환
+    triggerRealBossIfDue(): boolean {
+      if (!isChallengeDue(this.meta)) return false
+      this.startRealBoss()
+      return true
+    },
+
+    // 도전 화면 진입: 가장 약한 캐릭터 부활 + 보스 생성
+    startRealBoss() {
+      const weak = pickWeakestRecord(this.meta)
+      if (!weak) return
+      consumeChallengeTrigger(this.meta)
+      this.realBossWeakRecord = weak
+      this.realBossTheme = weak.lastChapterTheme
+      this.realBossMonster = makeRealBoss(weak.lastChapterTheme)
+      this.realBossInitialMaxHp = this.realBossMonster.maxHp
+      this.screen = 'realboss'
+    },
+
+    // 도전 전투 시작 — 캐릭터 스냅샷을 임시 Character로 부활시켜 Combat 생성
+    enterRealBossCombat() {
+      const rec = this.realBossWeakRecord
+      const boss = this.realBossMonster
+      if (!rec || !boss) return
+      const character = {
+        stats: { ...rec.stats },
+        hp: rec.maxHp,    // 부활 → 풀 HP
+        maxHp: rec.maxHp,
+        mp: rec.maxMp,
+        maxMp: rec.maxMp,
+        weapon: null,
+        armor: null,
+        gold: rec.gold,
+        statuses: [],
+        actionGauge: 0,
+      }
+      this.combat = createCombatContext(character, [boss])
+      pushLog(this.combat, `진짜 보스 [${boss.template.name}]와의 도전!`, 'info')
+      this.screen = 'combat'
+    },
+
+    // Combat 종료 후 호출 — realboss 결과 처리
+    finishRealBossCombat() {
+      const boss = this.realBossMonster
+      const initialHp = this.realBossInitialMaxHp
+      if (!boss || initialHp <= 0) {
+        this.screen = 'menu'
+        this.combat = null
+        return
+      }
+      const finalHp = Math.max(0, boss.hp)
+      const ratio = Math.max(0, Math.min(1, (initialHp - finalHp) / initialHp))
+      this.realBossResultRatio = ratio
+      this.meta.lastBossDrainRatio = ratio
+      this.meta.pendingStartBonus = computeStartBonusFromDrain(ratio)
+      this.meta.realBossCompleted = true
+      saveMeta(this.meta)
+      this.combat = null
+      this.screen = 'realboss_result'
+    },
+
+    // 결과 화면 → 만화(t1~t3) → 캐릭터 생성
+    proceedFromRealBossResult() {
+      this.realBossMonster = null
+      this.realBossWeakRecord = null
+      this.realBossTheme = null
+      this.realBossInitialMaxHp = 0
+      this.openIntroComic('afterRealBoss')
+    },
+
+    // ========================================
+    // 인트로 만화
+    // ========================================
+    // 최초 실행 시 자동 표시 — splash 단계에서 호출
+    autoShowIntroIfFirstTime(): boolean {
+      try {
+        const seen = localStorage.getItem('climetop:tutorialSeen:v1')
+        if (seen === '1') return false
+      } catch {}
+      this.openIntroComic('first')
+      return true
+    },
+
+    openIntroComic(flow: 'first' | 'replay' | 'afterRealBoss') {
+      this.introFlow = flow
+      // first: page=0 (main) → 1 → 2
+      // afterRealBoss: page=1 → 2 → 3
+      // replay: page=0 → 1 → 2 (도전 미완료) / 0 → 1 → 2 → 3 (도전 완료)
+      this.introPage = flow === 'afterRealBoss' ? 1 : 0
+      this.introVisible = true
+    },
+
+    nextIntroPage() {
+      const flow = this.introFlow
+      // 마지막 페이지: first=2, afterRealBoss=3, replay=도전 완료 여부에 따라 2 또는 3
+      let last: number
+      if (flow === 'first') last = 2
+      else if (flow === 'afterRealBoss') last = 3
+      else last = this.meta.realBossCompleted ? 3 : 2  // replay
+      if (this.introPage < last) {
+        this.introPage += 1
+      } else {
+        this.closeIntroComic()
+      }
+    },
+
+    // 안드로이드 뒤로가기: 떠있는 모달/오버레이를 우선순위로 닫음.
+    // 닫을 게 있으면 true, 없으면 false (호출 측에서 false면 앱 종료 등 결정).
+    handleBackButton(): boolean {
+      // 1) 인벤토리 풀 모달 → 신규 아이템 거부
+      if (this.pendingPickup) {
+        this.resolvePickupRefuse()
+        return true
+      }
+      // 2) 다이얼로그 (alert/confirm) → 가장 마지막(취소) 버튼 value 로 닫음
+      if (this.dialog) {
+        const buttons = this.dialog.buttons
+        // 취소 버튼은 보통 마지막에 있고 value=false. 없으면 마지막 버튼 value.
+        const cancelBtn = buttons.find((b) => b.value === false) ?? buttons[buttons.length - 1]
+        this.resolveDialog(cancelBtn?.value ?? false)
+        return true
+      }
+      // 3) 입력 다이얼로그 (prompt) → null
+      if (this.inputDialog) {
+        this.resolveInput(null)
+        return true
+      }
+      // 4) 리스트 다이얼로그 → null
+      if (this.listDialog) {
+        this.resolveList(null)
+        return true
+      }
+      // 5) 인트로 만화 → 닫음 (replay 흐름이면 그냥 종료, first/afterRealBoss는 흐름 끊김 방지하려 닫음 허용)
+      if (this.introVisible) {
+        this.closeIntroComic()
+        return true
+      }
+      return false
+    },
+
+    closeIntroComic() {
+      this.introVisible = false
+      // 최초 시청 완료 플래그
+      try { localStorage.setItem('climetop:tutorialSeen:v1', '1') } catch {}
+      // 종료 후 라우팅
+      const flow = this.introFlow
+      if (flow === 'afterRealBoss') {
+        this.startCharacterCreation()
+      } else if (flow === 'first') {
+        // 메인 메뉴로 (이미 위에)
+        this.screen = 'menu'
+      }
+      // replay 는 이전 화면 그대로 유지
     },
   },
 })
