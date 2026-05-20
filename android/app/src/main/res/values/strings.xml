@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">이번 판은 똥템으로 탑을 오르겠습니다</string>
+    <string name="app_name">똥템탑</string>
     <string name="title_activity_main">이번 판은 똥템으로 탑을 오르겠습니다</string>
     <string name="package_name">com.climetop.app</string>
     <string name="custom_url_scheme">com.climetop.app</string>
