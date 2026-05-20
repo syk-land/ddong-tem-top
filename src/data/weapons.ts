@@ -1,126 +1,111 @@
-import type { WeaponBase, Element } from '@/types'
+import type { WeaponBase } from '@/types'
 
-// 무기 베이스 — 특성별 밸런싱 (v5)
+// v8 — 무기 단순화 (15종)
 //   설계 원칙:
-//     속도형: atk 낮음 + speedCoef 높음 + 관통 0     ← 빠른 평타 누적
-//     균형형: atk 중간 + speedCoef 1.0 + 관통 약    ← 무난
-//     중량형: atk 높음 + speedCoef 낮음 + 명중 페널티  ← 한 방 데미지
-//     관통형: atk 균형 + 관통 큼 + 명중 우위         ← 방어 무력화
-//     원거리: 관통/명중 우위 + 약간 낮은 atk
+//     속도형 (6~9틱):  낮은 atk + 빠른 공속 + 명중/관통으로 차별화
+//     균형형 (10~13틱): 중간 atk + 1.0± 공속 + 약간의 명중 보너스
+//     중량형 (14~20틱): 높은 atk + 느린 공속 + 명중 페널티
 //
-//   DPS (atk × speedCoef) 기준 모두 약 7~9 범위에 맞추되,
-//   관통/명중/스킬로 변별성.
+//   관통은 % 방어 무시 (0~100). 후반에도 비율 데미지 보장.
+//   목표 DP10T ≈ 4.5 (적 방어 30 기준).
+//
+//   speedCoef = 10 / ticks (검 10틱 = 1.0 기준)
+//   autoSkill 은 추후 랜덤 부여 시스템으로 대체 예정 — 현재는 placeholder.
 export const WEAPONS: Record<string, WeaponBase> = {
   // ── 속도형 ──
-  단검: {
-    key: '단검', category: 'melee', baseAtk: 5, speedCoef: 1.5,
-    accBonus: 5, mpBonus: 0, magicPenBonus: 0, penBonus: 0, isMagic: false,
-    autoSkill: '연속공격',
-  },
   건틀릿: {
-    key: '건틀릿', category: 'melee', baseAtk: 3, speedCoef: 1.7,
-    accBonus: 0, mpBonus: 0, magicPenBonus: 0, penBonus: 0, isMagic: false,
+    key: '건틀릿', category: 'melee', baseAtk: 6, speedCoef: 1.667, // 6틱
+    accBonus: 10, mpBonus: 0, magicPenBonus: 0, penBonus: 0, isMagic: false,
     autoSkill: '연속공격',
   },
-  // ── 균형형 ──
-  검: {
-    key: '검', category: 'melee', baseAtk: 10, speedCoef: 1.0,
-    accBonus: 0, mpBonus: 0, magicPenBonus: 0, penBonus: 0, isMagic: false,
-    autoSkill: '정밀타격',
+  단검: {
+    key: '단검', category: 'melee', baseAtk: 7, speedCoef: 1.429, // 7틱
+    accBonus: 5, mpBonus: 0, magicPenBonus: 0, penBonus: 10, isMagic: false,
+    autoSkill: '연속공격',
   },
   사슬낫: {
-    key: '사슬낫', category: 'melee', baseAtk: 9, speedCoef: 0.9,
-    accBonus: 0, mpBonus: 0, magicPenBonus: 0, penBonus: 2, isMagic: false,
+    key: '사슬낫', category: 'melee', baseAtk: 8, speedCoef: 1.111, // 9틱
+    accBonus: 0, mpBonus: 0, magicPenBonus: 0, penBonus: 25, isMagic: false,
     autoSkill: '급습',
   },
-  // ── 관통형 ──
+
+  // ── 균형형 ──
+  검: {
+    key: '검', category: 'melee', baseAtk: 10, speedCoef: 1.000, // 10틱
+    accBonus: 5, mpBonus: 0, magicPenBonus: 0, penBonus: 10, isMagic: false,
+    autoSkill: '정밀타격',
+  },
   창: {
-    key: '창', category: 'melee', baseAtk: 11, speedCoef: 0.9,
-    accBonus: 5, mpBonus: 0, magicPenBonus: 0, penBonus: 5, isMagic: false,
+    key: '창', category: 'melee', baseAtk: 10, speedCoef: 0.909, // 11틱
+    accBonus: 5, mpBonus: 0, magicPenBonus: 0, penBonus: 15, isMagic: false,
     autoSkill: '피어스',
   },
+  철퇴: {
+    key: '철퇴', category: 'melee', baseAtk: 13, speedCoef: 0.769, // 13틱
+    accBonus: 5, mpBonus: 0, magicPenBonus: 0, penBonus: 5, isMagic: false,
+    autoSkill: '스매쉬',
+  },
+
   // ── 중량형 ──
   대검: {
-    key: '대검', category: 'melee', baseAtk: 15, speedCoef: 0.75,
+    key: '대검', category: 'melee', baseAtk: 16, speedCoef: 0.714, // 14틱
     accBonus: -5, mpBonus: 0, magicPenBonus: 0, penBonus: 0, isMagic: false,
     autoSkill: '스매쉬',
   },
-  도끼: {
-    key: '도끼', category: 'melee', baseAtk: 15, speedCoef: 0.75,
-    accBonus: -5, mpBonus: 0, magicPenBonus: 0, penBonus: 3, isMagic: false,
-    autoSkill: '스매쉬',
-  },
-  철퇴: {
-    key: '철퇴', category: 'melee', baseAtk: 18, speedCoef: 0.65,
-    accBonus: -10, mpBonus: 0, magicPenBonus: 0, penBonus: 0, isMagic: false,
-    autoSkill: '스매쉬',
-  },
-  해머: {
-    key: '해머', category: 'melee', baseAtk: 18, speedCoef: 0.65,
-    accBonus: -10, mpBonus: 0, magicPenBonus: 0, penBonus: 5, isMagic: false,
-    autoSkill: '스매쉬',
-  },
   양날도끼: {
-    key: '양날도끼', category: 'melee', baseAtk: 22, speedCoef: 0.55,
-    accBonus: -15, mpBonus: 0, magicPenBonus: 0, penBonus: 0, isMagic: false,
+    key: '양날도끼', category: 'melee', baseAtk: 17, speedCoef: 0.667, // 15틱
+    accBonus: -10, mpBonus: 0, magicPenBonus: 0, penBonus: 15, isMagic: false,
     autoSkill: '스매쉬',
   },
-  // ── 원거리 ──
+  할버드: {
+    key: '할버드', category: 'melee', baseAtk: 20, speedCoef: 0.500, // 20틱
+    accBonus: -10, mpBonus: 0, magicPenBonus: 0, penBonus: 30, isMagic: false,
+    autoSkill: '피어스',
+  },
+
+  // ── 원거리 (활) ──
   숏보우: {
-    key: '숏보우', category: 'ranged', baseAtk: 8, speedCoef: 1.05,
+    key: '숏보우', category: 'ranged', baseAtk: 7, speedCoef: 1.429, // 7틱
     accBonus: 10, mpBonus: 0, magicPenBonus: 0, penBonus: 0, isMagic: false,
     autoSkill: '정밀타격',
   },
   롱보우: {
-    key: '롱보우', category: 'ranged', baseAtk: 13, speedCoef: 0.85,
-    accBonus: 5, mpBonus: 0, magicPenBonus: 0, penBonus: 3, isMagic: false,
+    key: '롱보우', category: 'ranged', baseAtk: 10, speedCoef: 0.909, // 11틱
+    accBonus: 10, mpBonus: 0, magicPenBonus: 0, penBonus: 10, isMagic: false,
     autoSkill: '피어스',
   },
   석궁: {
-    key: '석궁', category: 'ranged', baseAtk: 13, speedCoef: 0.75,
-    accBonus: 5, mpBonus: 0, magicPenBonus: 0, penBonus: 8, isMagic: false,
+    key: '석궁', category: 'ranged', baseAtk: 13, speedCoef: 0.667, // 15틱
+    accBonus: 5, mpBonus: 0, magicPenBonus: 0, penBonus: 30, isMagic: false,
     autoSkill: '피어스',
   },
-}
 
-// 마법 무기 (속성별 7가지) × 3 타입 (완드 / 스태프 / 마도서)
-const ELEMENTS: Element[] = ['물', '불', '바람', '대지', '번개', '암흑', '빛']
-
-const ELEMENT_SKILL: Record<Element, string> = {
-  물: '빙결의화살',
-  불: '화염구',
-  바람: '폭풍칼날',
-  대지: '바위충격',
-  번개: '번개창',
-  암흑: '그림자일격',
-  빛: '정화의광선',
-  무: '정밀타격',
-}
-
-for (const el of ELEMENTS) {
-  // 완드 — MP 효율 + 빠른 발사 (마법무기 약화 v6.1)
-  WEAPONS[`완드_${el}`] = {
-    key: `완드_${el}`, category: 'magic', baseAtk: 2, speedCoef: 1.05,
-    accBonus: 5, mpBonus: -3, magicPenBonus: 0, penBonus: 0,
-    isMagic: true, element: el, autoSkill: ELEMENT_SKILL[el],
-  }
-  // 스태프 — 균형 + 마법 관통
-  WEAPONS[`스태프_${el}`] = {
-    key: `스태프_${el}`, category: 'magic', baseAtk: 4, speedCoef: 0.75,
-    accBonus: 5, mpBonus: 0, magicPenBonus: 3, penBonus: 0,
-    isMagic: true, element: el, autoSkill: ELEMENT_SKILL[el],
-  }
-  // 마도서 — 강력 + MP 비싸고 명중 -
-  WEAPONS[`마도서_${el}`] = {
-    key: `마도서_${el}`, category: 'magic', baseAtk: 6, speedCoef: 0.8,
-    accBonus: -10, mpBonus: 3, magicPenBonus: 5, penBonus: 0,
-    isMagic: true, element: el, autoSkill: ELEMENT_SKILL[el],
-  }
+  // ── 마법 (속성/스킬은 랜덤 부여 — 추후 시스템) ──
+  완드: {
+    key: '완드', category: 'magic', baseAtk: 6, speedCoef: 1.667, // 6틱
+    accBonus: 5, mpBonus: -3, magicPenBonus: 0, penBonus: 0, isMagic: true,
+    autoSkill: '화염구',
+  },
+  스태프: {
+    key: '스태프', category: 'magic', baseAtk: 10, speedCoef: 1.000, // 10틱
+    accBonus: 0, mpBonus: 0, magicPenBonus: 10, penBonus: 0, isMagic: true,
+    autoSkill: '번개창',
+  },
+  마도서: {
+    key: '마도서', category: 'magic', baseAtk: 14, speedCoef: 0.769, // 13틱
+    accBonus: -10, mpBonus: 3, magicPenBonus: 15, penBonus: 0, isMagic: true,
+    autoSkill: '바위충격',
+  },
 }
 
 export const WEAPON_KEYS = Object.keys(WEAPONS)
 
-// 표시용 이름
+// 표시용 이름 (현재는 그대로, 추후 속성 prefix 등 붙을 수 있음)
 export function weaponDisplayName(key: string): string {
-  return key.replace(/_/g, ' ')
+  return key
+}
+
+// 무기 → 표시 틱 (speedCoef 1.0 = 10틱 기준)
+export function weaponTicks(speedCoef: number): number {
+  return Math.round(10 / speedCoef)
 }

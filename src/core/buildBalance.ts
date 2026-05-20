@@ -21,40 +21,30 @@ import { clamp } from './rng'
 // ============================================================
 
 export const WEAPON_SKILL_PROC: Record<string, number> = {
-  // 근접 — 속도 빠른 순
-  건틀릿: 0.18, // 2.0 coef, 연속공격 MP10 — 가장 느림 (자주 못 씀)
-  단검: 0.22, // 1.5 coef, 연속공격
-  검: 0.32, // 1.0 coef, 정밀타격
-  창: 0.40, // 1.0 coef, 피어스 (관통 무기는 스킬 핵심)
-  사슬낫: 0.35, // 1.0 coef, 급습 (행운 스케일)
-  대검: 0.55, // 0.7 coef, 스매쉬
-  도끼: 0.55, // 0.7 coef, 스매쉬
-  철퇴: 0.60, // 0.6 coef, 스매쉬
-  해머: 0.60, // 0.6 coef, 스매쉬
-  양날도끼: 0.70, // 0.5 coef, 스매쉬 — 한 번에 모든 걸 거는 빌드
+  // 속도형 (6~9틱) — 평타 누적, 스킬 발동 ↓
+  건틀릿: 0.18,
+  단검: 0.22,
+  사슬낫: 0.30,
+  완드: 0.25,
+  숏보우: 0.25,
 
-  // 원거리
-  숏보우: 0.38, // 0.9 coef, 정밀타격
-  롱보우: 0.55, // 0.6 coef, 피어스
-  석궁: 0.55, // 0.6 coef, 피어스
+  // 균형형 (10~13틱)
+  검: 0.35,
+  창: 0.40,
+  철퇴: 0.50,
+  스태프: 0.40,
+  롱보우: 0.40,
 
-  // 마법 무기 — 기본 키 (속성별 키는 prefix로 매칭)
-  완드: 0.32, // 1.2 coef, 명중 +10, 평타도 마법
-  스태프: 0.50, // 0.7 coef, 마관 +5
-  마도서: 0.45, // 1.0 coef, 가장 강력한 마공
+  // 중량형 (14~20틱) — 한 방 위주, 스킬 발동 ↑
+  대검: 0.55,
+  양날도끼: 0.65,
+  할버드: 0.70,
+  마도서: 0.55,
+  석궁: 0.50,
 }
 
-// 마법 무기는 `완드_불`, `스태프_번개` 등 prefix 매칭으로 조회
 export function lookupWeaponProc(baseKey: string): number {
-  if (WEAPON_SKILL_PROC[baseKey] !== undefined) return WEAPON_SKILL_PROC[baseKey]
-  // 마법 무기 prefix 매칭
-  for (const prefix of ['완드_', '스태프_', '마도서_']) {
-    if (baseKey.startsWith(prefix)) {
-      const base = prefix.slice(0, -1)
-      return WEAPON_SKILL_PROC[base] ?? 0.35
-    }
-  }
-  return 0.30 // fallback
+  return WEAPON_SKILL_PROC[baseKey] ?? 0.30
 }
 
 // ============================================================

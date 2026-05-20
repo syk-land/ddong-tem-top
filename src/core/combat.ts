@@ -179,13 +179,19 @@ export function computeDamage(
   // LOL 방어 공식 (게임 스케일 맞춤): damage = atk × K / (K + def)
   // 우리 게임 평균 effective_def 20~50 — LOL의 K=100 → K=25
   //   def 0   → 100% dmg
-  //   def 25  → 50% (균등 시작 + 무방어)
-  //   def 50  → 33% (균형 빌드)
-  //   def 100 → 20% (방어 빌드)
-  //   def 200 → 11% (탱커 빌드)
-  //   def 500 → 4.8% (극한, 절대 0 아님)
+  //   def 30  → 50% (K=30 균등)
+  //   def 50  → 38%
+  //   def 100 → 23%
+  //   def 200 → 13%
+  //
+  // v8: 관통은 % 방어 무시 (0~100). 절대값 차감이 아닌 비율로 동작.
+  //   pen 0   → 적 방어 그대로
+  //   pen 30  → 적 방어 30% 무시
+  //   pen 100 → 적 방어 완전 무시
+  // → 후반 고방어 적에도 관통이 비율적 가치 유지 (절대값 차감보다 일관됨)
   const DEF_K = 30
-  const effectiveDef = Math.max(0, defender.방어 - attackerStats.관통 * penBoost)
+  const penRatio = Math.min(1.0, Math.max(0, attackerStats.관통 * penBoost / 100))
+  const effectiveDef = Math.max(0, defender.방어 * (1 - penRatio))
   let dmg = Math.max(1, effectiveAtk * DEF_K / (DEF_K + effectiveDef))
 
   let isCrit = false
@@ -318,6 +324,14 @@ export function monsterAttack(ctx: CombatContext, attacker: MonsterInstance) {
 
   ctx.player.hp = Math.max(0, ctx.player.hp - finalDmg)
   pushLog(ctx, `${attacker.template.name}의 공격! ${finalDmg} 피해`, 'enemy')
+
+  // 갑옷 데미지 반사 (반짝거리는) — 받은 데미지의 N% 를 공격자에게
+  if (eff.damageReflectPct > 0 && attacker.hp > 0) {
+    const reflect = Math.max(1, Math.round(finalDmg * eff.damageReflectPct))
+    attacker.hp = Math.max(0, attacker.hp - reflect)
+    pushLog(ctx, `데미지 반사: ${attacker.template.name}에게 ${reflect} 피해`, 'status')
+    checkMonsterDeath(ctx)
+  }
 
   // trait: 플레이어 피격 후 훅 (블러드 스트라이크 카운트, 챌린지 트래커 진입점)
   attacker._attacksMade = (attacker._attacksMade ?? 0) + 1

@@ -1,22 +1,49 @@
-// 아이템 공격/방어 벨류 — 시뮬레이터 결과 기반 휴리스틱 가중치.
-//   "이 아이템 하나가 캐릭터의 공격력/방어력 전투 능력에 얼마나 기여하는가"를 단일 수치로.
-//   캐릭터 stat 과 무관 — 아이템 자체의 가치 표시용.
+// 아이템 전투력(공) / 전투력(방) — 캐릭터 stat + 챕터 기반 동적 모델 (v2).
 //
-// 공격벨류 (offense value):
-//   baseAtk × (coef + 특성 공격력%) × 무기 speedCoef     # 평균 DPS
-//   + 명중/관통/행운/lifesteal/상태이상 가산
+// 전투력(공) [무기]:
+//   공격력_총   = 힘 × 5 + baseAtk × (coef + 특성공격%) × (마법:magicCoef)
+//   명중률      = clamp(0.5 + (민첩×0.5 + 행운×0.3 + accBonus + 특성명중) / 100, 0.2, 1.0)
+//   실효방어    = 적방어 × (1 - 관통/100)                       # 관통(%) = 힘×0.5 + 행운×0.3 + 무기관통
+//   적방어      = 10 + 챕터 × 5                                # 동적 (ch1=15, ch10=60)
+//   평타 hit    = max(1, 공격력_총 - 실효방어) × 명중률
+//   스킬 발동률 = clamp(0.15 + 행운 × 0.015, 0.05, 0.85)
+//   스킬 hit    = max(1, 공격력_총 × skill.mult × (마법:magicCoef) - 실효방어) × 명중률
+//   평균 hit    = (1 - p) × 평타 + p × 스킬
+//   틱당 DPS    = 평균 hit × speedCoef × 갑옷.speedMult
+//   + 흡혈/상태이상/대언데드/자해 가산 (DPS 비례)
 //
-// 방어벨류 (defense value):
-//   baseDef × 2 × (coef + 특성 방어력%)                  # 방어력 종합
-//   + evasion/저항/마력보너스/회피/저항 특성 가산
+// 전투력(방) [갑옷]:
+//   baseDef × 2 × (coef + 특성방어%) + 회피/저항/마력/피격회복/반사
 //
-// 무기 슬롯 = 공격벨류만, 갑옷 슬롯 = 방어벨류만 (반대편은 0).
-// 단, 갑옷의 speedMult / mpBonus 같은 일부 효과는 *공격* 영향도 있으므로 양쪽 일부 부여.
+// 무기 슬롯 = 공(주), 갑옷 슬롯 = 방(주). 반대편은 보조 효과만 가산.
 
 import type { ItemInstance, Character } from '@/types'
 import { WEAPONS } from '@/data/weapons'
 import { ARMORS } from '@/data/armor'
 import { WEAPON_TRAITS, ARMOR_TRAITS } from '@/data/traits'
+import { computeMaxHp } from '@/core/character'
+
+// 기본 캐릭터 stat (캐릭터 없을 때 — 카탈로그 표시용)
+const DEFAULT_STATS = { 힘: 10, 민첩: 10, 체력: 10, 마력: 10, 행운: 10 }
+// 기본 챕터 (캐릭터 챕터 정보 없을 때)
+const DEFAULT_CHAPTER = 5
+
+// 스킬별 평균 데미지 multiplier (data/skills.ts description + core/skills.ts 로직 기반)
+// description 텍스트가 바뀌어도 여기는 명시값을 유지 (예상 데미지 모델용)
+const SKILL_ATK_MULT: Record<string, { mult: number; magic: boolean }> = {
+  스매쉬: { mult: 2.0, magic: false },
+  피어스: { mult: 1.5, magic: false },        // 관통 ×2 효과 환산
+  연속공격: { mult: 2.1, magic: false },      // 0.7 × 평균 3히트
+  정밀타격: { mult: 1.5, magic: false },      // 1.2 × 평균 크리 1.25
+  급습: { mult: 1.65, magic: false },         // 1.5 × (1 + 0.15)
+  빙결의화살: { mult: 2.2, magic: true },
+  화염구: { mult: 2.6, magic: true },
+  폭풍칼날: { mult: 3.15, magic: true },      // 1.05 × 3히트
+  바위충격: { mult: 2.3, magic: true },
+  번개창: { mult: 2.9, magic: true },
+  그림자일격: { mult: 2.2, magic: true },
+  정화의광선: { mult: 1.8, magic: true },
+}
 
 export interface ValuePart {
   label: string
@@ -31,9 +58,15 @@ export interface ItemValueBreakdown {
   defParts: ValuePart[]
 }
 
-export function computeItemValue(item: ItemInstance | null, character?: Character | null): ItemValueBreakdown {
+export function computeItemValue(
+  item: ItemInstance | null,
+  character?: Character | null,
+  opts: { chapter?: number } = {},
+): ItemValueBreakdown {
   if (!item) return { atkValue: 0, defValue: 0, atkParts: [], defParts: [] }
-  return item.kind === 'weapon' ? computeWeaponValue(item, character) : computeArmorValue(item, character)
+  return item.kind === 'weapon'
+    ? computeWeaponValue(item, character, opts.chapter ?? DEFAULT_CHAPTER)
+    : computeArmorValue(item, character)
 }
 
 // 캐릭터의 무기에서 DPS 추정치 산출 (방어구 공속 페널티 환산용)
@@ -62,12 +95,21 @@ function estimateMagicCoef(character: Character | null | undefined, viewedWeapon
     }
   }
   const totalMp = baseMp + armorBoost + wEffMp
-  const coef = 1 + (totalMp - 15) * 0.05
-  return Math.max(0.1, Math.min(1.8, coef))
+  // v7.1: 마력계수 추가 강화 동기화 (1pt당 0.10, 상한 3.0)
+  const coef = 1 + (totalMp - 15) * 0.10
+  return Math.max(0.1, Math.min(3.0, coef))
 }
 
-// 무기: 공격벨류 위주
-function computeWeaponValue(w: ItemInstance, character?: Character | null): ItemValueBreakdown {
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v))
+}
+
+// 무기: 전투력(공) — 캐릭터 stat + 챕터 기반 동적 모델
+function computeWeaponValue(
+  w: ItemInstance,
+  character: Character | null | undefined,
+  chapter: number,
+): ItemValueBreakdown {
   const base = WEAPONS[w.baseKey]
   const td = WEAPON_TRAITS[w.trait]
   if (!base || !td) return { atkValue: 0, defValue: 0, atkParts: [], defParts: [] }
@@ -75,45 +117,78 @@ function computeWeaponValue(w: ItemInstance, character?: Character | null): Item
   const atkParts: ValuePart[] = []
   const defParts: ValuePart[] = []
 
-  // 1) 종합 공격력 (DPS) = baseAtk × (coef + trait%) × speedCoef × armorSpeedMult × (마법무기면 magicCoef)
-  //    캐릭터에 갑옷이 장착돼 있으면 갑옷의 공속 배율도 곱해 실효 DPS 반영
-  //    마법 무기는 캐릭터의 마력 + 갑옷/특성 마력 보너스로 마력계수 산출해 곱함
+  const stats = character?.stats ?? DEFAULT_STATS
+  const enemyDef = 10 + chapter * 5            // ch1=15, ch5=35, ch10=60
+
+  // ── 1) 종합 공격력 = 힘 × 7 + (마법무기:마력 × 3) + 무기 종합 (× 마법계수) ──
+  //     v7.3: stats.ts와 동기화
   const atkPct = (td.effects.공격력_pct ?? 0) + (td.effects.전스탯_pct ?? 0)
-  const rawAtk = base.baseAtk * (w.coef + atkPct)
-  const armorSpeed = character?.armor ? (ARMORS[character.armor.baseKey as keyof typeof ARMORS]?.speedMult ?? 1) : 1
-  let magicCoef = 1
-  let magicNote = ''
-  if (base.isMagic) {
-    magicCoef = estimateMagicCoef(character, w)
-    magicNote = ` × ${magicCoef.toFixed(2)}(마력계수)`
+  const weaponContrib = base.baseAtk * (w.coef + atkPct)
+  const magicCoef = base.isMagic ? estimateMagicCoef(character, w) : 1
+  const atkBase = stats.힘 * 7 + (base.isMagic ? stats.마력 * 3 : 0)
+  const totalAtk = (atkBase + weaponContrib) * magicCoef
+
+  // ── 2) 명중률 (곱셈) — clamp(0.5 + acc/100, 0.2, 1.0) ──
+  const accStat = stats.민첩 * 0.5 + stats.행운 * 0.3
+  const accWeapon = (base.accBonus ?? 0) + (w.effects.명중 ?? 0)
+  const totalAcc = accStat + accWeapon
+  const hitRate = clamp(0.5 + totalAcc / 100, 0.2, 1.0)
+
+  // ── 3) 관통 → 실효 방어 (v8: % 방어 무시) ──
+  const penStat = stats.힘 * 0.5 + stats.행운 * 0.3
+  const penWeapon = (base.penBonus ?? 0) + (base.magicPenBonus ?? 0) + (w.effects.관통 ?? 0)
+  const totalPen = penStat + penWeapon
+  const penRatio = Math.min(1.0, Math.max(0, totalPen / 100))
+  const effDef = Math.max(0, enemyDef * (1 - penRatio))
+
+  // ── 4) 실효 공속 ──
+  const armorSpeed = character?.armor
+    ? (ARMORS[character.armor.baseKey as keyof typeof ARMORS]?.speedMult ?? 1)
+    : 1
+  const speedMult = base.speedCoef * armorSpeed
+
+  // ── 5) 평타 데미지 ──
+  const basicHit = Math.max(1, totalAtk - effDef) * hitRate
+
+  // ── 6) 스킬 데미지 + 행운 기반 발동률 ──
+  const skillKey = base.autoSkill
+  const skillInfo = skillKey ? SKILL_ATK_MULT[skillKey] : undefined
+  const procRate = skillInfo ? clamp(0.15 + stats.행운 * 0.015, 0.05, 0.85) : 0
+  let avgHit = basicHit
+  if (skillInfo) {
+    const skillEffective = totalAtk * skillInfo.mult * (skillInfo.magic ? magicCoef : 1) / (skillInfo.magic ? magicCoef : 1)
+    // skillEffective: totalAtk 이미 magicCoef 곱해진 상태 → 마법 스킬도 추가 곱 안함
+    const skillRaw = totalAtk * skillInfo.mult
+    const skillHit = Math.max(1, skillRaw - effDef) * hitRate
+    avgHit = (1 - procRate) * basicHit + procRate * skillHit
+    atkParts.push({
+      label: `${skillKey} 데미지 (×${skillInfo.mult.toFixed(2)})`,
+      value: (skillHit - basicHit) * procRate * speedMult,
+      note: `스킬 ${skillHit.toFixed(1)} (×${skillInfo.mult}) vs 평타 ${basicHit.toFixed(1)} · 발동률 ${(procRate * 100).toFixed(0)}% (행운 ${stats.행운})`,
+    })
+    void skillEffective  // 미사용 변수 정리
   }
-  const dps = rawAtk * base.speedCoef * armorSpeed * magicCoef
-  const armorSpeedNote = armorSpeed !== 1 ? ` × ${armorSpeed.toFixed(2)}(갑옷 공속)` : ''
-  atkParts.push({
-    label: base.isMagic ? '평균 마법 공격력' : '평균 공격력',
-    value: dps,
-    note: `${base.baseAtk}(기본) × (${w.coef}(등급) + ${atkPct.toFixed(2)}(특성)) × ${base.speedCoef}(공속)${armorSpeedNote}${magicNote}`,
+
+  // ── 7) 틱당 DPS (메인 표시값) ──
+  const dps = avgHit * speedMult
+  const magicNote = magicCoef !== 1 ? ` × ${magicCoef.toFixed(2)}(마력)` : ''
+  const armorNote = armorSpeed !== 1 ? ` × ${armorSpeed.toFixed(2)}(갑옷공속)` : ''
+  atkParts.unshift({
+    label: `틱당 예상 데미지 (적방어 ${enemyDef}, ch${chapter})`,
+    value: skillInfo ? basicHit * speedMult : dps,
+    note: `(힘×5 + 무기${weaponContrib.toFixed(1)})${magicNote} - 실효방어 ${effDef.toFixed(0)} × ${(hitRate*100).toFixed(0)}%(명중) × ${base.speedCoef}(공속)${armorNote}`,
   })
 
-  // 2) 명중 — 공격 기여 (적 회피 무력화)
-  const acc = base.accBonus + (w.effects.명중 ?? 0)
-  if (acc) atkParts.push({ label: '명중', value: acc * 0.4, note: `+${acc} (×0.4)` })
-
-  // 3) 관통 — 공격 기여 (적 방어 무력화)
-  const pen = base.penBonus ?? 0 + base.magicPenBonus + (w.effects.관통 ?? 0)
-  if (pen) atkParts.push({ label: '관통', value: pen * 0.6, note: `+${pen} (×0.6)` })
-
-  // 4) 행운 — 크리/발동률 (대략 0.5)
-  const luck = w.effects.행운 ?? 0
-  if (luck) atkParts.push({ label: '행운', value: luck * 0.5, note: `+${luck} (×0.5)` })
-
-  // 5) 흡혈 / 자해 / 언데드 / 상태이상
+  // ── 8) 보조 효과 (DPS 비례) ──
   const lifesteal = w.effects.lifesteal ?? 0
-  if (lifesteal) atkParts.push({ label: '흡혈', value: lifesteal * 40, note: `${(lifesteal*100).toFixed(0)}% × 40` })
+  if (lifesteal) atkParts.push({ label: '흡혈 (생존성)', value: dps * lifesteal * 0.3, note: `DPS × ${(lifesteal*100).toFixed(0)}% × 0.3` })
   const selfDot = w.effects.self_dot_pct ?? 0
-  if (selfDot) atkParts.push({ label: '자해(저주)', value: -selfDot * 80, note: `-${(selfDot*100).toFixed(0)}% × 80` })
+  if (selfDot) {
+    const maxHp = character ? computeMaxHp(stats.체력) : 200
+    atkParts.push({ label: '자해(저주)', value: -selfDot * maxHp * 0.05, note: `-${(selfDot*100).toFixed(0)}% × HP ${maxHp} × 0.05` })
+  }
   const vsUndead = w.effects.vs_undead_pct ?? 0
-  if (vsUndead) atkParts.push({ label: '대언데드', value: vsUndead * 8, note: `+${(vsUndead*100).toFixed(0)}% × 8` })
+  if (vsUndead) atkParts.push({ label: '대언데드', value: dps * vsUndead * 0.1, note: `DPS × ${(vsUndead*100).toFixed(0)}% × 0.1 (테마 1/10)` })
 
   const statusKeys: Array<[keyof typeof w.effects, string]> = [
     ['burn_chance', '점화'], ['bleed_chance', '출혈'], ['poison_chance', '독'],
@@ -121,16 +196,18 @@ function computeWeaponValue(w: ItemInstance, character?: Character | null): Item
   ]
   for (const [k, label] of statusKeys) {
     const v = (w.effects[k] as number | undefined) ?? 0
-    if (v) atkParts.push({ label, value: v * 30, note: `${(v*100).toFixed(0)}% × 30` })
+    if (v) atkParts.push({ label, value: dps * v * 0.4, note: `DPS × ${(v*100).toFixed(0)}% × 0.4 (DoT)` })
   }
 
-  // 6) 특성 마력 — 마법 무기일 때만 의미
+  const luckEff = w.effects.행운 ?? 0
+  if (luckEff) atkParts.push({ label: '행운 (크리/발동↑)', value: dps * luckEff * 0.01, note: `DPS × ${luckEff} × 1%` })
+
   if (base.isMagic) {
     const mpBonus = w.effects.마력 ?? 0
-    if (mpBonus) atkParts.push({ label: '마법 마력 보너스', value: mpBonus * 0.5, note: `+${mpBonus} (마력계수 ↑)` })
+    if (mpBonus) atkParts.push({ label: '마력 (마법공격↑)', value: dps * mpBonus * 0.025, note: `DPS × ${mpBonus} × 2.5%` })
   }
 
-  // 7) 무기에도 일부 방어 효과 (저주 갑옷처럼 무기에 회피/저항 특성 가능)
+  // 무기 trait 의 방어 효과
   if (w.effects.회피) defParts.push({ label: '회피 (무기 특성)', value: w.effects.회피 * 0.5 })
   if (w.effects.상태저항) defParts.push({ label: '저항 (무기 특성)', value: w.effects.상태저항 * 0.3 })
 

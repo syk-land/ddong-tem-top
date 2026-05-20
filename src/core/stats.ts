@@ -3,12 +3,17 @@ import { getWeaponBase, getArmorBase } from './items'
 import { WEAPON_TRAITS, ARMOR_TRAITS } from '@/data/traits'
 import { clamp } from './rng'
 
-// v6 5스탯 기반 통합 EffectiveStats
-//   힘    → 공격력(× 1.5), 관통(× 0.5)
-//   민첩  → 속도(× 1.0), 명중(× 0.5), 회피(× 0.5)
-//   체력  → 방어력(× 2.0), HP(× 10 + 50), 상태저항(× 0.5)
+// v8 5스탯 기반 통합 EffectiveStats
+//   힘    → 공격력(× 7.0), 관통%(× 0.5)
+//   민첩  → 속도(× 0.5), 명중(× 0.5), 회피(× 0.5)
+//   체력  → 방어력(× 3.5), HP(× 10 + 50), 상태저항(× 0.5)
 //   마력  → MP(× 15 + 30), 마력계수, 상태저항(× 0.5)
-//   행운  → 명중/회피/관통/상태저항 각 × 0.3 가산
+//   행운  → 명중/회피/관통%/상태저항 각 × 0.3 가산
+//
+// v8 변경:
+//   - 관통은 % 방어 무시 (절대값 차감 X) → combat.ts/computeDamage 참조
+//   - 힘 30 + 행운 10 = 18% 방어 무시 (스탯 기여)
+//   - 무기 관통% 0~30이 일반적 (할버드/석궁 최대 30%)
 //
 // 장비/특성은 스탯 직접 변동 없음.
 // 모든 효과는 derive 된 파생값(공격력/방어력/명중/회피/관통/저항/마력 등)에 가산.
@@ -35,6 +40,7 @@ export interface EffectiveStats {
   // 패시브
   lifesteal: number
   damageTakenHealPct: number
+  damageReflectPct: number
   selfDotPct: number
   vsUndeadPct: number
   // 상태이상 발동률
@@ -67,12 +73,16 @@ export function computeEffectiveStats(c: Character): EffectiveStats {
   const speedPct = (weffects.속도_pct ?? 0) + (aeffects.속도_pct ?? 0)
 
   // ── 파생 base (5스탯에서) — 스탯 비중 매우 높음 (장비 격차 평탄화)
-  const atkBase = s.힘 * 5.0
+  // v7.2: 민첩 속도 0.7 → 0.5, 체력 방어 5.0 → 3.5 추가 너프
+  // v7.3: 힘 atkBase 5.0 → 7.0 (균등 baseline 회복)
+  //       + 마법 무기 사용 시 마력 × 3.0 추가 가산 (마법 빌드 본질 강화)
+  const isMagicW = wbase?.isMagic ?? false
+  const atkBase = s.힘 * 7.0 + (isMagicW ? s.마력 * 3.0 : 0)
   const penBase = s.힘 * 0.5 + s.행운 * 0.3
-  const speedBase = s.민첩 * 1.0
+  const speedBase = s.민첩 * 0.5
   const accBase = s.민첩 * 0.5 + s.행운 * 0.3
   const evaBase = s.민첩 * 0.5 + s.행운 * 0.3
-  const defBase = s.체력 * 5.0
+  const defBase = s.체력 * 3.5
   const resistBase = s.체력 * 0.5 + s.마력 * 0.5 + s.행운 * 0.3
   const hpStat = s.체력           // HP 계산은 character.ts 가 담당
   const mpStat = s.마력
@@ -120,10 +130,11 @@ export function computeEffectiveStats(c: Character): EffectiveStats {
     + (aeffects.상태저항 ?? 0)
 
   // 마력 보너스 → 마력계수 (장비/특성 마력은 마력계수에만 영향, 스탯엔 안 들어감)
-  // v6: 극단값 방지 — clamp 상한 1.8 (옛 3.0 → 1.8), 1pt당 0.05 (옛 0.07)
+  // v7.1: 마법 빌드 추가 강화 — 1pt당 0.07 → 0.10, 상한 2.5 → 3.0
+  //       마법 빌드가 여전히 평균 7.8%로 부진. 마력 20 → magicCoef 1.5 (옛 1.35)
   const mpBonus = (aeffects.마력 ?? 0) + (weffects.마력 ?? 0) + (abase?.mpBonus ?? 0)
   const totalMagicStat = mpStat + mpBonus
-  const magicCoef = clamp(1 + (totalMagicStat - 15) * 0.05, 0.1, 1.8)
+  const magicCoef = clamp(1 + (totalMagicStat - 15) * 0.10, 0.1, 3.0)
   // 마법공격력 = (atkBase + 무기 종합) × 마력계수
   const finalMagicAtk = (atkBase + weaponAtkCoef) * magicCoef
 
@@ -153,6 +164,7 @@ export function computeEffectiveStats(c: Character): EffectiveStats {
 
     lifesteal: weffects.lifesteal ?? 0,
     damageTakenHealPct: aeffects.damage_taken_heal_pct ?? 0,
+    damageReflectPct: aeffects.damage_reflect_pct ?? 0,
     selfDotPct: (weffects.self_dot_pct ?? 0) + (aeffects.self_dot_pct ?? 0),
     vsUndeadPct: weffects.vs_undead_pct ?? 0,
 

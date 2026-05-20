@@ -210,19 +210,24 @@ export function skillIconUrl(skillKey: string): string {
 // 무기 / 갑옷 이미지
 // =========================================================
 const WEAPON_FILE: Record<string, string> = {
-  단검: '단검',
+  // 근접
   건틀릿: '건틀릿',
+  단검: '단검',
+  사슬낫: '사슬낫',
   검: '검',
   창: '창',
-  대검: '대검-도끼',
-  도끼: '양손도끼',
   철퇴: '철퇴-해머',
-  해머: '철퇴-해머',
+  대검: '대검-도끼',
   양날도끼: '양날도끼',
-  사슬낫: '사슬낫',
+  할버드: '창',
+  // 활
   숏보우: '숏보우',
   롱보우: '롱보우-석궁',
   석궁: '롱보우-석궁',
+  // 마법
+  완드: '완드',
+  스태프: '스태프',
+  마도서: '마도서',
 }
 
 const ARMOR_FILE: Record<string, string> = {
@@ -234,12 +239,6 @@ const ARMOR_FILE: Record<string, string> = {
 
 export function itemImageUrl(kind: 'weapon' | 'armor', baseKey: string): string | null {
   if (kind === 'weapon') {
-    // 마법 무기: 완드_불, 스태프_번개 등 — prefix만 사용
-    for (const prefix of ['완드_', '스태프_', '마도서_']) {
-      if (baseKey.startsWith(prefix)) {
-        return `/images/ITEM/${prefix.slice(0, -1)}.png`
-      }
-    }
     const f = WEAPON_FILE[baseKey]
     return f ? `/images/ITEM/${f}.png` : null
   }

@@ -86,6 +86,8 @@ export interface TraitEffect {
   reflect_poison?: number
   // 갑옷 전용: 받은 데미지 흡혈
   damage_taken_heal_pct?: number
+  // 갑옷 전용: 받은 데미지의 N% 를 공격자에게 반사 (반짝거리는)
+  damage_reflect_pct?: number
   // 상태 면역/저항 % 감소
   resist_burn?: number
   resist_slow?: number
@@ -108,14 +110,14 @@ export interface WeaponBase {
   key: string         // 단검, 검, ...
   category: WeaponCategory
   baseAtk: number
-  speedCoef: number   // 매 틱 누적 = 속도 × speedCoef
-  accBonus: number    // 명중 보정 (예: 완드 +10, 마도서 -10)
-  mpBonus: number     // 마법 무기 MP 소모 보정 (완드 -2, 마도서 +2)
-  magicPenBonus: number  // 마법 관통 (스태프/마도서)
-  penBonus?: number   // 물리 관통 (창/석궁/해머 등) — 통합 관통(s.관통)에 가산
+  speedCoef: number   // 매 틱 누적 = 속도 × speedCoef (10/ticks 기준, 검=1.0 → 10틱)
+  accBonus: number    // 명중 보정 (속도형 +, 중량형 -)
+  mpBonus: number     // 마법 무기 MP 소모 보정 (완드 -3, 마도서 +3)
+  magicPenBonus: number  // 마법 관통 % (스태프/마도서) — 관통과 동일하게 % 방어 무시
+  penBonus?: number   // 물리 관통 % (0~100) — 적 방어를 비율로 무시
   isMagic: boolean
-  element?: Element   // 마법 무기만
-  autoSkill: string   // 자동 부여 스킬 키
+  element?: Element   // (deprecated) 마법 속성 — 추후 스킬 랜덤 시스템으로 이관 예정
+  autoSkill: string   // (deprecated) 자동 부여 스킬 — 추후 랜덤 부여 시스템으로 대체 예정
 }
 
 // ====== 갑옷 ======

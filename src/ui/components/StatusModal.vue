@@ -275,7 +275,7 @@ function openDetail(name: string, total: number, entries: Breakdown[]) {
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
                   @click="openDetail('관통', effective.관통, breakdownPen())">
-            <span class="text-stat-util">관통</span> <span class="font-bold">{{ effective.관통.toFixed(1) }}</span>
+            <span class="text-stat-util">관통</span> <span class="font-bold">{{ effective.관통.toFixed(1) }}%</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
                   @click="openDetail('상태저항', effective.상태저항, breakdownResist())">
