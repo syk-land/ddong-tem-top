@@ -247,7 +247,7 @@ function magicAttack(
 }
 
 // 명시적 타겟에 마법 공격 1회 (광역 스킬 헬퍼)
-//   마법 스킬은 eff.마법공격력 사용 (= 물리 공격력 + 갑옷 mpBonus + 트레잇 마력)
+//   마법 스킬은 eff.마법공격력 사용 (= 물리 공격력 + 갑옷 mpBonus + 특성 마력)
 function magicAttackOnTarget(
   ctx: CombatContext,
   target: MonsterInstance,

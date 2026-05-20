@@ -103,7 +103,7 @@ export function pushLog(ctx: CombatContext, text: string, kind: LogKind = 'info'
 }
 
 // 플레이어 HP 회복 시 살아있는 적의 회복 간섭 trait 효과를 반영한다.
-// raw: 트레잇 보정 전 원본 회복량. 반환값: 실제로 적용해야 할 회복량 (음수면 데미지 처리).
+// raw: 특성 보정 전 원본 회복량. 반환값: 실제로 적용해야 할 회복량 (음수면 데미지 처리).
 //
 // 효과:
 //   heal_reduction  (구울)    : ×0.5
@@ -243,7 +243,7 @@ export function playerBasicAttack(ctx: CombatContext) {
     }
   }
 
-  // 트레잇 기반 상태이상 발동 (무기) — 현재 타겟에 적용
+  // 특성 기반 상태이상 발동 (무기) — 현재 타겟에 적용
   rollStatusProcs(ctx, eff, target)
 
   // trait: 피격 후 훅 (반사 등) + 페이즈 임계값 체크
@@ -394,7 +394,7 @@ export function advanceTick(ctx: CombatContext) {
     dispatchOnTickStart(ctx, m)
   }
 
-  // 자해 (저주의 트레잇)
+  // 자해 (저주의 특성)
   const eff = computeEffectiveStats(ctx.player)
   if (eff.selfDotPct > 0 && ctx.tick % 10 === 0) {
     const dmg = Math.round(ctx.player.maxHp * eff.selfDotPct)
@@ -410,9 +410,9 @@ export function advanceTick(ctx: CombatContext) {
     if (b.duration <= 0) ctx.buffs.delete(key)
   }
 
-  // 게이지 누적 (플레이어)
+  // 게이지 누적 (플레이어). v6: eff.속도가 이미 무기 speedCoef 까지 포함하므로 중복 X.
   const speedMod = getSpeedModifier(ctx.player)
-  const playerSpeed = eff.속도 * speedMod * eff.weaponSpeedCoef
+  const playerSpeed = eff.속도 * speedMod
   ctx.player.actionGauge += playerSpeed
 
   // 각 몬스터 게이지 누적

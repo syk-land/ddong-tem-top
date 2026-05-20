@@ -3,18 +3,14 @@ import { RANDOM_STAT_KEYS } from '@/types'
 import { randInt, pickOne, randFloat } from './rng'
 import { rollItem } from './items'
 
-// 2.2 캐릭터 생성: 4스탯 무작위 분배 (각 최소 3, 최대 20)
-// 총 50pt: min 3×4 = 12 + 38pt 자유 분배
+// v6: 5스탯 (힘/민첩/체력/마력/행운) 무작위 분배
+// 총 50pt: min 3 × 5 = 15 + 35pt 자유 분배 (각 최대 20)
 export function generateRandomStats(): Stats {
   const stats: Stats = {
-    공격력: 3, 방어력: 3, 체력: 3, 마력: 3,
-    속도: 10, 행운: 0,
-    명중률: 0, 회피율: 0,
-    관통: 0,
-    상태저항: 0,
+    힘: 3, 민첩: 3, 체력: 3, 마력: 3, 행운: 3,
   }
 
-  let remaining = 38
+  let remaining = 35
   while (remaining > 0) {
     const key = pickOne(RANDOM_STAT_KEYS)
     if (stats[key] < 20) {
@@ -50,15 +46,10 @@ function rollItemForce(opts: { kind: 'weapon' | 'armor'; trait_tier: '하급' | 
   })
 }
 
-// 시작 균등 스탯 (주사위 굴림 전 베이스 — 4스탯)
-// 총 50pt: 50/4 = 12.5 → 공격력/방어력 13, 체력/마력 12
+// v6: 시작 균등 스탯 — 5스탯 각 10pt (총 50pt)
 export function uniformStartingStats(): Stats {
   return {
-    공격력: 13, 방어력: 13, 체력: 12, 마력: 12,
-    속도: 10, 행운: 0,
-    명중률: 0, 회피율: 0,
-    관통: 0,
-    상태저항: 0,
+    힘: 10, 민첩: 10, 체력: 10, 마력: 10, 행운: 10,
   }
 }
 
@@ -76,14 +67,15 @@ export function createCharacter(
     stats[k] = (stats[k] ?? 0) + (bonusStats[k] ?? 0)
   }
 
-  // 도전 보너스 (탑의 빚): 4스탯에 균등 + 나머지는 공격력
+  // v6 도전 보너스: 5스탯에 1/5 균등 + 나머지(0~4)는 힘 → 민첩 → 체력 → 마력 → 행운 순서로 1pt씩
   if (pendingStartBonus > 0) {
-    const four: StatKey[] = ['공격력', '방어력', '체력', '마력']
-    const base = Math.floor(pendingStartBonus / 4)
-    let rem = pendingStartBonus - base * 4
-    for (const k of four) stats[k] += base
-    // 나머지는 공격력에
-    stats['공격력'] += rem
+    const five: StatKey[] = ['힘', '민첩', '체력', '마력', '행운']
+    const base = Math.floor(pendingStartBonus / 5)
+    const rem = pendingStartBonus - base * 5
+    for (const k of five) stats[k] += base
+    for (let i = 0; i < rem; i++) {
+      stats[five[i]] += 1
+    }
   }
 
   const maxHp = computeMaxHp(stats.체력)
@@ -103,32 +95,26 @@ export function createCharacter(
   }
 }
 
-// 클리어 등급 보너스 점수에 따른 분배 가능 포인트 계산용
+// v6: 클리어 등급 — 아이템 티어 합계 기반 (점수 낮을수록 등급 ↑)
+//   EX (0~5), SSS (6~8), SS (9~11), S (12~14), A (15~17),
+//   B (18~20), C (21~23), D (24~26), E (27~29), F (30+)
+// 3티어 증가할 때마다 1등급 하락.
 export function getClearRank(score: number): { rank: string; bonus: number } {
-  if (score >= 90) return { rank: 'EX', bonus: 10 }
-  if (score >= 80) return { rank: 'SSS', bonus: 9 }
-  if (score >= 70) return { rank: 'SS', bonus: 8 }
-  if (score >= 60) return { rank: 'S', bonus: 7 }
-  if (score >= 50) return { rank: 'A', bonus: 6 }
-  if (score >= 40) return { rank: 'B', bonus: 5 }
-  if (score >= 30) return { rank: 'C', bonus: 4 }
-  if (score >= 20) return { rank: 'D', bonus: 3 }
-  if (score >= 10) return { rank: 'E', bonus: 2 }
+  if (score <= 5)  return { rank: 'EX',  bonus: 10 }
+  if (score <= 8)  return { rank: 'SSS', bonus: 9 }
+  if (score <= 11) return { rank: 'SS',  bonus: 8 }
+  if (score <= 14) return { rank: 'S',   bonus: 7 }
+  if (score <= 17) return { rank: 'A',   bonus: 6 }
+  if (score <= 20) return { rank: 'B',   bonus: 5 }
+  if (score <= 23) return { rank: 'C',   bonus: 4 }
+  if (score <= 26) return { rank: 'D',   bonus: 3 }
+  if (score <= 29) return { rank: 'E',   bonus: 2 }
   return { rank: 'F', bonus: 1 }
 }
 
-export function computeClearScore(c: Character, chapter: number): number {
-  // Equipment Score: (17 - 평균 16티어) / 16 × 100
+// v6: 점수 = 무기 티어 + 갑옷 티어 (장비 없으면 1로 카운트). 낮을수록 좋음 (역설).
+export function computeClearScore(c: Character, _chapter: number): number {
   const weaponTier = c.weapon?.tier ?? 1
   const armorTier = c.armor?.tier ?? 1
-  const avgTier = (weaponTier + armorTier) / 2
-  const equipmentScore = ((17 - avgTier) / 16) * 100
-
-  // Gold Score: 남은 골드 / 1890 × 100 (cap 100)
-  const goldScore = Math.min(100, (c.gold / 1890) * 100)
-
-  // HP Score: 남은 HP / 최대 HP × 100
-  const hpScore = (c.hp / c.maxHp) * 100
-
-  return Math.round((equipmentScore + goldScore + hpScore) / 3)
+  return weaponTier + armorTier
 }

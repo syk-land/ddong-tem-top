@@ -2,7 +2,7 @@ import type {
   ItemInstance, Grade, TraitTier, TraitEffect, TraitDef,
   ArmorType,
 } from '@/types'
-import { GRADE_COEF_RANGE, GRADE_PRICE_MULT, TRAIT_TIER_LEVEL, GRADE_LEVEL } from '@/types'
+import { GRADE_COEF, GRADE_PRICE_MULT, TRAIT_TIER_LEVEL, GRADE_LEVEL } from '@/types'
 import { WEAPONS, WEAPON_KEYS } from '@/data/weapons'
 import { ARMORS, ARMOR_KEYS } from '@/data/armor'
 import { WEAPON_TRAITS, WEAPON_TRAIT_POOL, ARMOR_TRAITS, ARMOR_TRAIT_POOL } from '@/data/traits'
@@ -14,7 +14,7 @@ import { randFloat, pickOne, weightedChoice, clamp, uniqueId } from './rng'
 //   하급-레어 5   보통-레어 6   ...           특별-레어 8
 //   하급-스페셜 9 ...                          특별-스페셜 12
 //   하급-레전드 13                              특별-레전드 16
-// → 등급이 주, 트레잇이 부 (특별-노말 ≈ 하급-레어 인접 tier로 매칭)
+// → 등급이 주, 특성이 부 (특별-노말 ≈ 하급-레어 인접 tier로 매칭)
 export function tierIndex(traitTier: TraitTier, grade: Grade): number {
   return (GRADE_LEVEL[grade] - 1) * 4 + TRAIT_TIER_LEVEL[traitTier]
 }
@@ -67,7 +67,7 @@ export function getTierDistribution(chapter: number, source: DropSource): Map<nu
   return dist
 }
 
-// 트레잇 효과에 grade coef 스케일링
+// 특성 효과에 grade coef 스케일링
 export function scaleEffects(base: TraitEffect, coef: number, traitDef?: TraitDef): TraitEffect {
   const scaled: TraitEffect = {}
   for (const key in base) {
@@ -79,7 +79,7 @@ export function scaleEffects(base: TraitEffect, coef: number, traitDef?: TraitDe
       scaled[k] = val
       continue
     }
-    // 속도 % 트레잇은 grade coef 0.5~2.0 클램프
+    // 속도 % 특성은 grade coef 0.5~2.0 클램프
     if (k === '속도_pct') {
       const speedCoef = clamp(coef, 0.5, 2.0)
       scaled[k] = val * speedCoef
@@ -158,7 +158,7 @@ export function rollItem(opts: RollOptions): ItemInstance {
 
   const { trait_tier, grade } = tierToCombo(tier)
 
-  // 3) 트레잇 추첨
+  // 3) 특성 추첨
   const traitPool = kind === 'weapon' ? WEAPON_TRAIT_POOL : ARMOR_TRAIT_POOL
   const traitDefs = kind === 'weapon' ? WEAPON_TRAITS : ARMOR_TRAITS
   let traitName: string
@@ -172,9 +172,8 @@ export function rollItem(opts: RollOptions): ItemInstance {
     throw new Error(`Unknown ${kind} trait: ${traitName}`)
   }
 
-  // 4) 등급 coef 굴림 (스탯에만 적용)
-  const [lo, hi] = GRADE_COEF_RANGE[grade]
-  const coef = randFloat(lo, hi)
+  // 4) 등급 coef — 고정 (v5: 1 / 2 / 4 / 6)
+  const coef = GRADE_COEF[grade]
 
   // 5) 효과 스케일링
   const effects = scaleEffects(traitDef.effects, coef, traitDef)
@@ -207,6 +206,6 @@ export function itemDisplayName(item: ItemInstance): string {
 export function getWeaponBase(key: string) { return WEAPONS[key] }
 export function getArmorBase(key: ArmorType) { return ARMORS[key] }
 
-// 트레잇 def 조회
+// 특성 def 조회
 export function getWeaponTraitDef(name: string): TraitDef | undefined { return WEAPON_TRAITS[name] }
 export function getArmorTraitDef(name: string): TraitDef | undefined { return ARMOR_TRAITS[name] }

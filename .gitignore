@@ -14,6 +14,12 @@ android/*.iml
 android/app/*.iml
 android/captures/
 
+# Android 릴리스 서명 — 절대 git 에 올리지 말 것
+android/keystore.properties
+android/keystore/
+*.jks
+*.keystore
+
 # IDE / OS
 .vscode/
 .idea/

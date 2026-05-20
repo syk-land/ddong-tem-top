@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
 import {
   isSoundEnabled, setSoundEnabled,
@@ -12,9 +12,13 @@ import {
 const game = useGameStore()
 const speeds = [1, 2, 4] as const
 
-// 펼침 상태 — localStorage 영속화
-const expanded = ref(true)
-const STORAGE_KEY = 'climetop:speedControl:expanded:v1'
+// 펼침 상태 — 기본 접힘. localStorage 영속화 (사용자가 명시적으로 펼친 채로 둔 경우만 복원)
+const expanded = ref(false)
+const STORAGE_KEY = 'climetop:speedControl:expanded:v2'
+
+// 펼친 상태에서 N 초 무활동이면 자동 접힘
+const AUTO_COLLAPSE_MS = 5000
+let collapseTimer: ReturnType<typeof setTimeout> | null = null
 
 // 사운드 상태 (reactive)
 const sfxOn = ref(isSoundEnabled())
@@ -29,29 +33,67 @@ const lastBgmVol = ref(bgmVol.value > 0 ? bgmVol.value : 0.4)
 onMounted(() => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw === '0') expanded.value = false
+    if (raw === '1') expanded.value = true
   } catch {}
+  if (expanded.value) scheduleAutoCollapse()
 })
 
-function setSpeed(s: number) {
-  game.setCombatSpeed(s)
-  sfx.click()
-}
+onUnmounted(() => {
+  if (collapseTimer) clearTimeout(collapseTimer)
+})
 
-function toggleAutoEnter() {
-  game.setAutoEnter(!game.autoEnter)
-  sfx.click()
-}
-
-function toggle() {
-  expanded.value = !expanded.value
+function persistExpanded() {
   try {
     localStorage.setItem(STORAGE_KEY, expanded.value ? '1' : '0')
   } catch {}
 }
 
+function scheduleAutoCollapse() {
+  if (collapseTimer) clearTimeout(collapseTimer)
+  if (!expanded.value) return
+  collapseTimer = setTimeout(() => {
+    expanded.value = false
+    persistExpanded()
+    collapseTimer = null
+  }, AUTO_COLLAPSE_MS)
+}
+
+// 펼친 상태에서 어떤 상호작용이든 있으면 타이머 리셋
+function bumpActivity() {
+  if (expanded.value) scheduleAutoCollapse()
+}
+
+function setSpeed(s: number) {
+  game.setCombatSpeed(s)
+  sfx.click()
+  bumpActivity()
+}
+
+function toggleAutoEnter() {
+  game.setAutoEnter(!game.autoEnter)
+  sfx.click()
+  bumpActivity()
+}
+
+function expand() {
+  if (!expanded.value) {
+    expanded.value = true
+    persistExpanded()
+    scheduleAutoCollapse()
+  }
+}
+function collapse() {
+  if (expanded.value) {
+    expanded.value = false
+    persistExpanded()
+    if (collapseTimer) clearTimeout(collapseTimer)
+  }
+}
+
 function openIntro() {
   game.openIntroComic('replay')
+  // 만화 모달 뜨면 접어두기
+  collapse()
 }
 
 // ── 효과음 ──
@@ -59,7 +101,6 @@ function onSfxVolChange(e: Event) {
   const v = parseFloat((e.target as HTMLInputElement).value)
   sfxVol.value = v
   setSoundVolume(v)
-  // 0 이면 자동 음소거, >0 이면 자동 음소거 해제
   if (v === 0) {
     if (sfxOn.value) {
       sfxOn.value = false
@@ -72,22 +113,22 @@ function onSfxVolChange(e: Event) {
       setSoundEnabled(true)
     }
   }
+  bumpActivity()
 }
 function onSfxMuteToggle() {
   sfxOn.value = !sfxOn.value
   setSoundEnabled(sfxOn.value)
   if (sfxOn.value) {
-    // 켜짐: 마지막 양수 볼륨으로 복원 (0 이었으면 기본값)
     const restore = lastSfxVol.value > 0 ? lastSfxVol.value : 0.3
     sfxVol.value = restore
     setSoundVolume(restore)
     sfx.click()
   } else {
-    // 꺼짐: 슬라이더 0
     if (sfxVol.value > 0) lastSfxVol.value = sfxVol.value
     sfxVol.value = 0
     setSoundVolume(0)
   }
+  bumpActivity()
 }
 
 // ── 배경음 ──
@@ -107,6 +148,7 @@ function onBgmVolChange(e: Event) {
       setBgmEnabled(true)
     }
   }
+  bumpActivity()
 }
 function onBgmMuteToggle() {
   bgmOn.value = !bgmOn.value
@@ -120,6 +162,7 @@ function onBgmMuteToggle() {
     bgmVol.value = 0
     setBgmVolume(0)
   }
+  bumpActivity()
 }
 
 // 접힘 상태의 사운드 요약 아이콘
@@ -127,21 +170,51 @@ const summaryIcon = computed(() => {
   if (!sfxOn.value && !bgmOn.value) return '🔇'
   return '🔊'
 })
+
+// 모달 떠 있을 때는 패널 자체를 더 흐리게 — 가림 최소화
+const dimmed = computed(() =>
+  !!(game.dialog || game.inputDialog || game.listDialog || game.pendingPickup || game.introVisible),
+)
+
+// 어느 메뉴/상태든 펼친 상태에서 게임 상태가 바뀌면 자동 접힘 트리거 (다음 층 진입 등)
+watch(
+  () => [game.screen, game.combat?.ended],
+  () => bumpActivity(),
+)
 </script>
 
 <template>
-  <div class="fixed top-2 right-2 z-40 bg-black/60 backdrop-blur-sm rounded select-none text-gray-200">
-    <!-- 헤더 행: 토글 + 속도 + 요약 아이콘 -->
-    <div class="flex items-center gap-1 px-2 py-1">
-      <button
-        class="w-5 h-5 flex items-center justify-center rounded text-sm hover:bg-slate-700"
-        :title="expanded ? '컨트롤 접기' : '컨트롤 펼치기'"
-        @click="toggle"
-      >
-        {{ expanded ? '›' : '‹' }}
-      </button>
+  <div
+    class="fixed top-1 right-1 z-40 rounded-md select-none text-gray-200 transition-opacity duration-200"
+    :class="[
+      dimmed && !expanded ? 'opacity-25' : (expanded ? 'opacity-95' : 'opacity-60 hover:opacity-95'),
+      expanded ? 'bg-black/65 backdrop-blur-sm' : 'bg-black/45 backdrop-blur-[2px]',
+    ]"
+    @mouseenter="bumpActivity"
+  >
+    <!-- 접힘 상태: 매우 작은 햄버거 버튼 + 현재 속도/자동/사운드 1줄 표시 -->
+    <button
+      v-if="!expanded"
+      class="flex items-center gap-1 px-2 py-1 text-[10px] hover:bg-slate-800/60 rounded-md"
+      title="설정 패널 펼치기"
+      @click="expand"
+    >
+      <span class="text-sm leading-none">⚙</span>
+      <span class="font-mono text-gray-300">{{ game.combatSpeed }}x</span>
+      <span v-if="game.autoEnter" class="text-log-reward font-bold">자</span>
+      <span class="text-xs leading-none">{{ summaryIcon }}</span>
+    </button>
 
-      <template v-if="expanded">
+    <template v-else>
+      <!-- 헤더 행: 닫기 + 속도 + 자동 + 사운드 요약 -->
+      <div class="flex items-center gap-1 px-2 py-1">
+        <button
+          class="w-5 h-5 flex items-center justify-center rounded text-sm hover:bg-slate-700"
+          title="설정 패널 접기"
+          @click="collapse"
+        >
+          ×
+        </button>
         <span class="text-[10px] text-gray-300">속도</span>
         <button
           v-for="s in speeds"
@@ -154,7 +227,6 @@ const summaryIcon = computed(() => {
         >
           {{ s }}x
         </button>
-        <!-- 자동 진입 토글 (몬스터/보스/치유샘만 자동) -->
         <button
           class="px-2 py-0.5 rounded text-[11px] transition-colors ml-1"
           :class="game.autoEnter
@@ -165,78 +237,50 @@ const summaryIcon = computed(() => {
         >
           {{ game.autoEnter ? '자동 ✓' : '자동' }}
         </button>
-      </template>
+        <span class="text-sm ml-1">{{ summaryIcon }}</span>
+      </div>
 
-      <span v-else class="text-[10px] text-gray-300 font-bold pr-1">
-        {{ game.combatSpeed }}x<span v-if="game.autoEnter" class="text-log-reward">·자</span>
-      </span>
-
-      <span class="text-sm ml-1">{{ summaryIcon }}</span>
-    </div>
-
-    <!-- 펼친 상태: 사운드 패널 (효과음/배경음 슬라이더 + 음소거) -->
-    <div v-if="expanded" class="border-t border-slate-700/50 px-2 py-1.5 space-y-1">
-      <!-- 효과음 행 -->
-      <div class="flex items-center gap-1.5 text-[10px]">
-        <span class="w-10 shrink-0 text-gray-300">효과음</span>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.01"
-          :value="sfxVol"
-          @input="onSfxVolChange"
-          class="w-24 accent-log-skill"
-          :title="`효과음 ${Math.round(sfxVol * 100)}%`"
-        />
-        <span class="w-7 shrink-0 text-right text-gray-400 tabular-nums">{{ Math.round(sfxVol * 100) }}</span>
-        <label class="flex items-center gap-1 cursor-pointer ml-1" title="효과음 음소거">
+      <!-- 사운드 슬라이더 + 책 버튼 -->
+      <div class="border-t border-slate-700/50 px-2 py-1.5 space-y-1">
+        <div class="flex items-center gap-1.5 text-[10px]">
+          <span class="w-10 shrink-0 text-gray-300">효과음</span>
           <input
-            type="checkbox"
-            :checked="!sfxOn"
-            @change="onSfxMuteToggle"
-            class="w-3 h-3 accent-red-500 cursor-pointer"
+            type="range" min="0" max="1" step="0.01"
+            :value="sfxVol" @input="onSfxVolChange"
+            class="w-20 accent-log-skill"
           />
-          <span class="text-gray-400">음소거</span>
-        </label>
-      </div>
+          <span class="w-6 shrink-0 text-right text-gray-400 tabular-nums">{{ Math.round(sfxVol * 100) }}</span>
+          <label class="flex items-center gap-1 cursor-pointer ml-1" title="음소거">
+            <input type="checkbox" :checked="!sfxOn" @change="onSfxMuteToggle" class="w-3 h-3 accent-red-500" />
+            <span class="text-gray-400">끄기</span>
+          </label>
+        </div>
 
-      <!-- 배경음 행 -->
-      <div class="flex items-center gap-1.5 text-[10px]">
-        <span class="w-10 shrink-0 text-gray-300">배경음</span>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.01"
-          :value="bgmVol"
-          @input="onBgmVolChange"
-          class="w-24 accent-log-skill"
-          :title="`배경음 ${Math.round(bgmVol * 100)}%`"
-        />
-        <span class="w-7 shrink-0 text-right text-gray-400 tabular-nums">{{ Math.round(bgmVol * 100) }}</span>
-        <label class="flex items-center gap-1 cursor-pointer ml-1" title="배경음 음소거">
+        <div class="flex items-center gap-1.5 text-[10px]">
+          <span class="w-10 shrink-0 text-gray-300">배경음</span>
           <input
-            type="checkbox"
-            :checked="!bgmOn"
-            @change="onBgmMuteToggle"
-            class="w-3 h-3 accent-red-500 cursor-pointer"
+            type="range" min="0" max="1" step="0.01"
+            :value="bgmVol" @input="onBgmVolChange"
+            class="w-20 accent-log-skill"
           />
-          <span class="text-gray-400">음소거</span>
-        </label>
-      </div>
+          <span class="w-6 shrink-0 text-right text-gray-400 tabular-nums">{{ Math.round(bgmVol * 100) }}</span>
+          <label class="flex items-center gap-1 cursor-pointer ml-1" title="음소거">
+            <input type="checkbox" :checked="!bgmOn" @change="onBgmMuteToggle" class="w-3 h-3 accent-red-500" />
+            <span class="text-gray-400">끄기</span>
+          </label>
+        </div>
 
-      <!-- 인트로 만화 다시 보기 -->
-      <div class="flex items-center justify-center pt-1 border-t border-slate-700/50">
-        <button
-          class="flex items-center gap-1.5 px-2 py-1 rounded text-[11px] text-gray-300 hover:bg-slate-700"
-          title="인트로 만화 다시 보기"
-          @click="openIntro"
-        >
-          <span class="text-base leading-none">📖</span>
-          <span>인트로 만화</span>
-        </button>
+        <div class="flex items-center justify-center pt-0.5">
+          <button
+            class="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-gray-300 hover:bg-slate-700"
+            title="인트로 만화 다시 보기"
+            @click="openIntro"
+          >
+            <span class="text-sm leading-none">📖</span>
+            <span>인트로 만화</span>
+          </button>
+        </div>
       </div>
-    </div>
+    </template>
   </div>
 </template>

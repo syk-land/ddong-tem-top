@@ -6,7 +6,7 @@ import HpMpBar from '@/ui/components/HpMpBar.vue'
 import ItemName from '@/ui/components/ItemName.vue'
 import StatusBadges from '@/ui/components/StatusBadges.vue'
 import { logColorClass, logPrefix } from '@/ui/colors'
-import { themeBgUrl, skillIconUrl, monsterImageUrl, playerImageUrl } from '@/ui/images'
+import { themeBgUrl, skillIconUrl, monsterImageUrl, playerImageUrl, realBossImageUrl } from '@/ui/images'
 import { sfx } from '@/ui/sound'
 
 const game = useGameStore()
@@ -22,6 +22,9 @@ const bgUrl = computed(() => {
   const ch = game.currentChapterState
   return ch ? themeBgUrl(ch.theme) : ''
 })
+// 도전 모드 여부
+const isRealBoss = computed(() => !!game.realBossMonster && !!game.realBossTheme)
+const realBossImg = computed(() => game.realBossTheme ? realBossImageUrl(game.realBossTheme) : null)
 
 // ============================================================
 // 피격 이펙트: monster.hp 변화 감지 → 흔들림 + 데미지 부동 숫자
@@ -259,18 +262,22 @@ function closeAndAdvance() {
       <div class="relative z-10 flex flex-col gap-3 p-3">
         <!-- 적 상태 (다수 가능) -->
         <div class="panel-glass p-0 overflow-hidden">
-          <!-- 몬스터 이미지 -->
-          <div class="flex justify-center items-end gap-3 pt-3" style="min-height: 140px">
+          <!-- 몬스터 이미지 (도전 모드는 큰 이미지 사용) -->
+          <div
+            class="flex justify-center items-end gap-3 pt-3"
+            :style="{ minHeight: isRealBoss ? '360px' : '140px' }"
+          >
             <div
               v-for="(m, idx) in monsters"
               :key="'img-' + idx"
               :class="['relative flex flex-col items-center', m.hp <= 0 ? 'opacity-30 grayscale' : '']"
             >
               <img
-                :src="monsterImageUrl(m.template.name)"
+                :src="isRealBoss && realBossImg ? realBossImg : monsterImageUrl(m.template.name)"
                 :alt="m.template.name"
                 :class="[
-                  'max-h-[120px] max-w-[120px] object-contain drop-shadow-2xl',
+                  'object-contain drop-shadow-2xl',
+                  isRealBoss ? 'max-h-[360px] max-w-[100%] w-auto' : 'max-h-[120px] max-w-[120px]',
                   shakingIdx.has(idx) ? 'animate-shake animate-flash-red' : '',
                 ]"
                 @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
@@ -387,8 +394,8 @@ function closeAndAdvance() {
           <button v-if="combat.victory" class="btn-primary w-full" @click="closeAndAdvance">다음 층으로</button>
         </div>
 
-        <!-- 전투 로그 (맨 아래, 고정 크기) -->
-        <div class="panel-glass p-0 overflow-hidden">
+        <!-- 전투 로그 (도전 모드는 숨김) -->
+        <div v-if="!isRealBoss" class="panel-glass p-0 overflow-hidden">
           <div
             class="overflow-y-auto font-mono p-2 text-[10px] leading-snug bg-black/55"
             ref="logEl"

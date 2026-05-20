@@ -21,42 +21,35 @@ export interface ChallengeDef {
 }
 
 export interface ChallengeFlags {
-  // 장비 제한
-  forceLowTraitsOnly?: boolean       // 하급 트레잇만
+  forceLowTraitsOnly?: boolean       // 하급 특성만
   forceCommonNormalOnly?: boolean    // 보통-노말만
   forceLowNormalOnly?: boolean       // 하급-노말 (티어 1)만
-  noArmor?: boolean                  // 갑옷 장착 X
-  lockStartingGear?: boolean         // 시작 장비 고정
-  forbidPlateHeavy?: boolean         // 판금/중갑 X
-  forbidLargeWeapon?: boolean        // 속도계수 0.8 이하 X
-  forbidMagicWeapon?: boolean        // 마법 무기 X
-  onlySpeedCoef1?: boolean           // 무기 속도계수 = 1.0
-  // 스탯 한계
-  maxAtk?: number                    // 최종 공격력 한계
-
-  speedFixed?: number                // 속도 고정값
-  mpCapFixed?: number                // 최대 MP 고정값
-  // 경제 제약
-  goldZero?: boolean                 // 골드 0 고정
-  goldMax500Death?: boolean          // 누적 500 초과 시 사망
-  noShop?: boolean                   // 상점 진입 X
-  noShopRefresh?: boolean            // 새로고침 X
-  noBuyback?: boolean                // 매각 X
-  noShopDiscount?: boolean           // 할인 X
-  // 행동 제약
-  noHealingSpring?: boolean          // 회복샘 X
-  noRescueAdventurer?: boolean       // 모험가 구출 X
-  noIronWill?: boolean               // 불굴의 의지 X
-  noActiveSkills?: boolean           // 액티브 공격 스킬 X
-  onlyActiveSkills?: boolean         // 평타 X
-  combatTimeLimit?: number           // 매 전투 N틱 이내
-  // 상태이상
-  blindExtra?: number                // 암흑 명중 -X 추가
-  bleedBadLuckPct?: number           // 출혈 시 룰렛 대실패 +X%
-  healEffMult?: number               // 치유 효율 배수 (예: 0.5)
-  // 리스크 베팅 트래킹용
+  noArmor?: boolean
+  lockStartingGear?: boolean
+  forbidPlateHeavy?: boolean
+  forbidLargeWeapon?: boolean
+  forbidMagicWeapon?: boolean
+  onlySpeedCoef1?: boolean
+  maxAtk?: number
+  speedFixed?: number
+  mpCapFixed?: number
+  goldZero?: boolean
+  goldMax500Death?: boolean
+  noShop?: boolean
+  noShopRefresh?: boolean
+  noBuyback?: boolean
+  noShopDiscount?: boolean
+  noHealingSpring?: boolean
+  noRescueAdventurer?: boolean
+  noIronWill?: boolean
+  noActiveSkills?: boolean
+  onlyActiveSkills?: boolean
+  combatTimeLimit?: number
+  blindExtra?: number
+  bleedBadLuckPct?: number
+  healEffMult?: number
   trackNoLegendaryEver?: boolean
-  trackOnlyTier1?: boolean           // 50층까지
+  trackOnlyTier1?: boolean
   trackNoShopBuy?: boolean
   trackNoTraitEquip?: boolean
   trackNoArmorEver?: boolean
@@ -82,57 +75,56 @@ export interface ChallengeFlags {
   trackAvgTier3OrLower?: boolean
 }
 
+// v6 5스탯 기반 챌린지 (힘/민첩/체력/마력/행운).
+// 시작 stats 보너스는 위 5스탯 중 하나로만 표현. 파생 효과(공격력/방어력/회피 등)는 stat 가산으로 자동 반영.
 export const CHALLENGES: ChallengeDef[] = [
-  // ====== Ⅰ. 즉시 보상형 (25개) ======
-  // 1. 공격력 / 방어력 제약
+  // ===== 즉시 보상형 =====
   {
     key: '과유불급', category: 'instant', group: '공격력 제약', name: '과유불급',
     description: '튼튼함을 얻는 대가로 화력을 봉인한다.',
-    reward: '시작 방어력 +20',
-    penalty: '최종 공격력이 20 초과 시 즉사 (똥템 무기 강제)',
-    instantBonus: { 방어력: 20 },
-    flags: { maxAtk: 20 },
+    reward: '시작 체력 +10',
+    penalty: '최종 공격력이 40 초과 시 즉사 (똥템 무기 강제)',
+    instantBonus: { 체력: 10 },
+    flags: { maxAtk: 40 },
   },
   {
     key: '녹슨칼날의맹세', category: 'instant', group: '공격력 제약', name: '녹슨 칼날의 맹세',
     description: '하급 무기만이 진정한 똥템.',
-    reward: '시작 속도 +3, 명중률 +15',
-    penalty: '하급 트레잇 무기만 장착 가능 (위반 시 소멸)',
-    instantBonus: { 속도: 3, 명중률: 15 },
+    reward: '시작 민첩 +5, 행운 +3',
+    penalty: '하급 특성 무기만 장착 가능 (위반 시 소멸)',
+    instantBonus: { 민첩: 5, 행운: 3 },
     flags: { forceLowTraitsOnly: true },
   },
   {
     key: '유리대포', category: 'instant', group: '공격력 제약', name: '유리 대포 계약',
     description: '갑옷 따위 거추장스럽다.',
-    reward: '시작 공격력 +24',
+    reward: '시작 힘 +16',
     penalty: '갑옷 장착 불가',
-    instantBonus: { 공격력: 24 },
+    instantBonus: { 힘: 16 },
     flags: { noArmor: true },
   },
   {
     key: '체중감량', category: 'instant', group: '공격력 제약', name: '체중 감량',
     description: '가볍게, 더 가볍게.',
-    reward: '시작 회피율 +20',
+    reward: '시작 민첩 +12',
     penalty: '속도계수 0.8 이하 무기 장착 불가 (대형 무기 X)',
-    instantBonus: { 회피율: 20 },
+    instantBonus: { 민첩: 12 },
     flags: { forbidLargeWeapon: true },
   },
   {
     key: '마법혐오증', category: 'instant', group: '공격력 제약', name: '마법 혐오증',
     description: '마법은 사기다.',
-    reward: '시작 체력 +5, 방어력 +8',
-    penalty: '최종 공격력 5 초과 시 사망 (마법 무기 봉인)',
-    instantBonus: { 체력: 5, 방어력: 8 },
-    flags: { forbidMagicWeapon: true, maxAtk: 5 },
+    reward: '시작 체력 +6',
+    penalty: '마법 무기 장착 불가',
+    instantBonus: { 체력: 6 },
+    flags: { forbidMagicWeapon: true },
   },
-
-  // 2. 재화 및 인벤토리
   {
     key: '진정한무소유', category: 'instant', group: '재화 제약', name: '진정한 무소유',
     description: '돈은 악의 근원.',
-    reward: '시작 체력 +10',
+    reward: '시작 체력 +6, 행운 +4',
     penalty: '소지 골드 0 고정 (획득 즉시 소멸, 상점 X)',
-    instantBonus: { 체력: 10 },
+    instantBonus: { 체력: 6, 행운: 4 },
     flags: { goldZero: true, noShop: true },
   },
   {
@@ -146,28 +138,26 @@ export const CHALLENGES: ChallengeDef[] = [
   {
     key: '미니멀리스트', category: 'instant', group: '재화 제약', name: '미니멀리스트',
     description: '가볍게 살아간다.',
-    reward: '시작 속도 +4',
+    reward: '시작 민첩 +6',
     penalty: '인벤토리 슬롯 1칸 (장착 외 보유 X)',
-    instantBonus: { 속도: 4 },
+    instantBonus: { 민첩: 6 },
   },
   {
     key: '파괴주의자', category: 'instant', group: '재화 제약', name: '파괴주의자',
     description: '판매보단 분해.',
-    reward: '시작 관통 +20',
+    reward: '시작 힘 +8',
     penalty: '장비 buyback 불가',
-    instantBonus: { 관통: 20 },
+    instantBonus: { 힘: 8 },
     flags: { noBuyback: true },
   },
   {
     key: '황금알레르기', category: 'instant', group: '재화 제약', name: '황금 알레르기',
     description: '돈만 만지면 두드러기.',
-    reward: '전 베이스 스탯 +2',
+    reward: '전 스탯 +3',
     penalty: '누적 획득 골드 500 초과 시 사망',
-    instantBonus: { 공격력: 4, 방어력: 4, 체력: 2, 마력: 2 },
+    instantBonus: { 힘: 3, 민첩: 3, 체력: 3, 마력: 3, 행운: 3 },
     flags: { goldMax500Death: true },
   },
-
-  // 3. 상점 및 시스템
   {
     key: '불매운동', category: 'instant', group: '상점 제약', name: '불매 운동',
     description: '황금고블린 추방.',
@@ -179,17 +169,17 @@ export const CHALLENGES: ChallengeDef[] = [
   {
     key: '요행은없다', category: 'instant', group: '상점 제약', name: '요행은 없다',
     description: '치유는 사치.',
-    reward: '시작 공격력 +10',
+    reward: '시작 힘 +6',
     penalty: '회복샘 이용 불가',
-    instantBonus: { 공격력: 10 },
+    instantBonus: { 힘: 6 },
     flags: { noHealingSpring: true },
   },
   {
     key: '불신주의자', category: 'instant', group: '상점 제약', name: '불신주의자',
     description: '낯선 모험가? 적이다.',
-    reward: '시작 명중률 +20',
+    reward: '시작 민첩 +10',
     penalty: '위기에 빠진 모험가 구출 시 즉사',
-    instantBonus: { 명중률: 20 },
+    instantBonus: { 민첩: 10 },
     flags: { noRescueAdventurer: true },
   },
   {
@@ -203,33 +193,31 @@ export const CHALLENGES: ChallengeDef[] = [
   {
     key: '정가매입', category: 'instant', group: '상점 제약', name: '정가 매입',
     description: '할인은 없다.',
-    reward: '시작 방어력 +12',
+    reward: '시작 체력 +6',
     penalty: '상점 할인 효과 X',
-    instantBonus: { 방어력: 12 },
+    instantBonus: { 체력: 6 },
     flags: { noShopDiscount: true },
   },
-
-  // 4. 속도 및 틱 전투
   {
     key: '굼벵이전술', category: 'instant', group: '속도 제약', name: '굼벵이 전술',
     description: '느릿느릿하지만 강하게.',
-    reward: '시작 방어력 +30',
+    reward: '시작 체력 +15',
     penalty: '최종 속도 5 고정 (속도 보정 무시)',
-    instantBonus: { 방어력: 30 },
+    instantBonus: { 체력: 15 },
     flags: { speedFixed: 5 },
   },
   {
     key: '조급증', category: 'instant', group: '속도 제약', name: '조급증',
     description: '빠르게, 그러나 단조롭게.',
-    reward: '시작 속도 +5',
+    reward: '시작 민첩 +5',
     penalty: '공격 스킬 사용 불가 (평타만 가능)',
-    instantBonus: { 속도: 5 },
+    instantBonus: { 민첩: 5 },
     flags: { noActiveSkills: true },
   },
   {
     key: '강박증', category: 'instant', group: '속도 제약', name: '강박증',
     description: '딱 1.0의 미학.',
-    reward: '시작 크리티컬 30% (행운 +6)',
+    reward: '시작 행운 +6',
     penalty: '속도계수 1.0 무기만 장착 가능',
     instantBonus: { 행운: 6 },
     flags: { onlySpeedCoef1: true },
@@ -237,21 +225,19 @@ export const CHALLENGES: ChallengeDef[] = [
   {
     key: '속전속결', category: 'instant', group: '속도 제약', name: '속전속결',
     description: '50틱 안에 끝장낸다.',
-    reward: '시작 공격력 +10',
+    reward: '시작 힘 +7',
     penalty: '매 전투 50틱 이내 미승리 시 패배',
-    instantBonus: { 공격력: 10 },
+    instantBonus: { 힘: 7 },
     flags: { combatTimeLimit: 50 },
   },
   {
     key: '유지력상실', category: 'instant', group: '속도 제약', name: '유지력 상실',
     description: '폭발적 한 방.',
-    reward: '시작 공격력 +15',
+    reward: '시작 힘 +10',
     penalty: '최대 MP 30 고정',
-    instantBonus: { 공격력: 15 },
+    instantBonus: { 힘: 10 },
     flags: { mpCapFixed: 30 },
   },
-
-  // 5. 상태이상 및 생존
   {
     key: '혈우병', category: 'instant', group: '생존 제약', name: '혈우병',
     description: '피를 보면 운이 나빠진다.',
@@ -263,17 +249,17 @@ export const CHALLENGES: ChallengeDef[] = [
   {
     key: '야맹증', category: 'instant', group: '생존 제약', name: '야맹증',
     description: '어둠은 천적.',
-    reward: '시작 관통 +15',
+    reward: '시작 힘 +8',
     penalty: '암흑 상태/챕터에서 명중 추가 -30',
-    instantBonus: { 관통: 15 },
+    instantBonus: { 힘: 8 },
     flags: { blindExtra: 30 },
   },
   {
     key: '절대정수', category: 'instant', group: '생존 제약', name: '절대 정수',
     description: '독은 통하지 않지만 회복도 거부한다.',
-    reward: '상태이상 저항 +50',
+    reward: '시작 체력 +10',
     penalty: '회복 효율 -50%',
-    instantBonus: { 상태저항: 50 },
+    instantBonus: { 체력: 10 },
     flags: { healEffMult: 0.5 },
   },
   {
@@ -287,14 +273,13 @@ export const CHALLENGES: ChallengeDef[] = [
   {
     key: '연약한피부', category: 'instant', group: '생존 제약', name: '연약한 피부',
     description: '단단한 갑옷은 답답하다.',
-    reward: '시작 속도 +3, 공격력 +5',
+    reward: '시작 민첩 +4, 힘 +4',
     penalty: '판금/중갑 장착 불가',
-    instantBonus: { 속도: 3, 공격력: 5 },
+    instantBonus: { 민첩: 4, 힘: 4 },
     flags: { forbidPlateHeavy: true },
   },
 
-  // ====== Ⅱ. 리스크 베팅형 (25개) ======
-  // 1. 장비 등급/티어
+  // ===== 리스크 베팅형 =====
   {
     key: '무소유의장노말', category: 'risk', group: '장비 제한', name: '무소유의 장 — 노말',
     description: '특별/레전드 등급을 거부한다.',
@@ -320,10 +305,10 @@ export const CHALLENGES: ChallengeDef[] = [
     flags: { trackNoShopBuy: true },
   },
   {
-    key: '트레잇봉인', category: 'risk', group: '장비 제한', name: '트레잇 봉인',
+    key: '특성봉인', category: 'risk', group: '장비 제한', name: '특성 봉인',
     description: '형용사 없는 순수 보통-노말만.',
     reward: '100층 돌파 시 보너스 +12pt',
-    penalty: '트레잇 붙은 장비 착용 시 실패',
+    penalty: '특성 붙은 장비 착용 시 실패',
     metaBonus: 12,
     flags: { trackNoTraitEquip: true },
   },
@@ -335,8 +320,6 @@ export const CHALLENGES: ChallengeDef[] = [
     metaBonus: 7,
     flags: { trackNoArmorEver: true },
   },
-
-  // 2. 스탯 및 전투 스타일
   {
     key: '운칠기삼', category: 'risk', group: '전투 스타일', name: '운칠기삼',
     description: '행운만 믿는다.',
@@ -356,9 +339,9 @@ export const CHALLENGES: ChallengeDef[] = [
   {
     key: '철저한등가교환', category: 'risk', group: '전투 스타일', name: '철저한 등가교환',
     description: '제단을 만나면 무조건 3회 교환.',
-    reward: '다음 회차 분배 포인트 50→55',
+    reward: '다음 회차 분배 포인트 +5',
     penalty: '제단 무시 또는 3회 미달 시 실패',
-    permanentStat: {},  // 처리 시 character.ts에서 시작 분배 점수 +5
+    permanentStat: {},
     metaBonus: 0,
     flags: { trackAltarEveryChapter: true },
   },
@@ -373,13 +356,11 @@ export const CHALLENGES: ChallengeDef[] = [
   {
     key: '자연치유거부', category: 'risk', group: '전투 스타일', name: '자연치유 거부',
     description: '챕터 종료 시 MP 0이어야 함.',
-    reward: '다음 회차 마력 최대 상한 15→20',
+    reward: '다음 회차 마력 최대 상한 ↑',
     penalty: '챕터 종료 시 MP > 0 이면 실패',
-    permanentStat: {},  // 별도 처리
+    permanentStat: {},
     flags: { trackMpEmptyAtChapterEnd: true },
   },
-
-  // 3. 경제 및 자산
   {
     key: '자산동결', category: 'risk', group: '경제', name: '자산 동결',
     description: '100층 보스 클리어 시 골드 0.',
@@ -393,7 +374,7 @@ export const CHALLENGES: ChallengeDef[] = [
     description: '매 챕터 새로고침 전량 소모.',
     reward: '다음 회차 시작 골드 +200 영구',
     penalty: '새로고침 1회라도 안 쓰면 실패',
-    permanentStat: {},  // 별도: startGoldPermanent +200
+    permanentStat: {},
     flags: { trackUseRefreshEveryChapter: true },
   },
   {
@@ -407,7 +388,7 @@ export const CHALLENGES: ChallengeDef[] = [
   {
     key: '미믹사냥꾼', category: 'risk', group: '경제', name: '미믹 사냥꾼',
     description: '미믹은 절대 도주 X.',
-    reward: '다음 회차 미믹 출현 확률 10%→2%',
+    reward: '다음 회차 미믹 출현 확률 ↓',
     penalty: '미믹 1회라도 도주 시 실패',
     permanentStat: {},
     flags: { trackKillAllMimics: true },
@@ -420,14 +401,12 @@ export const CHALLENGES: ChallengeDef[] = [
     permanentStat: {},
     flags: { trackBlackMarketCount: 10 },
   },
-
-  // 4. 테마 및 보스
   {
     key: '환영파괴자', category: 'risk', group: '테마 특화', name: '환영 파괴자',
     description: '환영 챕터 무피격.',
-    reward: '다음 회차 회피율 +5 영구',
+    reward: '다음 회차 민첩 +5 영구',
     penalty: '환영 챕터에서 1회라도 피격 시 실패',
-    permanentStat: { 회피율: 5 },
+    permanentStat: { 민첩: 5 },
     flags: { trackDodgeAllMirage: true },
   },
   {
@@ -449,9 +428,9 @@ export const CHALLENGES: ChallengeDef[] = [
   {
     key: '배신저항군', category: 'risk', group: '테마 특화', name: '배신 저항군',
     description: 'PVP에서 피격 3회 이하 승리.',
-    reward: '다음 회차 상태저항 +10 영구',
+    reward: '다음 회차 체력 +5 영구',
     penalty: 'PVP에서 피격 3회 초과 시 실패',
-    permanentStat: { 상태저항: 10 },
+    permanentStat: { 체력: 5 },
     flags: { trackBetrayalPerfect: true },
   },
   {
@@ -462,8 +441,6 @@ export const CHALLENGES: ChallengeDef[] = [
     metaBonus: 11,
     flags: { trackBoss100Tick: true },
   },
-
-  // 5. 가혹한 생존
   {
     key: '빈사의유령', category: 'risk', group: '가혹', name: '빈사 상태의 유령',
     description: 'HP 30% 이하 누적 500틱.',
@@ -506,18 +483,14 @@ export const CHALLENGES: ChallengeDef[] = [
   },
 ]
 
-// 챌린지 키 → def 매핑
 export const CHALLENGES_MAP: Record<string, ChallengeDef> = Object.fromEntries(
   CHALLENGES.map((c) => [c.key, c])
 )
 
-// 인스턴트 vs 리스크 분류
 export const INSTANT_CHALLENGES = CHALLENGES.filter((c) => c.category === 'instant')
 export const RISK_CHALLENGES = CHALLENGES.filter((c) => c.category === 'risk')
 
-// 캐릭터 생성 시 3개 무작위 (즉시 1~2 + 리스크 1~2 균형)
 export function pickThreeRandomChallenges(): ChallengeDef[] {
-  // 균형: 인스턴트 2 + 리스크 1, 또는 1+2 등 무작위
   const shuffleArr = <T>(arr: readonly T[]): T[] => {
     const c = [...arr]
     for (let i = c.length - 1; i > 0; i--) {
@@ -528,6 +501,5 @@ export function pickThreeRandomChallenges(): ChallengeDef[] {
   }
   const inst = shuffleArr(INSTANT_CHALLENGES).slice(0, 2)
   const risk = shuffleArr(RISK_CHALLENGES).slice(0, 1)
-  // 셔플하고 3개 반환
   return shuffleArr([...inst, ...risk])
 }

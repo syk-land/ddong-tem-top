@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { ItemInstance, Character } from '@/types'
 import { WEAPONS } from '@/data/weapons'
 import { ARMORS } from '@/data/armor'
@@ -10,6 +10,7 @@ import { computeWeaponSkillProc } from '@/core/buildBalance'
 import { getClearRank } from '@/core/character'
 import { useGameStore } from '@/stores/game'
 import { itemImageUrl } from '@/ui/images'
+import { computeItemValue, type ValuePart } from '@/core/itemValue'
 import ItemName from './ItemName.vue'
 
 const game = useGameStore()
@@ -27,6 +28,26 @@ const traitDef = computed(() =>
   isWeapon.value ? WEAPON_TRAITS[props.item.trait] : ARMOR_TRAITS[props.item.trait]
 )
 const traitBase = computed(() => traitDef.value?.effects ?? {})
+
+// ── 아이템 벨류 + 현재 장착품 대비 변화량 ──
+const itemValue = computed(() => computeItemValue(props.item))
+const currentSlotItem = computed(() => {
+  if (!props.character) return null
+  return props.item.kind === 'weapon' ? props.character.weapon : props.character.armor
+})
+const currentValue = computed(() => computeItemValue(currentSlotItem.value))
+const atkDelta = computed(() => itemValue.value.atkValue - currentValue.value.atkValue)
+const defDelta = computed(() => itemValue.value.defValue - currentValue.value.defValue)
+
+// 분해 모달
+const valueModal = ref<{ kind: 'atk' | 'def'; total: number; parts: ValuePart[] } | null>(null)
+function openValueModal(kind: 'atk' | 'def') {
+  if (kind === 'atk') {
+    valueModal.value = { kind, total: itemValue.value.atkValue, parts: itemValue.value.atkParts }
+  } else {
+    valueModal.value = { kind, total: itemValue.value.defValue, parts: itemValue.value.defParts }
+  }
+}
 
 // 현재 장착 중인 동일 슬롯 아이템 (인벤토리 비교용)
 const currentEquipped = computed(() => {
@@ -106,7 +127,7 @@ const speedMult = computed(() => {
   return 1
 })
 const speedPctTrait = computed(() => effects.value.속도_pct ?? 0)
-// 속도 최종 배율 = 베이스 배율 × (1 + 트레잇 %)
+// 속도 최종 배율 = 베이스 배율 × (1 + 특성 %)
 const speedFinal = computed(() => speedMult.value * (1 + speedPctTrait.value))
 
 const moveLine = computed(() => {
@@ -143,7 +164,7 @@ const specialLine = computed(() => {
   pushFlat('마력', e.마력)
   pushFlat('관통', e.관통)
   pushPct('피격회복', e.damage_taken_heal_pct)
-  // 갑옷 베이스 보너스 (로브 마력 +30, 가죽갑 회피 +12 등 — 트레잇 효과와 별도)
+  // 갑옷 베이스 보너스 (로브 마력 +30, 가죽갑 회피 +12 등 — 특성 효과와 별도)
   if (armorBase.value) {
     if (armorBase.value.mpBonus) {
       parts.push(`마력 +${armorBase.value.mpBonus} (갑옷)`)
@@ -168,13 +189,13 @@ const itemCoef = computed(() => {
   const stResMult = 1 + (e.상태저항 ?? 0) / 30
   const lifestealMult = 1 + (e.lifesteal ?? 0) * 0.6              // 흡혈 25% → ×1.15
   const dmgHealMult = 1 + (e.damage_taken_heal_pct ?? 0) * 5
-  // 속도 — 무기 coef 또는 갑옷 배율, 트레잇 속도% 적용
+  // 속도 — 무기 coef 또는 갑옷 배율, 특성 속도% 적용
   const speedFin = (weaponBase.value?.speedCoef ?? armorBase.value?.speedMult ?? 1) * (1 + speedPctTrait.value)
   // 상태이상 발동 평균 (DPS 보너스)
   const statusSum = (e.burn_chance ?? 0) + (e.bleed_chance ?? 0) + (e.poison_chance ?? 0) +
                     (e.slow_chance ?? 0) + (e.blind_chance ?? 0) + (e.shock_chance ?? 0)
   const statusMult = 1 + statusSum * 0.5
-  // 마력 보너스 (갑옷 mpBonus + 트레잇 마력)
+  // 마력 보너스 (갑옷 mpBonus + 특성 마력)
   const mpBonus = (armorBase.value?.mpBonus ?? 0) + (e.마력 ?? 0)
   const mpMult = 1 + mpBonus / 50
   // 저주(자해)는 양쪽 페널티
@@ -208,7 +229,7 @@ const totalScore = computed(() => itemCoef.value.atk + itemCoef.value.def)
 // 장착 시 기본 능력치 변동 — 다중 항목 (v4)
 //   무기: 공격력(종합 × 공속)
 //   갑옷: 방어력 + 공격력(공속배율) + 공격력(마력보너스)
-//   공통: 트레잇의 명중/회피
+//   공통: 특성의 명중/회피
 export type EquipDeltaKind = 'atk' | 'def' | 'neutral'
 export interface EquipDelta {
   label: string
@@ -224,41 +245,78 @@ export interface EquipDelta {
 const equipChanges = computed<EquipDelta[]>(() => {
   if (!props.character) return []
   const c = props.character
-  const baselineAtk = c.stats.공격력 + c.stats.마력
-  const baselineDef = c.stats.방어력 * 2.0
-  // 현재 캐릭터의 마력계수 (마법 무기 contribution 에 곱)
+  // v6: 총공격력 = 힘 × 1.5 + 무기 종합, 총방어력 = 체력 × 2 + 갑옷 종합
+  const charAtk = c.stats.힘 * 1.5
+  const charDef = c.stats.체력 * 2.0
+  const curWeapon = c.weapon
+  const curArmor = c.armor
+  function weaponContribution(item: ItemInstance | null): number {
+    if (!item) return 0
+    const wb = WEAPONS[item.baseKey]
+    if (!wb) return 0
+    const t = WEAPON_TRAITS[item.trait]?.effects ?? {}
+    const pct = (t.공격력_pct ?? 0) + (t.전스탯_pct ?? 0)
+    return wb.baseAtk * (item.coef + pct)
+  }
+  function armorContribution(item: ItemInstance | null): number {
+    if (!item) return 0
+    const ab = ARMORS[item.baseKey as keyof typeof ARMORS]
+    if (!ab) return 0
+    const t = ARMOR_TRAITS[item.trait]?.effects ?? {}
+    const pct = (t.방어력_pct ?? 0) + (t.전스탯_pct ?? 0)
+    return ab.baseDef * 2.0 * (item.coef + pct)
+  }
+  // 현재 캐릭터의 마력계수 (마법 무기 마법공격력 항목 표시용)
   const playerMagicCoef = Math.max(0.1, Math.min(3.0, 1 + (c.stats.마력 - 15) * 0.07))
   const out: EquipDelta[] = []
 
   if (weaponBase.value) {
-    // 무기 공격력 (종합 × 공속) → DPS 기여
-    // 마법 무기는 추가로 마력계수 곱 (= 마력계수 × 발동률(speedFin proxy) × 데미지)
+    // 같은 슬롯 비교: 새 무기 vs 현재 무기 (없으면 0)
+    // 새 무기를 이 슬롯에 끼웠을 때의 "총공격력 변화" 기준 %.
     const traitAtkPct = (traitBase.value.공격력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
-    const weaponAtk = weaponBase.value.baseAtk * (coef.value + traitAtkPct)
-    const speedFin = weaponBase.value.speedCoef * (1 + speedPctTrait.value)
-    const isMagic = weaponBase.value.isMagic
-    const magicMult = isMagic ? playerMagicCoef : 1
-    const contribution = weaponAtk * speedFin * magicMult
+    const newWeaponAtk = weaponBase.value.baseAtk * (coef.value + traitAtkPct)
+    const curWeaponAtk = weaponContribution(curWeapon)
+    const curTotal = charAtk + curWeaponAtk
+    const newTotal = charAtk + newWeaponAtk
+    const delta = newTotal - curTotal
+    const pct = curTotal > 0 ? (delta / curTotal) * 100 : 0
     out.push({
-      label: isMagic ? `공격력 (마법 ×${playerMagicCoef.toFixed(2)})` : '공격력',
-      amount: contribution,
-      pct: baselineAtk > 0 ? (contribution / baselineAtk) * 100 : 0,
+      label: '공격력',
+      amount: delta,
+      pct,
       kind: 'atk',
-      note: isMagic
-        ? `${weaponAtk.toFixed(2)} × ${speedFin.toFixed(2)} × ${playerMagicCoef.toFixed(2)} (마력계수)`
-        : `${weaponAtk.toFixed(2)} × ${speedFin.toFixed(2)}`,
+      note: `${curTotal.toFixed(2)} → ${newTotal.toFixed(2)}`,
     })
+    // 마법 무기는 마력계수 적용된 마법공격력 변화도 별도 라인 (참고용)
+    if (weaponBase.value.isMagic) {
+      const newMagic = newWeaponAtk * playerMagicCoef
+      const curMagic = curWeaponAtk * (curWeapon?.baseKey && WEAPONS[curWeapon.baseKey]?.isMagic ? playerMagicCoef : 0)
+      const curMagicTotal = charAtk * playerMagicCoef + curMagic
+      const newMagicTotal = charAtk * playerMagicCoef + newMagic
+      const mDelta = newMagicTotal - curMagicTotal
+      out.push({
+        label: `마법공격력 (×${playerMagicCoef.toFixed(2)})`,
+        amount: mDelta,
+        pct: curMagicTotal > 0 ? (mDelta / curMagicTotal) * 100 : 0,
+        kind: 'atk',
+      })
+    }
   }
 
   if (armorBase.value) {
-    // 1) 방어력 종합
+    // 같은 슬롯 비교: 새 갑옷 vs 현재 갑옷 (없으면 0)
     const traitDefPct = (traitBase.value.방어력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
-    const armorDef = armorBase.value.baseDef * 2.0 * (coef.value + traitDefPct)
+    const newArmorDef = armorBase.value.baseDef * 2.0 * (coef.value + traitDefPct)
+    const curArmorDef = armorContribution(curArmor)
+    const curTotalDef = charDef + curArmorDef
+    const newTotalDef = charDef + newArmorDef
+    const dDef = newTotalDef - curTotalDef
     out.push({
       label: '방어력',
-      amount: armorDef,
-      pct: baselineDef > 0 ? (armorDef / baselineDef) * 100 : 0,
+      amount: dDef,
+      pct: curTotalDef > 0 ? (dDef / curTotalDef) * 100 : 0,
       kind: 'def',
+      note: `${curTotalDef.toFixed(2)} → ${newTotalDef.toFixed(2)}`,
     })
 
     // 2) 공속배율 → 공격력에 곱셈 영향 (가죽갑 ×1.2, 판금 ×0.65)
@@ -285,8 +343,8 @@ const equipChanges = computed<EquipDelta[]>(() => {
       const newMp = currMp + mpBonus
       const currCoef = calcMagicCoef(currMp)
       const newCoef = calcMagicCoef(newMp)
-      // 마법공격력 기준 베이스 (무기 무관 — 캐릭터 공격력 stat 만)
-      const magicBaselineAtk = c.stats.공격력
+      // v6: 마법공격력 기준 베이스 (캐릭터 힘 × 1.5)
+      const magicBaselineAtk = c.stats.힘 * 1.5
       const currMagic = magicBaselineAtk * currCoef
       const newMagic = magicBaselineAtk * newCoef
       const delta = newMagic - currMagic
@@ -301,7 +359,7 @@ const equipChanges = computed<EquipDelta[]>(() => {
     }
   }
 
-  // 4) 명중 modifier (트레잇 scaled + 무기 accBonus)
+  // 4) 명중 modifier (특성 scaled + 무기 accBonus)
   const accBonus = (effects.value.명중 ?? 0) + (weaponBase.value?.accBonus ?? 0)
   if (Math.abs(accBonus) > 0.001) {
     out.push({
@@ -311,7 +369,7 @@ const equipChanges = computed<EquipDelta[]>(() => {
     })
   }
 
-  // 5) 회피 modifier (갑옷 base + 트레잇 scaled)
+  // 5) 회피 modifier (갑옷 base + 특성 scaled)
   const evaBonus = (effects.value.회피 ?? 0) + (armorBase.value?.evasion ?? 0)
   if (Math.abs(evaBonus) > 0.001) {
     out.push({
@@ -356,10 +414,12 @@ const compareChanges = computed<CompareDelta[]>(() => {
 
     const dAtk = newAtk - curAtk
     if (Math.abs(dAtk) > 0.01) {
+      // v6: 총공격력 기준 변화율 (힘×1.5 + 현재 무기 공격력)
+      const curTotalAtk = props.character.stats.힘 * 1.5 + curAtk
       out.push({
         label: '공격력',
         delta: dAtk,
-        pctDelta: curAtk > 0 ? (dAtk / curAtk) * 100 : 0,
+        pctDelta: curTotalAtk > 0 ? (dAtk / curTotalAtk) * 100 : 0,
         kind: 'atk',
       })
     }
@@ -393,10 +453,12 @@ const compareChanges = computed<CompareDelta[]>(() => {
 
     const dDef = newDef - curDef
     if (Math.abs(dDef) > 0.01) {
+      // v6: 총방어력 기준 변화율 (체력×2 + 현재 갑옷 방어력)
+      const curTotalDef = props.character.stats.체력 * 2.0 + curDef
       out.push({
         label: '방어력',
         delta: dDef,
-        pctDelta: curDef > 0 ? (dDef / curDef) * 100 : 0,
+        pctDelta: curTotalDef > 0 ? (dDef / curTotalDef) * 100 : 0,
         kind: 'def',
       })
     }
@@ -434,7 +496,7 @@ const compareChanges = computed<CompareDelta[]>(() => {
   return out
 })
 
-// 던전 등급 변화 한 줄 (6챕터부터 표시)
+// v6 등급 변화 한 줄: 점수 = 무기 티어 + 갑옷 티어
 const rankLine = computed(() => {
   if (!props.character) return null
   if (currentChapter.value < 6) return null
@@ -443,18 +505,14 @@ const rankLine = computed(() => {
   const curAT = c.armor?.tier ?? 1
   const newWT = isWeapon.value ? props.item.tier : curWT
   const newAT = isWeapon.value ? curAT : props.item.tier
-  const curEqScore = ((17 - (curWT + curAT) / 2) / 16) * 100
-  const newEqScore = ((17 - (newWT + newAT) / 2) / 16) * 100
-  const goldScore = Math.min(100, (c.gold / 1890) * 100)
-  const hpScore = (c.hp / c.maxHp) * 100
-  const curScore = Math.round((curEqScore + goldScore + hpScore) / 3)
-  const newScore = Math.round((newEqScore + goldScore + hpScore) / 3)
+  const curScore = curWT + curAT  // tier 합계, 낮을수록 좋음
+  const newScore = newWT + newAT
   const curRank = getClearRank(curScore)
   const newRank = getClearRank(newScore)
-  const delta = newScore - curScore
+  const delta = newScore - curScore  // 양수면 점수 ↑ = 등급 ↓
   const bonusDelta = newRank.bonus - curRank.bonus
   return {
-    text: `${curRank.rank}(${curRank.bonus}점) → ${newRank.rank}(${newRank.bonus}점) · ${delta > 0 ? '+' : ''}${delta}점`,
+    text: `${curRank.rank}(${curRank.bonus}pt) → ${newRank.rank}(${newRank.bonus}pt) · 티어 ${delta >= 0 ? '+' : ''}${delta}`,
     bonusDelta,
     delta,
   }
@@ -478,6 +536,33 @@ const rankLine = computed(() => {
         </div>
         <div class="text-gray-600 text-[10px]">
           티어 {{ item.tier }} · <span :class="gradeColorClass[item.grade]">{{ item.grade }}</span> · 등급계수 {{ item.coef.toFixed(2) }}
+        </div>
+        <!-- 공격/방어 벨류 + 변화량 (클릭 가능, 분해 모달) -->
+        <div class="flex items-center gap-2 mt-0.5 text-[11px] font-bold">
+          <button
+            v-if="itemValue.atkValue > 0"
+            class="bg-stat-phys_atk/15 hover:bg-stat-phys_atk/25 rounded px-1.5 py-0.5 transition-colors"
+            @click.stop="openValueModal('atk')"
+            title="공격벨류 상세"
+          >
+            <span class="text-stat-phys_atk">공 {{ itemValue.atkValue.toFixed(1) }}</span>
+            <span
+              v-if="character && Math.abs(atkDelta) > 0.05"
+              :class="[atkDelta >= 0 ? 'text-log-reward' : 'text-status-burn', 'ml-1']"
+            >({{ atkDelta >= 0 ? '+' : '' }}{{ atkDelta.toFixed(1) }})</span>
+          </button>
+          <button
+            v-if="itemValue.defValue > 0"
+            class="bg-stat-phys_def/15 hover:bg-stat-phys_def/25 rounded px-1.5 py-0.5 transition-colors"
+            @click.stop="openValueModal('def')"
+            title="방어벨류 상세"
+          >
+            <span class="text-stat-phys_def">방 {{ itemValue.defValue.toFixed(1) }}</span>
+            <span
+              v-if="character && Math.abs(defDelta) > 0.05"
+              :class="[defDelta >= 0 ? 'text-log-reward' : 'text-status-burn', 'ml-1']"
+            >({{ defDelta >= 0 ? '+' : '' }}{{ defDelta.toFixed(1) }})</span>
+          </button>
         </div>
         <div v-if="equipChanges.length" class="text-[10px] mt-0.5 leading-tight">
           <template v-for="(ch, i) in equipChanges" :key="i">
@@ -557,6 +642,44 @@ const rankLine = computed(() => {
         :class="rankLine.bonusDelta > 0 ? 'text-log-reward' : rankLine.bonusDelta < 0 ? 'text-status-burn' : 'text-gray-300'"
         class="ml-1"
       >{{ rankLine.text }}</span>
+    </div>
+
+    <!-- 벨류 분해 모달 -->
+    <div
+      v-if="valueModal"
+      class="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 px-3 py-6"
+      @click.self="valueModal = null"
+      @click.stop
+    >
+      <div class="panel max-w-sm w-full space-y-2" @click.stop>
+        <div class="flex items-center justify-between">
+          <div class="text-base font-bold">
+            <span v-if="valueModal.kind === 'atk'" class="text-stat-phys_atk">⚔️ 공격벨류</span>
+            <span v-else class="text-stat-phys_def">🛡️ 방어벨류</span>
+          </div>
+          <button class="text-gray-400 hover:text-white text-xl leading-none" @click="valueModal = null">✕</button>
+        </div>
+        <div class="text-3xl font-mono font-bold text-log-reward text-center py-2">
+          {{ valueModal.total.toFixed(1) }}
+        </div>
+        <div v-if="valueModal.parts.length === 0" class="text-xs text-gray-500 text-center py-2">기여 없음</div>
+        <div v-else class="space-y-1 text-xs">
+          <div
+            v-for="(p, i) in valueModal.parts"
+            :key="i"
+            class="bg-bg-tertiary rounded px-2 py-1.5 flex items-baseline justify-between"
+          >
+            <div class="flex-1 min-w-0">
+              <div class="text-gray-200 truncate">{{ p.label }}</div>
+              <div v-if="p.note" class="text-[10px] text-gray-500 truncate">{{ p.note }}</div>
+            </div>
+            <div :class="[p.value >= 0 ? 'text-log-skill' : 'text-status-burn', 'font-mono font-bold ml-2 shrink-0']">
+              {{ p.value >= 0 ? '+' : '' }}{{ p.value.toFixed(2) }}
+            </div>
+          </div>
+        </div>
+        <button class="btn-secondary w-full text-xs" @click="valueModal = null">닫기</button>
+      </div>
     </div>
   </div>
 </template>

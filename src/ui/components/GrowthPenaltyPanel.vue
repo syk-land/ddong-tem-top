@@ -28,11 +28,9 @@ const rankIcon = computed(() =>
       <span class="text-log-reward font-semibold">+{{ projection.bonus }} pt</span>
     </div>
     <div class="flex items-center gap-3 text-[10px]">
-      <span class="text-stat-util">장비 <span class="text-gray-200 font-mono">{{ projection.eqScore.toFixed(0) }}</span></span>
-      <span class="text-stat-luck">골드 <span class="text-gray-200 font-mono">{{ projection.goldScore.toFixed(0) }}</span></span>
-      <span class="text-stat-hp">HP <span class="text-gray-200 font-mono">{{ projection.hpScore.toFixed(0) }}</span></span>
+      <span class="text-stat-util">티어 합계 <span class="text-gray-200 font-mono">{{ projection.score }}</span></span>
       <span class="text-gray-500">·</span>
-      <span class="text-gray-300 font-mono">총 {{ projection.score }}/100</span>
+      <span class="text-gray-400">낮을수록 등급 ↑</span>
     </div>
   </div>
   <!-- 1~5챕터: 안내만 -->

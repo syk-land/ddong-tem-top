@@ -1,5 +1,27 @@
 apply plugin: 'com.android.application'
 
+// ============================================================
+// 릴리스 서명 설정 + versionCode 자동 증가
+//
+// 1. keystore.properties  (android/keystore.properties) — git ignore
+//    KEYSTORE_FILE=keystore/release.jks
+//    KEYSTORE_PASSWORD=...
+//    KEY_ALIAS=climetop
+//    KEY_PASSWORD=...
+//    VERSION_CODE=1                       # 매 릴리스마다 +1
+//    VERSION_NAME=1.0
+//
+// 2. android/keystore/release.jks — git ignore (백업 필수)
+//
+// 파일이 없으면 디버그 키로 폴백 (기존 동작 그대로).
+// ============================================================
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+def hasKeystoreProperties = keystorePropertiesFile.exists()
+if (hasKeystoreProperties) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace "com.climetop.app"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,8 +29,8 @@ android {
         applicationId "com.climetop.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode (keystoreProperties['VERSION_CODE'] ?: '1').toString().toInteger()
+        versionName keystoreProperties['VERSION_NAME'] ?: '1.0'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +38,23 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    if (hasKeystoreProperties) {
+        signingConfigs {
+            release {
+                storeFile rootProject.file(keystoreProperties['KEYSTORE_FILE'])
+                storePassword keystoreProperties['KEYSTORE_PASSWORD']
+                keyAlias keystoreProperties['KEY_ALIAS']
+                keyPassword keystoreProperties['KEY_PASSWORD']
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasKeystoreProperties) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

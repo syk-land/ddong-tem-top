@@ -17,8 +17,8 @@ const used = computed(() =>
   Object.values(allocation.value).reduce((sum, v) => sum + (v ?? 0), 0)
 )
 
-const STAT_KEYS: StatKey[] = ['공격력', '방어력', '체력', '마력', '속도', '행운', '명중률', '회피율', '관통', '상태저항']
-const RANDOM_KEYS: StatKey[] = ['공격력', '방어력', '체력', '마력']
+const STAT_KEYS: StatKey[] = ['힘', '민첩', '체력', '마력', '행운']
+const RANDOM_KEYS: StatKey[] = ['힘', '민첩', '체력', '마력', '행운']
 
 // 현재 표시될 스탯 — 주사위 굴렸으면 그 결과, 아니면 균등 시작
 const previewStats = computed<Stats>(() => game.rolledStats ?? uniformStartingStats())
@@ -65,8 +65,9 @@ async function resetAll() {
 // 사용한 주사위 수
 const usedDice = computed(() => 3 - game.rollsLeft)
 
-// 도전 보너스
-const startBonus = computed(() => game.meta.pendingStartBonus ?? 0)
+// 도전 보너스 (영구 누적 + 마지막 1회 pending 합)
+const startBonus = computed(() => (game.meta.permanentStartBonus ?? 0) + (game.meta.pendingStartBonus ?? 0))
+const permanentBonus = computed(() => game.meta.permanentStartBonus ?? 0)
 const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) * 100))
 </script>
 
@@ -83,16 +84,17 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
       </div>
     </header>
 
-    <!-- 도전 보너스 안내 (있을 때만) -->
+    <!-- 도전 보너스 안내 (영구 누적 + 마지막 도전 결과) -->
     <div v-if="startBonus > 0" class="panel space-y-1 border border-grade-legend/40 bg-grade-legend/5">
-      <div class="text-sm text-grade-legend font-bold">⚔️ 탑의 빚 — 진짜 보스 도전 보상</div>
-      <div class="text-xs text-gray-300">
-        이전 도전에서 보스 체력 <span class="text-trait-special font-mono font-bold">{{ drainPct }}/100</span> 깎았다.
+      <div class="text-sm text-grade-legend font-bold">⚔️ 진짜 보스 도전 누적 보상</div>
+      <div v-if="drainPct > 0" class="text-xs text-gray-300">
+        마지막 도전: 보스 체력 <span class="text-trait-special font-mono font-bold">{{ drainPct }}/100</span> 깎음
       </div>
       <div class="text-xs text-log-reward">
         시작 능력치 총합 {{ START_STAT_BASE }} → <span class="font-mono font-bold">{{ START_STAT_BASE + startBonus }}pt</span>
-        (+{{ startBonus }}pt, 공·방·체·마 자동 분배)
+        (+{{ startBonus }}pt 영구, 공·방·체·마 자동 분배)
       </div>
+      <div class="text-[10px] text-gray-500">탑을 5번 오를 때마다 진짜 보스 도전 → 깎은 만큼 영구 누적</div>
     </div>
 
     <!-- 주사위 시스템 -->
@@ -100,7 +102,7 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
       <div class="flex items-baseline justify-between">
         <div class="text-sm">
           <span class="text-grade-legend font-bold">🎲 주사위 — 능력치 굴림</span>
-          <div class="text-xs text-gray-500 mt-0.5">시작은 모두 동일. 주사위를 굴려 6스탯에 50pt 랜덤 분배.</div>
+          <div class="text-xs text-gray-500 mt-0.5">시작은 모두 동일. 주사위를 굴려 5스탯에 50pt 랜덤 분배 (각 최소 3, 최대 20).</div>
         </div>
         <div class="text-xs text-gray-400">남은 굴림 <span class="text-grade-legend font-mono font-bold">{{ game.rollsLeft }}</span> / 3</div>
       </div>
@@ -130,9 +132,9 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
         </div>
       </div>
 
-      <!-- 고정 스탯 표시 -->
-      <div class="text-[10px] text-gray-500 text-center">
-        고정 · 속도 {{ previewStats.속도 }} / 행운 {{ previewStats.행운 }} / 명중·회피·관통·저항 0
+      <!-- 5스탯 파생 효과 안내 -->
+      <div class="text-[10px] text-gray-500 text-center leading-snug">
+        힘 → 공격력·관통 / 민첩 → 속도·명중·회피 / 체력 → 방어력·HP / 마력 → MP·마법계수 / 행운 → 크리·발동률·보정
       </div>
 
       <button
@@ -146,7 +148,7 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
       </button>
 
       <div v-if="game.rolledStats === null" class="text-[10px] text-center text-gray-500">
-        주사위를 안 굴리면 6스탯 모두 8로 시작합니다 (균등).
+        주사위를 안 굴리면 5스탯 모두 10으로 시작합니다 (균등 50pt).
       </div>
     </div>
 

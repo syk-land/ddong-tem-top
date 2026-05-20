@@ -58,7 +58,7 @@ export function lookupWeaponProc(baseKey: string): number {
 }
 
 // ============================================================
-// 등급 / 트레잇 등급 보정 (똥템 보상)
+// 등급 / 특성 등급 보정 (똥템 보상)
 // ============================================================
 
 const GRADE_PROC_MOD: Record<Grade, number> = {

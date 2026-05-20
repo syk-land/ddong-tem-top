@@ -34,8 +34,9 @@ function onKey(e: KeyboardEvent) {
   <div
     v-if="dialog"
     class="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4"
+    @click.self="cancel"
   >
-    <div class="panel max-w-md w-full space-y-3">
+    <div class="panel max-w-md w-full space-y-3" @click.stop>
       <img v-if="dialog.imageUrl" :src="dialog.imageUrl" alt="" class="w-full max-h-[400px] object-contain rounded" />
       <h3 v-if="dialog.title" class="text-lg font-bold">{{ dialog.title }}</h3>
       <p class="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">{{ dialog.message }}</p>

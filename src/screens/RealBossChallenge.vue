@@ -56,8 +56,10 @@ function decline() {
         <div class="grid grid-cols-2 text-[10px] gap-1 text-gray-400">
           <div>HP {{ weak.maxHp }}</div>
           <div>MP {{ weak.maxMp }}</div>
-          <div>공 {{ weak.stats.공격력 }}</div>
-          <div>방 {{ weak.stats.방어력 }}</div>
+          <div>힘 {{ weak.stats.힘 }}</div>
+          <div>체력 {{ weak.stats.체력 }}</div>
+          <div>민첩 {{ weak.stats.민첩 }}</div>
+          <div>행운 {{ weak.stats.행운 }}</div>
         </div>
       </div>
 

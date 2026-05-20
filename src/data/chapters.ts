@@ -150,24 +150,24 @@ export interface BaselineStats {
   speed: number
 }
 
+// v6 일반 몬스터 — 평탄한 선형 (ch1~10 격차 ~2배)
 export function getNormalMonsterBaseline(chapter: number): BaselineStats {
   return {
-    hp: 25 + 10 * chapter,
-    atk: 5 + 2 * chapter,
-    def: 2 + 1.2 * chapter,
+    hp: 50 + 6 * chapter,
+    atk: 8 + 1.2 * chapter,
+    def: 3 + 1.0 * chapter,
     speed: 8,
   }
 }
 
-// v4 보스 밸런싱 — 시뮬레이션 기반 조정 (2026-05-20)
-//   목표: 노말 50% / 레어 60% / 스페셜 70% 평균 클리어률
-//   조정: hp × 3.5 → 4.3 (+23%), atk × 1.2 → 1.3 (+8%)
+// v6 보스 — 도전감 위해 hp/atk 강화
+//   ch1: hp ~280, atk ~13 / ch10: hp ~550, atk ~28
 export function getBossBaseline(chapter: number): BaselineStats {
   const n = getNormalMonsterBaseline(chapter)
   return {
-    hp: n.hp * 4.3,    // 3.5 → 4.3 (+23%)
-    atk: n.atk * 1.3,  // 1.2 → 1.3 (+8%)
-    def: n.def * 1.3,
+    hp: n.hp * 16.0,
+    atk: n.atk * 1.7,
+    def: n.def * 1.55,
     speed: 10,
   }
 }

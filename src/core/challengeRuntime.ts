@@ -113,13 +113,13 @@ export function canEquipItem(item: ItemInstance, ctx: ChallengeContext): { ok: b
     return { ok: false, reason: '갑옷 장착 불가 (유리 대포 계약)' }
   }
   if (flags.forceLowTraitsOnly && item.tier > 4) {
-    return { ok: false, reason: '하급 트레잇만 장착 가능 (녹슨 칼날의 맹세)' }
+    return { ok: false, reason: '하급 특성만 장착 가능 (녹슨 칼날의 맹세)' }
   }
   if (flags.forceLowNormalOnly && item.tier !== 1) {
     return { ok: false, reason: '하급-노말만 장착 가능' }
   }
   if (flags.forceCommonNormalOnly && (item.tier !== 5 || item.trait !== '날카로운')) {
-    return { ok: false, reason: '보통-노말만 장착 가능 (트레잇 봉인)' }
+    return { ok: false, reason: '보통-노말만 장착 가능 (특성 봉인)' }
   }
   if (item.kind === 'weapon') {
     const wbase = WEAPONS[item.baseKey]
@@ -248,7 +248,7 @@ export function onEquipItem(ctx: ChallengeContext, item: ItemInstance, previousI
         // 실제 실패 판정은 evaluate 단계에서 (챕터 5 이전인지 체크)
       }
     }
-    // 트레잇 봉인 — '날카로운' 외 트레잇 장착 시 실패
+    // 특성 봉인 — '날카로운' 외 특성 장착 시 실패
     if (f.trackNoTraitEquip) {
       if (item.trait !== '날카로운') {
         ac.counters.traitedEverEquipped = true

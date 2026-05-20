@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '@/stores/game'
-import { themeColorClass, statColorClass } from '@/ui/colors'
+import { themeColorClass } from '@/ui/colors'
 import HpMpBar from '@/ui/components/HpMpBar.vue'
 import ItemName from '@/ui/components/ItemName.vue'
+import { CHALLENGES_MAP } from '@/data/challenges'
 import GrowthPenaltyPanel from '@/ui/components/GrowthPenaltyPanel.vue'
 import StatusBadges from '@/ui/components/StatusBadges.vue'
 import StatusModal from '@/ui/components/StatusModal.vue'
@@ -23,6 +24,17 @@ const inventoryOpen = ref(false)
 function enter() {
   game.enterCurrentFloor()
 }
+
+// 활성 챌린지 한 줄 (이름 + 짧은 보상/조건). 여러 개면 쉼표.
+const challengeOneLine = computed(() => {
+  const keys = game.run?.challengeKeys ?? []
+  const items = keys.map((k) => {
+    const def = CHALLENGES_MAP[k]
+    if (!def) return null
+    return def.name
+  }).filter((s): s is string => !!s)
+  return items.join(' · ')
+})
 
 // 자동 진입: 일반몬스터/보스/치유샘만 자동 진입.
 // 상점/보물/특별이벤트는 사용자 선택을 위해 자동 진입 X.
@@ -165,12 +177,12 @@ const floorLabel = computed(() => {
         <HpMpBar :current="c.hp" :max="c.maxHp" kind="hp" />
         <HpMpBar :current="c.mp" :max="c.maxMp" kind="mp" />
       </div>
-      <div class="flex items-center justify-between text-xs">
-        <div class="flex gap-3 font-mono">
-          <span :class="statColorClass.속도">속도 {{ c.stats.속도 }}</span>
-          <span :class="statColorClass.행운">행운 {{ c.stats.행운 }}</span>
+      <div class="flex items-center justify-between text-xs gap-2">
+        <div class="truncate flex-1">
+          <span v-if="challengeOneLine" class="text-trait-special">🎯 {{ challengeOneLine }}</span>
+          <span v-else class="text-gray-500">챌린지 없음</span>
         </div>
-        <span class="text-stat-luck font-mono">{{ c.gold }}G</span>
+        <span class="text-stat-luck font-mono shrink-0">{{ c.gold }}G</span>
       </div>
       <div class="grid grid-cols-2 gap-2 text-xs">
         <div class="bg-bg-tertiary rounded px-2 py-1 truncate">

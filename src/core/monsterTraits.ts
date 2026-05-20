@@ -396,8 +396,9 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
     onSpawn({ ctx, monster }) {
       // 플레이어의 표면 공격력/방어를 기반으로 atk/def 보정
       const p: Character = ctx.player
-      monster.atk = Math.max(monster.atk, p.stats.공격력 + p.stats.마력 + 5)
-      monster.def = Math.max(monster.def, p.stats.방어력 * 1.5)
+      // v6: 힘 × 1.5 + 마력 (대략 공격력 비례), 체력 × 2 (방어력 비례)
+      monster.atk = Math.max(monster.atk, p.stats.힘 * 1.5 + p.stats.마력 + 5)
+      monster.def = Math.max(monster.def, p.stats.체력 * 2.0 * 1.5)
       pushLog(ctx, `${monster.template.name}: 플레이어 복사`, 'info')
     },
   },

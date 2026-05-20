@@ -67,27 +67,29 @@ export function applySmithUpgrade(character: Character, bet: number): { success:
   const success = Math.random() < chance
   if (!success) return { success: false }
 
-  // 등급 +1, 레전드는 트레잇 한 단계↑
+  // 등급 +1, 레전드는 특성 한 단계↑
   const grades = ['노말', '레어', '스페셜', '레전드'] as const
   const traitTiers = ['하급', '보통', '희귀', '특별'] as const
   const curGradeIdx = grades.indexOf(character.weapon.grade)
 
+  // 현재 무기의 특성 티어 (forceTraitTier 명시 필요 — items.ts 가 forceTraitTier && forceGrade 둘 다 있어야 tier 강제)
+  const curTraitTier = WEAPON_TRAITS[character.weapon.trait]?.tier ?? '보통'
+
   if (curGradeIdx < 3) {
-    // 등급 +1
+    // 등급 +1 — 특성/베이스 그대로
     const newGrade = grades[curGradeIdx + 1]
     const newItem = rollItem({
       kind: 'weapon',
       forceBaseKey: character.weapon.baseKey,
       forceTraitName: character.weapon.trait,
+      forceTraitTier: curTraitTier,
       forceGrade: newGrade,
     })
     character.weapon = newItem
     return { success: true, newItem }
   } else {
-    // 레전드 → 트레잇 한 단계↑
-    const curTier = WEAPON_TRAITS[character.weapon.trait]?.tier
-    if (!curTier) return { success: false }
-    const curTierIdx = traitTiers.indexOf(curTier)
+    // 레전드 → 특성 한 단계↑ (특성 이름은 새로 — pool 에서 무작위)
+    const curTierIdx = traitTiers.indexOf(curTraitTier)
     if (curTierIdx >= 3) return { success: false }
     const newTier = traitTiers[curTierIdx + 1]
     const newItem = rollItem({
@@ -108,13 +110,13 @@ export interface RouletteResult {
 }
 
 export function spinRoulette(luck: number): RouletteResult {
-  // 행운 보정
+  // 행운 보정 — 행운 10 (균등 캐릭) 기준 EV ≈ +0.85 (대부분 이득)
   const luckBonus = Math.max(0, luck)
-  let pGreat = 0.05 + luckBonus * 0.01
-  const pGood = 0.20
+  let pGreat = 0.10 + luckBonus * 0.012
+  const pGood = 0.25
   const pNone = 0.30
-  let pBad = Math.max(0, 0.25 - luckBonus * 0.005)
-  let pTerrible = Math.max(0, 0.20 - luckBonus * 0.005)
+  let pBad = Math.max(0, 0.20 - luckBonus * 0.006)
+  let pTerrible = Math.max(0, 0.15 - luckBonus * 0.006)
 
   // 정규화
   const total = pGreat + pGood + pNone + pBad + pTerrible
@@ -133,17 +135,12 @@ export function spinRoulette(luck: number): RouletteResult {
 
 export function applyRouletteResult(character: Character, stat: StatKey, delta: number) {
   const cur = character.stats[stat] ?? 0
-  let newVal = cur + delta
-  // 클램프
-  if (['공격력', '방어력', '체력', '마력'].includes(stat)) {
-    newVal = Math.max(3, newVal)
-  } else {
-    newVal = Math.max(0, newVal)
-  }
+  // v6: 5스탯 모두 최소 3 유지
+  const newVal = Math.max(3, cur + delta)
   character.stats[stat] = newVal
   // 체력/마력 변경 시 max 갱신
   if (stat === '체력') {
-    character.maxHp = newVal * 20 + 50
+    character.maxHp = newVal * 10 + 50
     character.hp = Math.min(character.hp, character.maxHp)
   }
   if (stat === '마력') {
@@ -152,20 +149,21 @@ export function applyRouletteResult(character: Character, stat: StatKey, delta: 
   }
 }
 
-// 9.14.5: 등가교환 제단 (스탯 -3 → 다른 스탯 +1)
+// 9.14.5: 등가교환 제단 (스탯 -3 → 다른 스탯 +2)
 export function exchangeStat(character: Character, from: StatKey, to: StatKey): boolean {
   if (from === to) return false
   if ((character.stats[from] ?? 0) < 6) return false  // 최소 3 유지
   applyRouletteResult(character, from, -3)
-  applyRouletteResult(character, to, +1)
+  applyRouletteResult(character, to, +2)
   return true
 }
 
-// 9.14.6: 암시장 브로커
+// 9.14.6: 암시장 브로커 — v6 5스탯
+//   행운은 가장 비쌈(파생 효과 다양), 민첩 중간, 나머지 표준.
 export function blackMarketPrice(chapter: number, stat: StatKey): number {
   const base = 100 + 50 * chapter
-  if (stat === '속도' || stat === '행운') return Math.round(base * 1.5)
-  if (['명중률', '회피율', '관통', '관통', '상태저항'].includes(stat)) return Math.round(base * 0.7)
+  if (stat === '행운') return Math.round(base * 1.5)
+  if (stat === '민첩') return Math.round(base * 1.2)
   return base
 }
 
@@ -192,8 +190,8 @@ export function greedyCollectorTake(character: Character): { taken: ItemInstance
   if (taken === w) character.weapon = null
   else character.armor = null
 
-  // 무작위 스탯 +1
-  const allStats: StatKey[] = ['공격력', '방어력', '체력', '마력', '속도', '행운', '명중률', '회피율', '관통', '상태저항']
+  // 무작위 스탯 +1 (v6 5스탯)
+  const allStats: StatKey[] = ['힘', '민첩', '체력', '마력', '행운']
   const stat = pickOne(allStats)
   applyRouletteResult(character, stat, +1)
   return { taken, randomStat: stat }

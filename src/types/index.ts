@@ -1,17 +1,17 @@
-// ====== 능력치 ======
-// 통합된 10스탯 (물공+마공→공격력, 물방+마방→방어력, 물리관통+마법관통→관통)
-export type StatKey =
-  | '공격력' | '방어력'
-  | '체력' | '마력'
-  | '속도' | '행운'
-  | '명중률' | '회피율'
-  | '관통'
-  | '상태저항'
+// ====== 능력치 (v6: 5스탯 통합) ======
+// 힘    → 공격력, 관통
+// 민첩  → 속도, 명중, 회피
+// 체력  → 방어력, HP, 상태저항(절반)
+// 마력  → MP, 마력계수, 상태저항(절반)
+// 행운  → 크리티컬, 스킬 발동률, 보상, 이벤트 성공률 + 명중/회피/관통/저항 가산
+//
+// 장비는 스탯 직접 변동 X. 파생 효과(공격력/방어력/속도/명중/회피/관통/저항/마력 등)에만 가산.
+export type StatKey = '힘' | '민첩' | '체력' | '마력' | '행운'
 
 export type Stats = Record<StatKey, number>
 
-// 캐릭터 생성 시 무작위 분배 대상 스탯 (4개)
-export const RANDOM_STAT_KEYS: StatKey[] = ['공격력', '방어력', '체력', '마력']
+// 캐릭터 생성 시 주사위 분배 대상 — 5스탯 전부
+export const RANDOM_STAT_KEYS: StatKey[] = ['힘', '민첩', '체력', '마력', '행운']
 
 // ====== 등급 / 티어 ======
 export type TraitTier = '하급' | '보통' | '희귀' | '특별'
@@ -25,11 +25,23 @@ export const GRADE_LEVEL: Record<Grade, number> = {
   노말: 1, 레어: 2, 스페셜: 3, 레전드: 4,
 }
 
+// (deprecated) 굴림 범위는 더 이상 사용 안 함 — GRADE_COEF 고정값 사용
 export const GRADE_COEF_RANGE: Record<Grade, [number, number]> = {
-  노말: [0.5, 1.0],
-  레어: [1.0, 1.5],
-  스페셜: [1.5, 2.5],
-  레전드: [2.5, 4.0],
+  노말: [1, 1],
+  레어: [2, 2],
+  스페셜: [4, 4],
+  레전드: [6, 6],
+}
+
+// 등급 계수 고정값 (v5)
+//   설계: 노말 1 / 레어 2 / 스페셜 4 / 레전드 6
+//   특성 단계와 결합되어 다음 등급으로 도약하는 격차 형성
+//   (특성 특별 ≈ 다음 등급 하급)
+export const GRADE_COEF: Record<Grade, number> = {
+  노말: 1,
+  레어: 2,
+  스페셜: 4,
+  레전드: 6,
 }
 
 export const GRADE_PRICE_MULT: Record<Grade, number> = {
@@ -41,7 +53,7 @@ export type WeaponCategory = 'melee' | 'ranged' | 'magic'
 export type ArmorType = '판금' | '중갑' | '가죽갑' | '로브'
 export type Element = '물' | '불' | '바람' | '대지' | '번개' | '암흑' | '빛' | '무'
 
-// ====== 트레잇 효과 ======
+// ====== 특성 효과 ======
 export interface TraitEffect {
   // 공격력 / 방어력 % 보너스 (음수도 가능) — 물리/마법 통합
   공격력_pct?: number
@@ -99,7 +111,8 @@ export interface WeaponBase {
   speedCoef: number   // 매 틱 누적 = 속도 × speedCoef
   accBonus: number    // 명중 보정 (예: 완드 +10, 마도서 -10)
   mpBonus: number     // 마법 무기 MP 소모 보정 (완드 -2, 마도서 +2)
-  magicPenBonus: number  // 스태프 +5
+  magicPenBonus: number  // 마법 관통 (스태프/마도서)
+  penBonus?: number   // 물리 관통 (창/석궁/해머 등) — 통합 관통(s.관통)에 가산
   isMagic: boolean
   element?: Element   // 마법 무기만
   autoSkill: string   // 자동 부여 스킬 키
@@ -286,25 +299,33 @@ export interface MetaBonuses {
   runsSinceLastChallenge: number    // 마지막 도전 이후 진행한 런 수 (0부터)
   nextChallengeAt: number           // 이 횟수 도달 시 도전 발동 (5~10 랜덤)
   characterHistory: CharacterRecord[]  // 클리어 캐릭터 누적 (최대 50)
-  pendingStartBonus: number         // 다음 캐릭터 1회 시작 스탯 +N (도전 결과)
+  pendingStartBonus: number         // (deprecated) 1회성 보너스 — 호환용. 0으로 유지.
+  permanentStartBonus: number       // 진짜 보스 도전 결과로 영구 누적되는 시작 스탯 +N
   lastBossDrainRatio: number        // 가장 최근 도전에서 깎은 비율 0~1 (UI 표시용)
   realBossCompleted: boolean        // 도전 모드 한 번이라도 전투 완료했는지 (t3 잠금 해제용)
+  realBossDefeated: boolean         // 진짜 보스를 한 번이라도 깎은 비율 100% 클리어 했는지 (게임 클리어)
+  totalGoldEarned: number           // 클리어 시점 남은 골드 누적 — 5만 도달 시 진짜 보스 트리거 (내부, UI 표시 X)
 }
 
 // 도전 모드용 캐릭터 스냅샷 (클리어 시 저장)
+//   weapon / armor 는 풀 ItemInstance 그대로 보존하여 부활 시 동일 효과 적용.
+//   baseKey/trait/grade/tier 는 옛 세이브 호환용 fallback (없으면 weapon/armor 사용).
 export interface CharacterRecord {
   stats: Stats
   score: number
   rank: string
   avatarKey: string | null
-  weaponBaseKey: string | null
-  weaponTrait: string | null
-  weaponGrade: string | null
-  weaponTier: number
-  armorBaseKey: string | null
-  armorTrait: string | null
-  armorGrade: string | null
-  armorTier: number
+  weapon: ItemInstance | null
+  armor: ItemInstance | null
+  // (deprecated) 옛 세이브 호환 — 새 세이브엔 안 씀
+  weaponBaseKey?: string | null
+  weaponTrait?: string | null
+  weaponGrade?: string | null
+  weaponTier?: number
+  armorBaseKey?: string | null
+  armorTrait?: string | null
+  armorGrade?: string | null
+  armorTier?: number
   gold: number
   hp: number
   maxHp: number

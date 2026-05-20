@@ -59,18 +59,13 @@ export const statusBgClass: Record<StatusKind, string> = {
   감전: 'bg-status-shock/20 border-status-shock/40 text-status-shock',
 }
 
-// 스탯 카테고리 색상 (통합 10스탯)
+// v6 5스탯 카테고리 색상
 export const statColorClass: Record<StatKey, string> = {
-  공격력: 'text-stat-phys_atk',
-  방어력: 'text-stat-phys_def',
+  힘: 'text-stat-phys_atk',
+  민첩: 'text-stat-speed',
   체력: 'text-stat-hp',
   마력: 'text-stat-mp',
-  속도: 'text-stat-speed',
   행운: 'text-stat-luck',
-  명중률: 'text-stat-util',
-  회피율: 'text-stat-util',
-  관통: 'text-stat-util',
-  상태저항: 'text-stat-util',
 }
 
 // 클리어 등급 색상
@@ -145,7 +140,7 @@ export function hpBarColorClass(hpPercent: number): string {
   return 'bg-bar-hp_full'
 }
 
-// 아이템 전체 색상 (트레잇 + 등급 조합)
+// 아이템 전체 색상 (특성 + 등급 조합)
 export function itemNameColorClass(item: ItemInstance | null): string {
   if (!item) return 'text-gray-500'
   return tierColorClass(item.tier)
@@ -156,12 +151,12 @@ export function itemKindAccent(kind: 'weapon' | 'armor'): string {
   return kind === 'weapon' ? 'text-rose-200' : 'text-sky-200'
 }
 
-// "낡은 노말 단검" 형식의 표시명에서 트레잇/등급/무기 부분을 색상 분리
+// "낡은 노말 단검" 형식의 표시명에서 특성/등급/무기 부분을 색상 분리
 export function formatItemNameHTML(item: ItemInstance | null): { trait: string; traitClass: string; grade: string; gradeClass: string; base: string; baseClass: string } {
   if (!item) {
     return { trait: '', traitClass: '', grade: '', gradeClass: '', base: '맨손', baseClass: 'text-gray-500' }
   }
-  // 트레잇 색상은 tier 기반, grade 색상은 grade 기반
+  // 특성 색상은 tier 기반, grade 색상은 grade 기반
   return {
     trait: item.trait,
     traitClass: tierColorClass(item.tier),

@@ -5,12 +5,12 @@ import type {
 import { createCharacter, generateRandomStats, uniformStartingStats, computeMaxMp } from '@/core/character'
 import { makeTowerRun, currentChapter, currentFloor, advanceFloor } from '@/core/tower'
 import {
-  loadMeta, saveMeta, saveRun, loadRun, clearRun, defaultMeta, commitClearBonus,
+  loadMeta, saveMeta, saveRun, loadRun, clearRun, defaultMeta, commitClearBonus, consumeBonusFromPool,
   computePendingBonus, type PendingClearBonus,
-  pushCharacterHistory, incrementRunCounter, consumeChallengeTrigger,
+  pushCharacterHistory, incrementRunCounter, consumeChallengeTrigger, accumulateClearGold,
 } from '@/core/meta'
 import {
-  isChallengeDue, pickWeakestRecord, makeRealBoss, computeStartBonusFromDrain,
+  isChallengeDue, pickLatestRecord, makeRealBoss, computeStartBonusFromDrain,
 } from '@/core/realboss'
 import { createCombatContext, type CombatContext, advanceTick, checkActionReady, consumeAction, playerBasicAttack, monsterAttack, makeMonster, pushLog } from '@/core/combat'
 import { useSkill, getAvailableSkills, pickAutoAction } from '@/core/skills'
@@ -223,18 +223,19 @@ export const useGameStore = defineStore('game', {
       const eff = computeEffectiveStats(c)
       return Math.round(computeWeaponSkillProc(c, eff.행운) * 100)
     },
-    // 실시간 성장 패널티: 현재 장비 기준 다음 회차 보너스 예상
+    // v6 실시간 등급 예상: 점수 = 무기 티어 + 갑옷 티어 (낮을수록 좋음)
     projectedClearRank: (s): { rank: string; bonus: number; score: number; eqScore: number; goldScore: number; hpScore: number } | null => {
       if (!s.run) return null
       const c = s.run.character
       const weaponTier = c.weapon?.tier ?? 1
       const armorTier = c.armor?.tier ?? 1
+      const score = weaponTier + armorTier  // v6: tier 합계, 0~32
+      const { rank, bonus } = getClearRank(score)
+      // eqScore/goldScore/hpScore: 호환용 (UI 표시 디버그). v6 점수에는 반영 X.
       const avgTier = (weaponTier + armorTier) / 2
       const eqScore = ((17 - avgTier) / 16) * 100
       const goldScore = Math.min(100, (c.gold / 1890) * 100)
       const hpScore = (c.hp / c.maxHp) * 100
-      const score = Math.round((eqScore + goldScore + hpScore) / 3)
-      const { rank, bonus } = getClearRank(score)
       return { rank, bonus, score, eqScore, goldScore, hpScore }
     },
   },
@@ -344,10 +345,13 @@ export const useGameStore = defineStore('game', {
     newGame(bonusAllocation: Partial<Stats> = {}) {
       // 주사위 굴린 결과가 있으면 사용, 없으면 균등 시작 (모두 8)
       const customStats = this.rolledStats ?? uniformStartingStats()
-      const pending = this.meta.pendingStartBonus ?? 0
-      const character = createCharacter(bonusAllocation, customStats, pending)
-      // 도전 보너스 소진
-      if (pending > 0) {
+      // 영구 누적 시작 스탯 보너스 (진짜 보스 도전 누적). 1회성 pending은 deprecated.
+      const startBonus = (this.meta.permanentStartBonus ?? 0) + (this.meta.pendingStartBonus ?? 0)
+      const character = createCharacter(bonusAllocation, customStats, startBonus)
+      // 메타 풀에서 분배한 만큼 차감
+      consumeBonusFromPool(this.meta, bonusAllocation)
+      // pending 보너스는 1회성이라 소진 (영구는 그대로 유지)
+      if ((this.meta.pendingStartBonus ?? 0) > 0) {
         this.meta.pendingStartBonus = 0
         saveMeta(this.meta)
       }
@@ -521,7 +525,7 @@ export const useGameStore = defineStore('game', {
       })
     },
 
-    // 드랍/구매 처리: 무조건 인벤토리로 적재 (자동 장착 X — 사용자가 명시적으로 장착)
+    // 드랍/구매 처리: 인벤토리로 적재 → 슬롯 비었으면 자동 장착.
     // 인벤토리 가득 차 있으면 사용자 결정 (모달 표시) 대기
     receiveItem(item: ItemInstance) {
       if (!this.run) return
@@ -532,12 +536,47 @@ export const useGameStore = defineStore('game', {
       // 빈 자리 있으면 자동 적재
       if (this.run.inventory.length < this.run.inventoryCap) {
         this.run.inventory.push(item)
+        this.autoEquipFromInventory()
         saveRun(this.run)
         return
       }
 
       // 가득 참 → 사용자 결정 대기 (모달)
       this.pendingPickup = item
+    },
+
+    // 빈 장비 슬롯이 있고 인벤토리에 같은 종류 아이템이 있으면 가장 좋은 것(tier 우선)으로 자동 장착.
+    // 챌린지 제약으로 장착 불가 아이템은 건너뜀.
+    autoEquipFromInventory() {
+      if (!this.run) return
+      const c = this.run.character
+      const slots: ('weapon' | 'armor')[] = ['weapon', 'armor']
+      let changed = false
+      for (const slot of slots) {
+        if (c[slot]) continue
+        let bestIdx = -1
+        let bestTier = -1
+        for (let i = 0; i < this.run.inventory.length; i++) {
+          const it = this.run.inventory[i]
+          if (it.kind !== slot) continue
+          if (this.challengeContext) {
+            const check = canEquipItem(it, this.challengeContext)
+            if (!check.ok) continue
+          }
+          if (it.tier > bestTier) {
+            bestTier = it.tier
+            bestIdx = i
+          }
+        }
+        if (bestIdx >= 0) {
+          const it = this.run.inventory[bestIdx]
+          c[slot] = it
+          if (this.challengeContext) onEquipItem(this.challengeContext, it, null)
+          this.run.inventory.splice(bestIdx, 1)
+          changed = true
+        }
+      }
+      if (changed) this.recomputeDerivedStats()
     },
 
     // 모달 해결: 인벤토리 슬롯 폐기 후 신규 적재
@@ -596,7 +635,7 @@ export const useGameStore = defineStore('game', {
       return { ok: true }
     },
 
-    // 장비 변경 시 maxMp 재계산 (마력 보너스가 갑옷/트레잇에서 변경됨)
+    // 장비 변경 시 maxMp 재계산 (마력 보너스가 갑옷/특성에서 변경됨)
     //   character.maxMp 는 생성 시점 stats.마력 만 반영 → 동적 갱신 필요
     recomputeDerivedStats() {
       if (!this.run) return
@@ -692,13 +731,23 @@ export const useGameStore = defineStore('game', {
       const score = this.pendingClear?.score ?? computeClearScore(this.run.character, 10)
       const rank = this.pendingClear?.rank ?? getClearRank(score).rank
       pushCharacterHistory(this.meta, this.run.character, score, rank, this.runAvatar, lastCh.theme)
-      // 런 카운터 증가
+      // 런 카운터 증가 (호환용)
       incrementRunCounter(this.meta)
+      // v6: 클리어 시점 남은 골드 누적 (5만 도달 시 진짜 보스 트리거)
+      accumulateClearGold(this.meta, this.run.character.gold)
       this.screen = 'victory'
     },
 
-    confirmClearBonus(allocation: Partial<Stats>) {
-      commitClearBonus(this.meta, allocation)
+    confirmClearBonus(_allocation: Partial<Stats>) {
+      const bonus = this.pendingClear?.bonus ?? 0
+      // 직접 mutation (pinia reactive 보장)
+      const before = this.meta.totalBonusStats ?? 0
+      this.meta.clearCount = (this.meta.clearCount ?? 0) + 1
+      this.meta.totalBonusStats = before + bonus
+      console.log(`[confirmClearBonus] ${before} + ${bonus} = ${this.meta.totalBonusStats}, clearCount=${this.meta.clearCount}`)
+      saveMeta(this.meta)
+      // 보너스 소진 표시
+      this.pendingClear = null
       this.run = null
       clearRun()
       this.savedRunExists = false
@@ -725,24 +774,27 @@ export const useGameStore = defineStore('game', {
 
     // 1 틱 진행 (몬스터 + 플레이어 모두 자동 행동)
     tickStep() {
-      if (!this.combat || this.combat.ended || !this.run) return
+      if (!this.combat || this.combat.ended) return
+      // 도전 모드는 run 없이 진행 (realBossMonster 있을 때)
+      const isRealBoss = !!this.realBossMonster
+      if (!isRealBoss && !this.run) return
       advanceTick(this.combat)
-      this.run.tickCount++
+      if (this.run) this.run.tickCount++
 
-      // 챌린지 매 틱 추적 (HP 낮음 / 속도 6 이하)
-      if (this.challengeContext) {
+      // 챌린지 매 틱 추적 (run 있을 때만)
+      if (this.challengeContext && this.run) {
         onTick(this.challengeContext, this.run.character)
       }
 
       // 각 살아있는 몬스터의 행동
       const ready = checkActionReady(this.combat)
-      const themeName = currentChapter(this.run).theme  // 환영 챕터 식별용
+      const themeName = this.run ? currentChapter(this.run).theme : null
       for (const m of ready.readyMonsters) {
         if (this.combat.ended) break
         const hpBefore = this.combat.player.hp
         monsterAttack(this.combat, m)
         const damageTaken = hpBefore - this.combat.player.hp
-        if (damageTaken > 0 && this.challengeContext) {
+        if (damageTaken > 0 && this.challengeContext && themeName) {
           if (this.combat.isPvp) onPvpHit(this.challengeContext, damageTaken)
           onPlayerHitByTheme(this.challengeContext, themeName, damageTaken)
         }
@@ -952,17 +1004,33 @@ export const useGameStore = defineStore('game', {
         return
       }
       const maxBet = Math.min(c.gold, w.sellPrice * 2)
-      const betStr = await this.showInputDialog({
+      // 1) 우선 베팅 방식 선택 (직접 입력 vs 최대 베팅)
+      const choice = await this.showDialog({
         title: '🔨 떠돌이 대장장이',
         message: `무기: ${w.trait} ${w.grade} ${w.baseKey} (판매가 ${w.sellPrice}G)\n` +
-          `보유 ${c.gold}G, 베팅 ${0}~${maxBet}G.\n` +
+          `보유 ${c.gold}G — 베팅 ${0}~${maxBet}G\n` +
           `베팅이 많을수록 성공률 ↑ (최대 90%)`,
-        defaultValue: Math.floor(maxBet / 2).toString(),
-        maxValue: maxBet,
-        placeholder: '베팅 골드',
+        buttons: [
+          { label: `최대 베팅 (${maxBet}G)`, value: 'max', primary: true },
+          { label: '직접 입력', value: 'custom' },
+          { label: '취소', value: null },
+        ],
       })
-      if (betStr === null) return
-      const bet = Math.max(0, Math.min(parseInt(betStr) || 0, maxBet))
+      if (choice === null) return
+      let bet = 0
+      if (choice === 'max') {
+        bet = maxBet
+      } else {
+        const betStr = await this.showInputDialog({
+          title: '🔨 베팅 골드 입력',
+          message: `보유 ${c.gold}G, 0 ~ ${maxBet}G`,
+          defaultValue: Math.floor(maxBet / 2).toString(),
+          maxValue: maxBet,
+          placeholder: '베팅 골드',
+        })
+        if (betStr === null) return
+        bet = Math.max(0, Math.min(parseInt(betStr) || 0, maxBet))
+      }
       if (bet <= 0) {
         await this.alertModal('베팅이 0이라 대장장이가 떠났다.', '취소')
         return
@@ -985,7 +1053,7 @@ export const useGameStore = defineStore('game', {
 
     async eventCursedGambler() {
       if (!this.run) return
-      const stats: StatKey[] = ['공격력', '방어력', '체력', '마력']
+      const stats: StatKey[] = ['힘', '민첩', '체력', '마력', '행운']
       const stat = await this.showListDialog<StatKey>({
         title: '🎲 저주받은 도박사의 룰렛',
         message: '베팅할 스탯을 선택. 결과: 대성공 +5 ~ 대실패 -5 (행운이 EV 결정)',
@@ -1014,11 +1082,11 @@ export const useGameStore = defineStore('game', {
       if (this.challengeContext) {
         onAltarOffered(this.challengeContext, currentChapter(this.run).chapter)
       }
-      const allStats: StatKey[] = ['공격력', '방어력', '체력', '마력']
+      const allStats: StatKey[] = ['힘', '민첩', '체력', '마력', '행운']
       let exchangeCount = 0
       while (exchangeCount < 3) {
         const proceed = await this.confirmModal(
-          `선택 스탯 -3 → 다른 스탯 +1\n(${exchangeCount + 1}/3회)`,
+          `선택 스탯 -3 → 다른 스탯 +2\n(${exchangeCount + 1}/3회)`,
           { title: '⚖️ 등가교환 제단', okLabel: '교환', cancelLabel: '종료' }
         )
         if (!proceed) break
@@ -1042,7 +1110,7 @@ export const useGameStore = defineStore('game', {
             .map((s) => ({
               label: s,
               value: s,
-              sub: `현재 ${this.run!.character.stats[s]} → ${this.run!.character.stats[s] + 1}`,
+              sub: `현재 ${this.run!.character.stats[s]} → ${this.run!.character.stats[s] + 2}`,
             })),
         })
         if (!to) break
@@ -1056,10 +1124,7 @@ export const useGameStore = defineStore('game', {
 
     async eventBlackMarket(chapter: number) {
       if (!this.run) return
-      const allStats: StatKey[] = [
-        '공격력', '방어력', '체력', '마력',
-        '속도', '행운', '명중률', '회피율', '관통', '상태저항',
-      ]
+      const allStats: StatKey[] = ['힘', '민첩', '체력', '마력', '행운']
       while (true) {
         const c = this.run.character
         const stat = await this.showListDialog<StatKey | null>({
@@ -1074,6 +1139,17 @@ export const useGameStore = defineStore('game', {
           cancelLabel: '암시장 떠나기',
         })
         if (!stat) break
+        const price = blackMarketPrice(chapter, stat)
+        if (c.gold < price) {
+          await this.alertModal(`${stat} +1 — ${price}G 필요. 골드 부족.`, '💸 거래 실패')
+          continue
+        }
+        // 구매 확인 모달
+        const ok = await this.confirmModal(
+          `${stat} +1 을 ${price}G 에 구매하시겠습니까?\n(현재 ${c.stats[stat]} → ${c.stats[stat] + 1}, 보유 ${c.gold}G → ${c.gold - price}G)`,
+          { title: '🕳️ 암시장 거래 확인', okLabel: '구매', cancelLabel: '취소' },
+        )
+        if (!ok) continue
         if (!buyStatPoint(c, chapter, stat)) {
           await this.alertModal('💸 골드 부족', '거래 실패')
           continue
@@ -1136,9 +1212,8 @@ export const useGameStore = defineStore('game', {
       }
       if (!this.run) return
       if (!this.combat.victory) {
-        // 사망 → 게임 오버 — 런 카운터 증가
+        // 사망 → 게임 오버. (도전 모드 카운터는 클리어만 증가하므로 여기선 카운트 X)
         sfx.death()
-        incrementRunCounter(this.meta)
         clearRun()
         this.savedRunExists = false
         this.screen = 'gameover'
@@ -1308,6 +1383,8 @@ export const useGameStore = defineStore('game', {
       }
       this.run.character[slot] = null
       this.recomputeDerivedStats()
+      // 빈 슬롯에 인벤토리 아이템 자동 장착
+      this.autoEquipFromInventory()
       saveRun(this.run)
     },
 
@@ -1355,31 +1432,36 @@ export const useGameStore = defineStore('game', {
       return true
     },
 
-    // 도전 화면 진입: 가장 약한 캐릭터 부활 + 보스 생성
+    // 도전 화면 진입: 가장 최근 클리어 캐릭터 부활 + 진짜 보스 생성.
+    // "탑을 5번 오른 그 캐릭터로 최종 보스에 도전" — 게임 최종 목표.
     startRealBoss() {
-      const weak = pickWeakestRecord(this.meta)
-      if (!weak) return
+      const latest = pickLatestRecord(this.meta)
+      if (!latest) return
       consumeChallengeTrigger(this.meta)
-      this.realBossWeakRecord = weak
-      this.realBossTheme = weak.lastChapterTheme
-      this.realBossMonster = makeRealBoss(weak.lastChapterTheme)
+      this.realBossWeakRecord = latest  // (필드명은 호환 위해 유지)
+      this.realBossTheme = latest.lastChapterTheme
+      this.realBossMonster = makeRealBoss(latest.lastChapterTheme)
       this.realBossInitialMaxHp = this.realBossMonster.maxHp
       this.screen = 'realboss'
     },
 
-    // 도전 전투 시작 — 캐릭터 스냅샷을 임시 Character로 부활시켜 Combat 생성
+    // 도전 전투 시작 — 캐릭터 스냅샷을 임시 Character로 부활시켜 Combat 생성.
+    // 무기/갑옷도 그대로 복원해 공격력/방어력이 정상 작동하게 한다.
     enterRealBossCombat() {
       const rec = this.realBossWeakRecord
       const boss = this.realBossMonster
       if (!rec || !boss) return
+      // ItemInstance 깊은 복사 (참조 공유 방지)
+      const weapon = rec.weapon ? JSON.parse(JSON.stringify(rec.weapon)) : null
+      const armor = rec.armor ? JSON.parse(JSON.stringify(rec.armor)) : null
       const character = {
         stats: { ...rec.stats },
         hp: rec.maxHp,    // 부활 → 풀 HP
         maxHp: rec.maxHp,
         mp: rec.maxMp,
         maxMp: rec.maxMp,
-        weapon: null,
-        armor: null,
+        weapon,
+        armor,
         gold: rec.gold,
         statuses: [],
         actionGauge: 0,
@@ -1389,7 +1471,9 @@ export const useGameStore = defineStore('game', {
       this.screen = 'combat'
     },
 
-    // Combat 종료 후 호출 — realboss 결과 처리
+    // Combat 종료 후 호출 — realboss 결과 처리.
+    //   * 깎은 비율 × 60pt 만큼 permanentStartBonus 영구 누적 (다음 캐릭터부터 시작 스탯 ↑)
+    //   * 비율 100% (완전 클리어) → realBossDefeated = true (게임 클리어)
     finishRealBossCombat() {
       const boss = this.realBossMonster
       const initialHp = this.realBossInitialMaxHp
@@ -1400,10 +1484,15 @@ export const useGameStore = defineStore('game', {
       }
       const finalHp = Math.max(0, boss.hp)
       const ratio = Math.max(0, Math.min(1, (initialHp - finalHp) / initialHp))
+      const gain = computeStartBonusFromDrain(ratio)
       this.realBossResultRatio = ratio
       this.meta.lastBossDrainRatio = ratio
-      this.meta.pendingStartBonus = computeStartBonusFromDrain(ratio)
+      this.meta.permanentStartBonus = (this.meta.permanentStartBonus ?? 0) + gain
       this.meta.realBossCompleted = true
+      if (ratio >= 0.9999) {
+        this.meta.realBossDefeated = true  // 게임 클리어
+      }
+      // 누적 풀 리셋은 proceedFromRealBossResult (튜토리얼 인트로 시작 시점)에서 처리
       saveMeta(this.meta)
       this.combat = null
       this.screen = 'realboss_result'
@@ -1415,6 +1504,11 @@ export const useGameStore = defineStore('game', {
       this.realBossWeakRecord = null
       this.realBossTheme = null
       this.realBossInitialMaxHp = 0
+      // v6.1: 진짜 보스전 종료 후 튜토리얼 인트로 시점에 누적 풀 리셋
+      console.log(`[realBoss] proceed → totalBonusStats ${this.meta.totalBonusStats} → 0 리셋`)
+      this.meta.totalBonusStats = 0
+      this.meta.allocations = {}
+      saveMeta(this.meta)
       this.openIntroComic('afterRealBoss')
     },
 
@@ -1483,6 +1577,11 @@ export const useGameStore = defineStore('game', {
       // 5) 인트로 만화 → 닫음 (replay 흐름이면 그냥 종료, first/afterRealBoss는 흐름 끊김 방지하려 닫음 허용)
       if (this.introVisible) {
         this.closeIntroComic()
+        return true
+      }
+      // 6) 상점 화면 → 나가기 (다음 층으로)
+      if (this.screen === 'shop') {
+        this.leaveShop()
         return true
       }
       return false
