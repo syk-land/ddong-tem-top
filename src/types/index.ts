@@ -111,7 +111,8 @@ export interface WeaponBase {
   category: WeaponCategory
   baseAtk: number
   speedCoef: number   // 매 틱 누적 = 속도 × speedCoef (10/ticks 기준, 검=1.0 → 10틱)
-  accBonus: number    // 명중 보정 (속도형 +, 중량형 -)
+  accBonus: number    // 명중 보정 (속도형 +, 한방형 -)
+  evaBonus: number    // 회피 보정 (속도형 +, 한방형 -)
   mpBonus: number     // 마법 무기 MP 소모 보정 (완드 -3, 마도서 +3)
   magicPenBonus: number  // 마법 관통 % (스태프/마도서) — 관통과 동일하게 % 방어 무시
   penBonus?: number   // 물리 관통 % (0~100) — 적 방어를 비율로 무시

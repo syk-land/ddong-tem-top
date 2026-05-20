@@ -117,6 +117,7 @@ export function computeEffectiveStats(c: Character): EffectiveStats {
     + (weffects.회피 ?? 0)
     + (aeffects.회피 ?? 0)
     + (abase?.evasion ?? 0)
+    + (wbase?.evaBonus ?? 0)
 
   // 관통 — 힘/행운 기반 + 무기 penBonus / magicPenBonus / 특성
   const pen = penBase
