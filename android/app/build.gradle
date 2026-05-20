@@ -29,8 +29,8 @@ android {
         applicationId "com.climetop.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode (keystoreProperties['VERSION_CODE'] ?: '1').toString().toInteger()
-        versionName keystoreProperties['VERSION_NAME'] ?: '1.0'
+        versionCode((keystoreProperties['VERSION_CODE'] ?: '1').toString().toInteger())
+        versionName(keystoreProperties['VERSION_NAME'] ?: '1.0')
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
