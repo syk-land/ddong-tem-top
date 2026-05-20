@@ -9,7 +9,7 @@
 //   sfx.skills['화염구']()      → 스킬별 고유 사운드
 //   sfx.monsterHit('metal')    → 몬스터 카테고리 피격음
 //   sfx.monsterDeath('beast')  → 몬스터 카테고리 사망음
-//   playBgm('splash' | 'menu') → BGM 재생 (loop)
+//   playBgm('splash' | 'gemini') → BGM 재생 (loop)
 //   stopBgm()                  → BGM 정지
 //
 // 모든 함수는 AudioContext lazy init. 첫 사용자 인터랙션 후 활성화 (브라우저 정책).
@@ -445,59 +445,28 @@ export function playSkillSound(key: string, kind?: string) {
 }
 
 // ============================================================
-// BGM (배경음악) — 절차적 멜로디 시퀀서
+// BGM (배경음악) — 정확히 2 트랙
 // ============================================================
-// 두 가지 분위기:
-//   - splash:  웅장하고 음울 (C minor, slow tempo)
-//   - menu:    몽환적이고 발랄 (C major, mid tempo, bell-like)
-// 음표 시퀀스를 setTimeout 으로 스케줄, loopMs 후 자동 반복.
+//   - splash: 메뉴/스플래시/사망/승리/realboss 등 (외부 MP3 — Beneath_the_Wet_Stone.mp3, 웅장)
+//   - gemini: 캐릭터 생성 ~ 100층/사망 사이의 run 전체 (procedural, C major 발랄/벨 — 산뜻·몽환)
+// 같은 kind 호출은 dedup. 다른 kind 호출 시에만 페이드 아웃 후 새 트랙 시작.
+
+const MP3_BGM_URLS: Record<string, string> = {
+  splash: '/sound/Beneath_the_Wet_Stone.mp3',
+}
 
 interface BgmNote {
-  freq: number          // Hz (0 = rest)
-  startMs: number       // 마디 시작부터 오프셋 ms
-  durationMs: number    // 음 길이 ms
+  freq: number
+  startMs: number
+  durationMs: number
   type?: OscillatorType
-  gain?: number         // 절대 곱 (이미 bgmVolume 적용 안 됨, 함수 내에서 적용)
+  gain?: number
   attack?: number
   release?: number
 }
+interface BgmTrack { notes: BgmNote[]; loopMs: number }
 
-interface BgmTrack {
-  notes: BgmNote[]
-  loopMs: number  // 한 루프 길이
-}
-
-// ── splash BGM: 웅장/음울 (C minor 90BPM, 1마디 = 2666ms (4/4))
-// 멜로디(상): C5 Eb5 G5 Ab5 G5 F5 Eb5 D5 …
-// 베이스: C2 - G2 - Ab2 - F2 (느린 워킹)
-const SPLASH_BGM: BgmTrack = (() => {
-  const notes: BgmNote[] = []
-  // 베이스 라인 (4개 음, 길게)
-  const bass = [65.4, 65.4, 49.0, 77.8]  // C2 C2 G1 Eb2 (음울)
-  bass.forEach((f, i) => {
-    notes.push({ freq: f, startMs: i * 1500, durationMs: 1400, type: 'sawtooth', gain: 0.35, attack: 200, release: 300 })
-  })
-  // 멜로디 (상성부) — 음울한 단조 멜로디
-  const mel = [
-    { f: 523, off: 0 },     // C5
-    { f: 622, off: 600 },   // Eb5
-    { f: 783, off: 1200 },  // G5
-    { f: 698, off: 1800 },  // F5
-    { f: 622, off: 2400 },  // Eb5
-    { f: 587, off: 3200 },  // D5
-    { f: 523, off: 4000 },  // C5
-    { f: 466, off: 4800 },  // Bb4
-    { f: 523, off: 5400 },  // C5
-  ]
-  mel.forEach(({ f, off }) => {
-    notes.push({ freq: f, startMs: off, durationMs: 500, type: 'triangle', gain: 0.25, attack: 30, release: 100 })
-  })
-  return { notes, loopMs: 6000 }
-})()
-
-// ── menu BGM: 몽환적/발랄 (C major 120BPM, bell-like)
-// 코드 진행: C - G - Am - F (pop progression)
-// 멜로디: 상승하는 sine 아르페지오
+// 산뜻/몽환 — C major 120BPM, bell-like (코드 C - G - Am - F)
 const MENU_BGM: BgmTrack = (() => {
   const notes: BgmNote[] = []
   // 베이스 (4코드, 각 1000ms)
@@ -514,21 +483,15 @@ const MENU_BGM: BgmTrack = (() => {
   ]
   arps.forEach((chord, ci) => {
     const startBase = ci * 1000
-    // 1코드당 8개 8분음표 (125ms 간격)
     for (let i = 0; i < 8; i++) {
       const f = chord[i % 3]
       notes.push({
-        freq: f,
-        startMs: startBase + i * 125,
-        durationMs: 120,
-        type: 'sine',
-        gain: 0.18,
-        attack: 5,
-        release: 60,
+        freq: f, startMs: startBase + i * 125, durationMs: 120, type: 'sine',
+        gain: 0.18, attack: 5, release: 60,
       })
     }
   })
-  // 하이라이트 sparkle (랜덤 위치)
+  // sparkle 하이라이트
   const sparklePositions = [375, 1500, 2625, 3750]
   sparklePositions.forEach(off => {
     notes.push({ freq: 1046, startMs: off, durationMs: 200, type: 'triangle', gain: 0.15, attack: 5, release: 100 })
@@ -537,22 +500,44 @@ const MENU_BGM: BgmTrack = (() => {
   return { notes, loopMs: 4000 }
 })()
 
-const BGM_TRACKS: Record<'splash' | 'menu', BgmTrack> = {
-  splash: SPLASH_BGM,
-  menu: MENU_BGM,
+const PROCEDURAL_BGM_TRACKS: Record<string, BgmTrack> = {
+  gemini: MENU_BGM,
 }
 
-// 외부 MP3 BGM (gemini_music.mp3 등) — HTMLAudioElement 기반
-const MP3_BGM_URLS: Record<string, string> = {
-  gemini: '/sound/gemini_music.mp3',
-}
+export type BgmKind = 'splash' | 'gemini'
 
-export type BgmKind = 'splash' | 'menu' | 'gemini'
-
-let bgmTimer: number | null = null
 let bgmCurrent: BgmKind | null = null
-let bgmScheduledOscillators: { osc: OscillatorNode; gain: GainNode; stopAt: number }[] = []
 let bgmAudioEl: HTMLAudioElement | null = null
+let bgmTimer: number | null = null
+let bgmScheduledOscillators: { osc: OscillatorNode; gain: GainNode; stopAt: number }[] = []
+
+// autoplay 정책 — playPromise reject 또는 ctx suspended 시 첫 사용자 인터랙션까지 대기.
+let pendingBgmKind: BgmKind | null = null
+let unlockHandler: ((this: Window, ev: Event) => void) | null = null
+
+function attachUnlockListener() {
+  if (!IS_BROWSER || unlockHandler) return
+  const handler = () => {
+    const ctx = getCtx()
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {})
+    if (unlockHandler) {
+      window.removeEventListener('pointerdown', unlockHandler)
+      window.removeEventListener('keydown', unlockHandler)
+      window.removeEventListener('touchstart', unlockHandler)
+      unlockHandler = null
+    }
+    if (pendingBgmKind) {
+      const k = pendingBgmKind
+      pendingBgmKind = null
+      bgmCurrent = null  // dedup 가드 우회
+      playBgm(k)
+    }
+  }
+  unlockHandler = handler
+  window.addEventListener('pointerdown', handler, { once: true })
+  window.addEventListener('keydown', handler, { once: true })
+  window.addEventListener('touchstart', handler, { once: true })
+}
 
 function scheduleBgmLoop(track: BgmTrack, ctxStartTime: number) {
   const ctx = getCtx()
@@ -564,7 +549,6 @@ function scheduleBgmLoop(track: BgmTrack, ctxStartTime: number) {
     const attack = (note.attack ?? 10) / 1000
     const release = (note.release ?? 80) / 1000
     const localGain = (note.gain ?? 0.3) * config.bgmVolume
-
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.type = note.type ?? 'sine'
@@ -582,57 +566,22 @@ function scheduleBgmLoop(track: BgmTrack, ctxStartTime: number) {
 }
 
 function clearOldBgmOscillators() {
-  if (!IS_BROWSER) return
   const ctx = getCtx()
   if (!ctx) return
   const now = ctx.currentTime
-  bgmScheduledOscillators = bgmScheduledOscillators.filter(item => {
-    if (item.stopAt < now) return false  // 이미 끝남
-    return true
-  })
-}
-
-// 브라우저 autoplay 정책 우회 — AudioContext 가 suspended 면
-// 페이지 첫 사용자 인터랙션(pointer/key/touch) 시 자동으로 BGM 시작.
-let pendingBgmKind: BgmKind | null = null
-let unlockHandler: ((this: Window, ev: Event) => void) | null = null
-
-function attachUnlockListener() {
-  if (!IS_BROWSER || unlockHandler) return
-  const handler = () => {
-    const ctx = getCtx()
-    if (ctx && ctx.state === 'suspended') {
-      ctx.resume().catch(() => {})
-    }
-    if (unlockHandler) {
-      window.removeEventListener('pointerdown', unlockHandler)
-      window.removeEventListener('keydown', unlockHandler)
-      window.removeEventListener('touchstart', unlockHandler)
-      unlockHandler = null
-    }
-    if (pendingBgmKind) {
-      const k = pendingBgmKind
-      pendingBgmKind = null
-      bgmCurrent = null
-      playBgm(k)
-    }
-  }
-  unlockHandler = handler
-  window.addEventListener('pointerdown', handler, { once: true })
-  window.addEventListener('keydown', handler, { once: true })
-  window.addEventListener('touchstart', handler, { once: true })
+  bgmScheduledOscillators = bgmScheduledOscillators.filter(item => item.stopAt >= now)
 }
 
 export function playBgm(kind: BgmKind) {
   if (!IS_BROWSER) return
-  if (bgmCurrent === kind) return  // 이미 같은 BGM
+  if (bgmCurrent === kind) return  // 이미 같은 BGM — no-op (끊김 없이 무한 반복)
   stopBgm()
   if (!config.bgmEnabled) {
     bgmCurrent = kind  // 토글 켜졌을 때 시작할 수 있게 기억
     return
   }
 
-  // MP3 기반 BGM 분기 (HTMLAudioElement)
+  // MP3 분기
   const mp3Url = MP3_BGM_URLS[kind]
   if (mp3Url) {
     bgmCurrent = kind
@@ -643,7 +592,6 @@ export function playBgm(kind: BgmKind) {
       const playPromise = bgmAudioEl.play()
       if (playPromise && typeof playPromise.catch === 'function') {
         playPromise.catch(() => {
-          // autoplay 차단 — 첫 인터랙션 시 재시도
           pendingBgmKind = kind
           attachUnlockListener()
         })
@@ -652,24 +600,21 @@ export function playBgm(kind: BgmKind) {
     return
   }
 
+  // procedural 분기
+  const track = PROCEDURAL_BGM_TRACKS[kind]
+  if (!track) return
   const ctx = getCtx()
   if (!ctx) return
   if (ctx.state === 'suspended') {
-    // autoplay 차단 — 첫 인터랙션 시 자동 재생되도록 예약
     ctx.resume().catch(() => {})
     if (ctx.state === 'suspended') {
       pendingBgmKind = kind
-      bgmCurrent = kind  // UI 토글이 즉시 반영되도록 기억만 해둠
+      bgmCurrent = kind
       attachUnlockListener()
       return
     }
   }
-
-  const track = BGM_TRACKS[kind as 'splash' | 'menu']
-  if (!track) return
   bgmCurrent = kind
-
-  // 첫 루프 즉시 스케줄, 이후 setInterval 로 반복
   scheduleBgmLoop(track, ctx.currentTime)
   bgmTimer = (setInterval(() => {
     const c = getCtx()
@@ -681,10 +626,6 @@ export function playBgm(kind: BgmKind) {
 
 export function stopBgm() {
   if (!IS_BROWSER) return
-  if (bgmTimer !== null) {
-    clearInterval(bgmTimer)
-    bgmTimer = null
-  }
   // MP3 BGM 정지 (페이드아웃)
   if (bgmAudioEl) {
     try {
@@ -703,9 +644,13 @@ export function stopBgm() {
     } catch {}
     bgmAudioEl = null
   }
-  // 현재 재생 중인 모든 BGM 오실레이터를 빠르게 페이드아웃
+  // procedural BGM 정지 (타이머 + 오실레이터 페이드)
+  if (bgmTimer !== null) {
+    clearInterval(bgmTimer)
+    bgmTimer = null
+  }
   const ctx = getCtx()
-  if (ctx) {
+  if (ctx && bgmScheduledOscillators.length > 0) {
     const now = ctx.currentTime
     const fade = 0.15
     for (const item of bgmScheduledOscillators) {
@@ -719,10 +664,66 @@ export function stopBgm() {
   }
   bgmScheduledOscillators = []
   bgmCurrent = null
+  pausedBgmKind = null
 }
 
 export function getCurrentBgm(): BgmKind | null {
   return bgmCurrent
+}
+
+// ============================================================
+// 일시정지 / 재개 — 백그라운드 전환 시 사용
+// ============================================================
+// stop/play 와의 차이: 현재 BGM 종류 기억을 유지하고, MP3 재생 위치를 보존.
+
+let pausedBgmKind: BgmKind | null = null
+
+export function pauseBgm() {
+  if (!IS_BROWSER) return
+  if (!bgmCurrent) return
+  if (bgmAudioEl) {
+    try { bgmAudioEl.pause() } catch {}
+  }
+  // procedural BGM: 타이머·오실레이터 정지 + ctx suspend
+  if (bgmTimer !== null) {
+    clearInterval(bgmTimer)
+    bgmTimer = null
+  }
+  const ctx = getCtx()
+  if (ctx) {
+    const now = ctx.currentTime
+    for (const item of bgmScheduledOscillators) {
+      try {
+        item.gain.gain.cancelScheduledValues(now)
+        item.gain.gain.setValueAtTime(0, now)
+        item.osc.stop(now + 0.02)
+      } catch {}
+    }
+  }
+  bgmScheduledOscillators = []
+  if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {})
+  pausedBgmKind = bgmCurrent
+  // bgmCurrent 는 그대로 유지 (UI 토글 동기화 위함)
+}
+
+export function resumeBgm() {
+  if (!IS_BROWSER) return
+  if (!pausedBgmKind) return
+  const kind = pausedBgmKind
+  pausedBgmKind = null
+  const ctx = getCtx()
+  if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {})
+  if (bgmAudioEl) {
+    try {
+      bgmAudioEl.volume = config.bgmVolume
+      const p = bgmAudioEl.play()
+      if (p && typeof p.catch === 'function') p.catch(() => {})
+    } catch {}
+    return
+  }
+  // procedural BGM: bgmCurrent 가 동일 kind라 playBgm dedup 가드 우회
+  bgmCurrent = null
+  playBgm(kind)
 }
 
 // ============================================================

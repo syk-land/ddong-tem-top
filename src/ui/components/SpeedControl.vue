@@ -237,18 +237,18 @@ watch(
         <button
           v-for="s in speeds"
           :key="s"
-          class="px-2 py-0.5 rounded text-[11px] transition-colors"
+          class="px-2 py-0.5 rounded text-[11px] transition-all"
           :class="game.combatSpeed === s
-            ? 'bg-log-skill text-black font-bold'
+            ? 'bg-log-skill text-black font-bold ring-2 ring-cyan-200 shadow-[0_0_8px_rgba(34,211,238,0.7)]'
             : 'bg-slate-800/70 text-gray-200 hover:bg-slate-700'"
           @click="setSpeed(s)"
         >
           {{ s }}x
         </button>
         <button
-          class="px-2 py-0.5 rounded text-[11px] transition-colors ml-1"
+          class="px-2 py-0.5 rounded text-[11px] transition-all ml-1"
           :class="game.autoEnter
-            ? 'bg-log-reward text-black font-bold'
+            ? 'bg-log-reward text-black font-bold ring-2 ring-amber-200 shadow-[0_0_8px_rgba(251,191,36,0.7)]'
             : 'bg-slate-800/70 text-gray-200 hover:bg-slate-700'"
           :title="game.autoEnter ? '자동 진입 ON (몬스터/보스/치유샘)' : '자동 진입 OFF'"
           @click="toggleAutoEnter"

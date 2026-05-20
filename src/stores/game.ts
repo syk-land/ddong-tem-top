@@ -122,6 +122,8 @@ interface GameState {
   introVisible: boolean
   introPage: number              // 0=main 화면, 1=tutorial1, 2=tutorial2, 3=tutorial3
   introFlow: 'first' | 'replay' | 'afterRealBoss'  // first=최초 main->t1->t2->menu, afterRealBoss=t1->t2->t3->create, replay=설정에서 다시 보기
+  // 백그라운드(탭 비활성) 시 일시정지 플래그 — 자동 틱/BGM 동기화용
+  paused: boolean
   // 범용 다이얼로그 (alert/confirm 대체)
   dialog: DialogState | null
   // 텍스트 입력 다이얼로그 (prompt 대체)
@@ -205,6 +207,7 @@ export const useGameStore = defineStore('game', {
     introVisible: false,
     introPage: 0,
     introFlow: 'first',
+    paused: false,
   }),
 
   getters: {
@@ -791,6 +794,7 @@ export const useGameStore = defineStore('game', {
     // 1 틱 진행 (몬스터 + 플레이어 모두 자동 행동)
     tickStep() {
       if (!this.combat || this.combat.ended) return
+      if (this.paused) return  // 백그라운드 일시정지
       // 도전 모드는 run 없이 진행 (realBossMonster 있을 때)
       const isRealBoss = !!this.realBossMonster
       if (!isRealBoss && !this.run) return
@@ -873,6 +877,10 @@ export const useGameStore = defineStore('game', {
       try {
         localStorage.setItem('climetop:autoEnter:v1', on ? '1' : '0')
       } catch {}
+    },
+
+    setPaused(on: boolean) {
+      this.paused = on
     },
 
     // ========================================

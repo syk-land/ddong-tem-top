@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useGameStore } from '@/stores/game'
 import ItemDetail from '@/ui/components/ItemDetail.vue'
 import type { ItemInstance } from '@/types'
@@ -14,6 +14,7 @@ const bgUrl = computed(() => {
   const ch = game.currentChapterState
   return ch ? themeBgUrl(ch.theme) : ''
 })
+const shopListingRef = ref<HTMLElement | null>(null)
 
 async function buy(itemId: string) {
   const item = shop.value.inventory.find((i: ItemInstance) => i.id === itemId)
@@ -23,6 +24,10 @@ async function buy(itemId: string) {
 }
 function refreshShop() {
   game.refreshShopAction()
+  // 새 매물이 갱신되었으므로 "상점 매물(구매)" 영역을 화면 최상단으로
+  nextTick(() => {
+    shopListingRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
 }
 function leave() {
   game.leaveShop()
@@ -132,7 +137,7 @@ async function sellAll() {
     </div>
 
     <!-- 상점 인벤토리 (구매) -->
-    <div class="panel space-y-2">
+    <div ref="shopListingRef" class="panel space-y-2 scroll-mt-2">
       <div class="text-xs text-gray-400">상점 매물 (구매)</div>
       <div class="grid gap-2" :style="{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }">
         <div

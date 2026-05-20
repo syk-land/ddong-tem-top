@@ -246,12 +246,30 @@ async function setSpeed(s: number) {
   }
   game.setCombatSpeed(s)
 }
-function flee() {
-  game.fleeCombat()
+async function toggleAuto() {
+  // OFF → ON 전환만 광고 시청 흐름 (ON → OFF 는 즉시 해제)
+  if (!game.autoEnter) {
+    const ok = await game.confirmModal('광고를 보고 자동 진입을 사용하시겠습니까?', {
+      title: '광고 시청',
+      okLabel: '예 (광고 보기)',
+      cancelLabel: '아니오',
+    })
+    if (!ok) return
+  }
+  game.setAutoEnter(!game.autoEnter)
 }
 function closeAndAdvance() {
   game.closeCombat()
 }
+
+// 백그라운드 일시정지 — 틱 타이머 동기화
+watch(
+  () => game.paused,
+  (p) => {
+    if (p) stopAutoTick()
+    else if (!combat.value?.ended) startAutoTick()
+  },
+)
 </script>
 
 <template>
@@ -385,14 +403,25 @@ function closeAndAdvance() {
           <button
             v-for="s in [1, 2, 4]"
             :key="s"
-            class="px-3 py-1 rounded text-sm transition-colors"
-            :class="game.combatSpeed === s ? 'bg-log-skill text-black font-bold' : 'bg-slate-800 text-gray-200 hover:bg-slate-700'"
+            class="px-3 py-1 rounded text-sm transition-all"
+            :class="game.combatSpeed === s
+              ? 'bg-log-skill text-black font-bold ring-2 ring-cyan-200 shadow-[0_0_10px_rgba(34,211,238,0.7)] scale-105'
+              : 'bg-slate-800 text-gray-200 hover:bg-slate-700'"
             @click="setSpeed(s)"
           >
             {{ s }}x
           </button>
           <span class="flex-1" />
-          <button class="btn-secondary text-sm" @click="flee">도주</button>
+          <button
+            class="px-3 py-1 rounded text-sm transition-all"
+            :class="game.autoEnter
+              ? 'bg-log-reward text-black font-bold ring-2 ring-amber-200 shadow-[0_0_10px_rgba(251,191,36,0.7)] scale-105'
+              : 'bg-slate-800 text-gray-200 hover:bg-slate-700'"
+            :title="game.autoEnter ? '자동 진입 ON' : '자동 진입 OFF'"
+            @click="toggleAuto"
+          >
+            {{ game.autoEnter ? '자동 ✓' : '자동' }}
+          </button>
         </div>
 
         <!-- 종료 화면 -->

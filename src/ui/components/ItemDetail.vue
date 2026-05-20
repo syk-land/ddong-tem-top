@@ -30,12 +30,13 @@ const traitDef = computed(() =>
 const traitBase = computed(() => traitDef.value?.effects ?? {})
 
 // ── 아이템 벨류 + 현재 장착품 대비 변화량 ──
-const itemValue = computed(() => computeItemValue(props.item, props.character))
+const chapterForValue = computed(() => game.currentChapterState?.chapter)
+const itemValue = computed(() => computeItemValue(props.item, props.character, { chapter: chapterForValue.value }))
 const currentSlotItem = computed(() => {
   if (!props.character) return null
   return props.item.kind === 'weapon' ? props.character.weapon : props.character.armor
 })
-const currentValue = computed(() => computeItemValue(currentSlotItem.value, props.character))
+const currentValue = computed(() => computeItemValue(currentSlotItem.value, props.character, { chapter: chapterForValue.value }))
 const atkDelta = computed(() => itemValue.value.atkValue - currentValue.value.atkValue)
 const defDelta = computed(() => itemValue.value.defValue - currentValue.value.defValue)
 
@@ -543,9 +544,9 @@ const rankLine = computed(() => {
             v-if="Math.abs(itemValue.atkValue) > 0.05"
             class="bg-stat-phys_atk/15 hover:bg-stat-phys_atk/25 rounded px-1.5 py-0.5 transition-colors"
             @click.stop="openValueModal('atk')"
-            title="공격벨류 상세"
+            title="전투력(공) 상세 — 방어 10 상대에 틱당 예상 데미지 + 스킬 가중"
           >
-            <span :class="itemValue.atkValue >= 0 ? 'text-stat-phys_atk' : 'text-status-burn'">공 {{ itemValue.atkValue >= 0 ? '' : '' }}{{ itemValue.atkValue.toFixed(1) }}</span>
+            <span :class="itemValue.atkValue >= 0 ? 'text-stat-phys_atk' : 'text-status-burn'">전투력(공) {{ itemValue.atkValue.toFixed(1) }}</span>
             <span
               v-if="character && Math.abs(atkDelta) > 0.05"
               :class="[atkDelta >= 0 ? 'text-log-reward' : 'text-status-burn', 'ml-1']"
@@ -555,9 +556,9 @@ const rankLine = computed(() => {
             v-if="Math.abs(itemValue.defValue) > 0.05"
             class="bg-stat-phys_def/15 hover:bg-stat-phys_def/25 rounded px-1.5 py-0.5 transition-colors"
             @click.stop="openValueModal('def')"
-            title="방어벨류 상세"
+            title="전투력(방) 상세"
           >
-            <span :class="itemValue.defValue >= 0 ? 'text-stat-phys_def' : 'text-status-burn'">방 {{ itemValue.defValue.toFixed(1) }}</span>
+            <span :class="itemValue.defValue >= 0 ? 'text-stat-phys_def' : 'text-status-burn'">전투력(방) {{ itemValue.defValue.toFixed(1) }}</span>
             <span
               v-if="character && Math.abs(defDelta) > 0.05"
               :class="[defDelta >= 0 ? 'text-log-reward' : 'text-status-burn', 'ml-1']"
@@ -642,8 +643,8 @@ const rankLine = computed(() => {
       <div class="panel max-w-sm w-full space-y-2" @click.stop>
         <div class="flex items-center justify-between">
           <div class="text-base font-bold">
-            <span v-if="valueModal.kind === 'atk'" class="text-stat-phys_atk">공격벨류</span>
-            <span v-else class="text-stat-phys_def">방어벨류</span>
+            <span v-if="valueModal.kind === 'atk'" class="text-stat-phys_atk">전투력(공)</span>
+            <span v-else class="text-stat-phys_def">전투력(방)</span>
           </div>
           <button class="text-gray-400 hover:text-white text-xl leading-none" @click="valueModal = null">✕</button>
         </div>

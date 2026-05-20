@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useGameStore } from './stores/game'
 import MainMenu from './screens/MainMenu.vue'
 import CharacterCreation from './screens/CharacterCreation.vue'
@@ -17,50 +17,82 @@ import DialogModal from './ui/components/DialogModal.vue'
 import InputModal from './ui/components/InputModal.vue'
 import ListModal from './ui/components/ListModal.vue'
 import SpeedControl from './ui/components/SpeedControl.vue'
-import { playBgm, stopBgm } from './ui/sound'
+import { playBgm, pauseBgm, resumeBgm, type BgmKind } from './ui/sound'
 
 const game = useGameStore()
 
 const currentScreen = computed(() => game.screen)
 
-// 페이지 로드 직후 웅장 BGM 예약. 브라우저 autoplay 정책상 AudioContext 가
-// suspended 면 playBgm 내부에서 첫 사용자 인터랙션(pointerdown/keydown/touchstart)
-// 까지 자동 대기 후 시작. 결과적으로 사용자가 페이지에서 처음 어떤 동작을 하는
-// 즉시 BGM 이 흐름 — 스플래시 클릭이든 다른 곳 클릭이든 동일.
-onMounted(() => {
-  // 로딩(스플래시) 화면은 gemini BGM
-  playBgm('gemini')
-})
-
 // 페이지 로드 시 1회 스플래시. 클릭으로 닫힘. 새로고침하면 다시 표시.
 const showSplash = ref(true)
 function dismissSplash() {
-  // 인트로 만화도 gemini 유지. 첫 인터랙션으로 autoplay 잠금 해제만.
-  playBgm('gemini')
+  // 첫 인터랙션으로 autoplay 잠금 해제 (watcher 가 splash/gemini 어느 쪽이든 재생 보장)
+  playBgm(pickBgm())
   showSplash.value = false
   // 최초 실행이면 인트로 만화 자동 표시 (main → t1 → t2 → menu)
   game.autoShowIntroIfFirstTime()
 }
 
-// 화면 전환 BGM 라우팅
-//   - 스플래시/인트로/캐릭터 생성/진짜 보스 도전/진짜 보스 전투: gemini (외부 MP3)
-//   - 메인 메뉴:                                                 splash BGM (웅장 procedural)
-//   - 던전/상점/승리:                                            menu BGM (발랄)
-//   - 일반 combat / gameover:                                    무음 (효과음 집중)
+// 화면 전환 BGM 라우팅 — 정확히 2개 트랙만 사용.
+//   - gemini  : run 전체 (캐릭터 생성 ~ 100층/사망)
+//                = create/dungeon/shop/combat/event (단, 진짜 보스 전투 제외)
+//   - splash  : 그 외 모든 화면 (메뉴/인트로/사망/승리/진짜 보스 도전 등)
+// 동일 kind 는 playBgm 내부에서 no-op → 화면 전환 시 끊김 없음.
+function pickBgm(): BgmKind {
+  if (showSplash.value) return 'splash'
+  if (game.introVisible) return 'splash'
+  const s = currentScreen.value
+  const realBossOn = !!game.realBossMonster
+  if (s === 'realboss' || s === 'realboss_result') return 'splash'
+  if (s === 'combat' && realBossOn) return 'splash'
+  if (s === 'create' || s === 'dungeon' || s === 'shop'
+      || s === 'combat' || s === 'event') return 'gemini'
+  return 'splash'
+}
+
 watch(
-  [currentScreen, () => game.introVisible, () => !!game.realBossMonster],
-  ([s, introOn, realBossOn]) => {
-    if (showSplash.value) { playBgm('gemini'); return }
-    if (introOn) { playBgm('gemini'); return }
-    if (s === 'create') { playBgm('gemini'); return }
-    if (s === 'realboss') { playBgm('gemini'); return }
-    if (s === 'combat' && realBossOn) { playBgm('gemini'); return }
-    if (s === 'combat' || s === 'gameover') { stopBgm(); return }
-    if (s === 'menu') { playBgm('splash'); return }
-    playBgm('menu')
+  [currentScreen, () => game.introVisible, () => !!game.realBossMonster, showSplash],
+  () => {
+    if (game.paused) return  // 백그라운드 동안에는 새 BGM 시작 보류
+    playBgm(pickBgm())
   },
-  { immediate: false },
+  { immediate: true },  // 페이지 로드 직후 첫 BGM 자동 시작
 )
+
+// ============================================================
+// 백그라운드 전환 시 일시정지 (BGM + 자동 틱)
+// ============================================================
+function onVisibility() {
+  if (document.hidden) {
+    game.setPaused(true)
+    pauseBgm()
+  } else {
+    game.setPaused(false)
+    // 현재 화면에 맞는 BGM 재개 — pauseBgm 시점에 저장된 kind 와 동일하면 resume.
+    // 화면이 그새 바뀌었다면 playBgm 로 새 BGM 시작.
+    const want = pickBgm()
+    resumeBgm()
+    // 화면이 바뀌어 다른 BGM 이 필요한 경우 보장
+    playBgm(want)
+  }
+}
+
+onMounted(() => {
+  if (typeof document !== 'undefined') {
+    // 페이지 마운트된 시점 = 사용자에게 보이는 시점 → paused 초기화 (혹시 잔재 방지)
+    if (!document.hidden) game.setPaused(false)
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', onVisibility)
+    window.addEventListener('pageshow', onVisibility)
+  }
+})
+onUnmounted(() => {
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', onVisibility)
+    window.removeEventListener('pagehide', onVisibility)
+    window.removeEventListener('pageshow', onVisibility)
+  }
+})
 </script>
 
 <template>
