@@ -1,68 +1,142 @@
 # 전투 시스템
 
-## 기본 흐름
-턴제가 아닌 **틱 기반 액션 게이지** 방식. 매 틱마다 모든 유닛의 액션게이지가 (각자 속도만큼) 증가하고, 100에 도달한 유닛이 행동.
+> 게이지 누적 자동 턴제. 1 ms = 1 tick.
+
+코드: `src/core/combat.ts`, `src/core/skills.ts`
+
+---
+
+## 전투 흐름
 
 ```
-loop:
-  advanceTick(combat)         # 모든 유닛 actionGauge += speed, tick++
-  ready = checkActionReady(combat)
-  for monster in ready.readyMonsters:
-    monsterAttack(combat, monster)
-    consumeAction(monster)    # gauge -= 100
-  if player.actionGauge >= 100:
-    playerAutoAct(combat)
-    consumeAction(player)
-  if 모두 사망 / 플레이어 사망:
-    handleCombatEnd
+[Combat 시작]
+   │
+   ├─ createCombatContext(player, monsters)
+   │   └─ 각 몬스터의 onSpawn trait 발화 (HP/스탯 보정 등)
+   │
+   ↓
+[매 틱 (advanceTick)]
+   ├─ 플레이어 상태이상 처리 (점화/출혈 등 DoT)
+   ├─ 각 몬스터 상태이상 + tick-trait
+   ├─ 자해 (저주 특성, 매 10틱)
+   ├─ 버프 만료 카운트
+   ├─ 게이지 누적 (플레이어 + 몬스터)
+   ├─ 사망 체크
+   ↓
+[Action Ready (게이지 ≥ 100)]
+   ├─ 각 ready 몬스터 행동 (monsterAttack)
+   ├─ 플레이어 자동 행동 (playerAutoAct)
+   │     └─ 무기 자동스킬 시도 → 실패 시 평타
+   ↓
+[종료 (ended=true)]
+   ├─ 승리 (모든 적 사망) → handleCombatEnd
+   └─ 패배 (player.hp 0) → handleCombatEnd
 ```
 
-## 자동 행동 (`pickAutoAction`)
-플레이어 액션게이지 100 도달 시:
-1. 무기 자동 스킬이 발동률(`computeWeaponSkillProc`) 패스하면 → 스킬
-2. 그 외 보유 스킬 중 MP 충분한 것 확률 픽업
-3. 모두 실패 시 평타
-4. MP 부족 등 fallback도 평타
+---
 
-도전/챌린지 가드:
-- `isActiveSkillForbidden`이 true → 평타만
-- `isBasicAttackForbidden`이 true → 강제 스킬
+## 게이지 시스템
 
-## 무기 자동 스킬 발동률
+매 틱:
+```ts
+player.actionGauge += speedEff × speedModifier(player)
+for m in 살아있는 몬스터:
+  m.actionGauge += m.speed × speedModifier(m)
 ```
-proc = baseProc × luckMultiplier × challenge modifiers
-baseProc는 무기 종류 / 트레잇에 따라 다름 (대략 5~25%)
-luckMultiplier = 1 + 행운 × 0.025 (clamp)
+
+`speedModifier` = 둔화/감전 상태이상 곱셈 (둔화 ×0.7 등).
+
+게이지 ≥ 100 → 행동. `consumeAction`으로 -100.
+
+---
+
+## 데미지 계산
+
+`computeDamage(attacker_stats, target_stats, opts)`:
+
+```ts
+base = max(1, 공격력 × multiplier × penBoost - 방어 × max(0.3, 1 - 관통/100))
+isCrit = roll(crit_chance)
+dmg = isCrit ? base × 2 : base
 ```
-`computeWeaponSkillProc(character, luck)` 참조.
 
-## 데미지 공식 (대략)
+옵션:
+- `multiplier` — 스킬 배율 (스매쉬 2.0, 피어스 1.0, ...)
+- `penBoost` — 관통 배율 (피어스 ×2.0)
+- `critMultiplier` — 크리 배율 override (정밀타격 ×2 추가)
+
+---
+
+## 마법 공격
+
+플레이어가 마법 스킬 사용 시:
+- 공격력으로 `eff.마법공격력` 사용 (= finalAtk × magicCoef)
+- 적이 마법 받으면 **방어력 절반만 적용** (`combat.ts:300` S1-Q1 결정)
+
+---
+
+## 자동 행동 (playerAutoAct)
+
+1. `pickAutoAction(ctx, opts)` 호출:
+   - 무기/갑옷의 자동 스킬을 발동률에 따라 시도
+   - 챌린지 `noActiveSkills` (조급증/평화주의자)면 평타 강제
+   - 챌린지 `onlyActiveSkills` (스킬미학)면 스킬 강제
+2. 스킬 발동 → `useSkill(ctx, key)`
+3. 실패 시 fallback → 평타 `playerBasicAttack`
+
+---
+
+## 평타 (playerBasicAttack)
+
+```ts
+target = currentTarget(ctx)
+if (!rollHit(eff.명중률)) → "공격이 빗나갔다." 종료
+{ dmg, isCrit } = computeDamage(...)
+target.hp -= dmg
+흡혈, 자해, trait dispatch
 ```
-물리 데미지 = max(1, atk × 스킬계수 - 적.def × max(0, 1 - 관통/적.def))
-크리티컬 = 행운/100 + 스킬계수 보너스 → 1.5~2.0x
-회피: 적.회피 vs 자.명중 → miss
-상태이상: 트레잇 chance % 확률로 시전
+
+---
+
+## 흡혈
+
+장비 특성 `lifesteal` (%) 보유 시:
+```ts
+heal = applyHealing(ctx, round(dmg × lifesteal))
+player.hp += heal
 ```
-(정확한 공식은 `src/core/combat.ts` 의 `playerBasicAttack`, `monsterAttack`, `applyDamage` 참고)
 
-## 전투 종료
-- 모든 몬스터 HP ≤ 0 → `victory = true`
-- 플레이어 HP ≤ 0 → `victory = false`
-- 도주 → `victory = false` (단, 사망은 아님 — 일반 전투에서)
-- `handleCombatEnd`에서 보상/사망 처리
+`applyHealing`은 적의 회복 간섭 trait (heal_reduction/pollution/reverse) 반영.
 
-## 보상
-- 보스 처치: 골드 `target_N × 2.5 / 7`, 아이템 드랍 1개
-- 일반: 마리당 `target_N × 0.85 × 0.85 / 7`, 다중일수록 누적
-- 미믹: `200 × chapter`
-- ±20% 변동 + 행운 보너스(`1 + 행운 × 0.05`) 적용
+---
 
-## 자동 진행
-[자동 진입](../features/auto-enter.md)이 ON이면 전투 종료 후 자동으로 다음 층.
+## 회복 간섭 (적 trait)
 
-## 관련 파일
-- `src/core/combat.ts` — `createCombatContext / advanceTick / monsterAttack / playerBasicAttack / pushLog / makeMonster`
-- `src/core/skills.ts` — `pickAutoAction / useSkill / getAvailableSkills`
-- `src/core/buildBalance.ts` — `computeWeaponSkillProc`
-- `src/stores/game.ts` — `tickStep / playerAutoAct / handleCombatEnd / startMonsterFight`
-- `src/screens/Combat.vue` — 전투 UI
+| trait | 효과 |
+|---|---|
+| `heal_reduction` (구울) | 회복 ×0.5 |
+| `heal_pollution` (역병 쥐) | 회복 ×0.3 |
+| `heal_reverse` (보스) | 회복이 피해로 전환 (×-1) |
+
+여러 적이 동시에 가지면 곱셈 누적. `core/combat.ts:applyHealing`.
+
+---
+
+## 종료 처리
+
+`handleCombatEnd` (store/game.ts:1206):
+1. 진짜 보스 모드 → `finishRealBossCombat` (결과 화면)
+2. 일반 사망 → 게임 오버
+3. 일반 승리 → 골드/드랍 → `advance()` (다음 층)
+
+골드 보상 (`computeChapterGoldTarget(chapter) / 7`) × 변동:
+- 보스: target × 2.5/7
+- 미믹: 200 × chapter
+- 일반: target × 0.85/7 × 몬스터수 × 0.85
+- ±20% 변동, 행운 × 5% 가산
+
+---
+
+## 도주 (fleeCombat)
+
+`도주했다...` 로그 + `combat.ended=true / victory=false`. 미믹 도주는 챌린지 위반 가능 (`trackKillAllMimics`).

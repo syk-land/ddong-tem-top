@@ -98,7 +98,7 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       // 관통: 살아있는 적 앞에서 최대 3마리 일렬 적중
       const alive = aliveMonsters(ctx).slice(0, 3)
       if (alive.length === 0) break
-      magicAttackMulti(ctx, alive, 2.0, '둔화', 1.0)
+      magicAttackMulti(ctx, alive, 2.2, '둔화', 1.0)
       if (alive.length > 1) pushLog(ctx, `빙결의 화살: ${alive.length}마리 관통`, 'skill')
       break
     }
@@ -106,11 +106,11 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       // 메인 100% + 스플래시 40%(나머지 적)
       const main = currentTarget(ctx)
       if (!main) break
-      magicAttackOnTarget(ctx, main, 2.4, '점화', 0.25)
+      magicAttackOnTarget(ctx, main, 2.6, '점화', 0.25)
       const splash = aliveMonsters(ctx).filter((m) => m !== main)
       if (splash.length > 0) {
         pushLog(ctx, `화염구 스플래시: ${splash.length}마리에 화상 비산`, 'skill')
-        magicAttackMulti(ctx, splash, 2.4 * 0.4, undefined, 0, { accBonus: 20 })
+        magicAttackMulti(ctx, splash, 2.6 * 0.4, undefined, 0, { accBonus: 20 })
       }
       break
     }
@@ -119,7 +119,7 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       const alive = aliveMonsters(ctx)
       if (alive.length === 0) break
       const picks = alive.length <= 3 ? alive : shuffled(alive).slice(0, 3)
-      magicAttackMulti(ctx, picks, 0.95, undefined, 0, { accBonus: 50 })
+      magicAttackMulti(ctx, picks, 1.05, undefined, 0, { accBonus: 50 })
       if (picks.length > 1) pushLog(ctx, `폭풍 칼날: ${picks.length}마리 동시 가격`, 'skill')
       break
     }
@@ -127,10 +127,10 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       // 전체 70% 데미지, 둔화는 메인에만
       const main = currentTarget(ctx)
       if (!main) break
-      magicAttackOnTarget(ctx, main, 2.1, '둔화', 0.40)
+      magicAttackOnTarget(ctx, main, 2.3, '둔화', 0.40)
       const rest = aliveMonsters(ctx).filter((m) => m !== main)
       if (rest.length > 0) {
-        magicAttackMulti(ctx, rest, 2.1 * 0.7, undefined, 0)
+        magicAttackMulti(ctx, rest, 2.3 * 0.7, undefined, 0)
         pushLog(ctx, `바위 충격: 광역 진동`, 'skill')
       }
       break
@@ -139,27 +139,27 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       // 메인 + 연쇄 2 (확률 60% / 30%), 메인 게이지 -10
       const main = currentTarget(ctx)
       if (!main) break
-      magicAttackOnTarget(ctx, main, 2.7, '감전', 0.15)
+      magicAttackOnTarget(ctx, main, 2.9, '감전', 0.15)
       main.actionGauge = Math.max(0, main.actionGauge - 10)
       const remaining = aliveMonsters(ctx).filter((m) => m !== main)
       if (remaining.length > 0 && Math.random() < 0.6) {
         const chain1 = remaining[0]
-        magicAttackOnTarget(ctx, chain1, 2.7 * 0.5, '감전', 0.10)
+        magicAttackOnTarget(ctx, chain1, 2.9 * 0.5, '감전', 0.10)
         pushLog(ctx, `번개 연쇄 1단: ${chain1.template.name}`, 'skill')
         const remaining2 = remaining.filter((m) => m !== chain1 && m.hp > 0)
         if (remaining2.length > 0 && Math.random() < 0.3) {
           const chain2 = remaining2[0]
-          magicAttackOnTarget(ctx, chain2, 2.7 * 0.25, '감전', 0.05)
+          magicAttackOnTarget(ctx, chain2, 2.9 * 0.25, '감전', 0.05)
           pushLog(ctx, `번개 연쇄 2단: ${chain2.template.name}`, 'skill')
         }
       }
       break
     }
     case '그림자일격':
-      magicAttack(ctx, 2.0, '암흑', 1.0)  // 단일 타겟 유지
+      magicAttack(ctx, 2.2, '암흑', 1.0)  // 단일 타겟 유지
       break
     case '정화의광선': {
-      magicAttack(ctx, 1.6, undefined, 0)  // 단일 타겟 + 자기 정화
+      magicAttack(ctx, 1.8, undefined, 0)  // 단일 타겟 + 자기 정화
       const purged = purgeDebuffs(ctx.player)
       if (purged.length > 0) pushLog(ctx, `디버프 ${purged.length}개 정화`, 'heal')
       break

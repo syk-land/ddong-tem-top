@@ -28,34 +28,39 @@ const currentScreen = computed(() => game.screen)
 // 까지 자동 대기 후 시작. 결과적으로 사용자가 페이지에서 처음 어떤 동작을 하는
 // 즉시 BGM 이 흐름 — 스플래시 클릭이든 다른 곳 클릭이든 동일.
 onMounted(() => {
-  playBgm('splash')
+  // 로딩(스플래시) 화면은 gemini BGM
+  playBgm('gemini')
 })
 
 // 페이지 로드 시 1회 스플래시. 클릭으로 닫힘. 새로고침하면 다시 표시.
 const showSplash = ref(true)
 function dismissSplash() {
-  // 첫 인터랙션 시점이면 위 onMounted 의 예약이 자동 발동되어 이미 재생 중.
-  // playBgm 은 같은 kind 중복 호출을 무시하므로 안전.
-  playBgm('splash')
+  // 인트로 만화도 gemini 유지. 첫 인터랙션으로 autoplay 잠금 해제만.
+  playBgm('gemini')
   showSplash.value = false
   // 최초 실행이면 인트로 만화 자동 표시 (main → t1 → t2 → menu)
   game.autoShowIntroIfFirstTime()
 }
 
 // 화면 전환 BGM 라우팅
-//   - menu (메인 메뉴):       splash BGM (웅장) — 캐릭터 생성 버튼 누르기 전까지 유지
-//   - create 이후 (캐릭터 생성/던전/상점/승리): menu BGM (발랄)
-//   - combat / gameover:      무음 (효과음 집중)
-watch(currentScreen, (s) => {
-  if (showSplash.value) return
-  if (s === 'combat' || s === 'gameover') {
-    stopBgm()
-  } else if (s === 'menu') {
-    playBgm('splash')
-  } else {
+//   - 스플래시/인트로/캐릭터 생성/진짜 보스 도전/진짜 보스 전투: gemini (외부 MP3)
+//   - 메인 메뉴:                                                 splash BGM (웅장 procedural)
+//   - 던전/상점/승리:                                            menu BGM (발랄)
+//   - 일반 combat / gameover:                                    무음 (효과음 집중)
+watch(
+  [currentScreen, () => game.introVisible, () => !!game.realBossMonster],
+  ([s, introOn, realBossOn]) => {
+    if (showSplash.value) { playBgm('gemini'); return }
+    if (introOn) { playBgm('gemini'); return }
+    if (s === 'create') { playBgm('gemini'); return }
+    if (s === 'realboss') { playBgm('gemini'); return }
+    if (s === 'combat' && realBossOn) { playBgm('gemini'); return }
+    if (s === 'combat' || s === 'gameover') { stopBgm(); return }
+    if (s === 'menu') { playBgm('splash'); return }
     playBgm('menu')
-  }
-})
+  },
+  { immediate: false },
+)
 </script>
 
 <template>

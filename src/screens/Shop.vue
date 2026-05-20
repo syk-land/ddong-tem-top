@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import ItemDetail from '@/ui/components/ItemDetail.vue'
 import type { ItemInstance } from '@/types'
-import { themeBgUrl } from '@/ui/images'
+import { themeBgUrl, shopIconUrl } from '@/ui/images'
 
 const game = useGameStore()
 const shop = computed(() => game.shop!)
@@ -66,9 +66,16 @@ async function sellAll() {
 <template>
   <section class="flex-1 flex flex-col px-3 py-3 gap-3 max-w-4xl mx-auto w-full">
     <div class="panel-tight flex items-center justify-between">
-      <div>
-        <span class="text-grade-legend font-bold">🪙 황금고블린 상점</span>
-        <span class="text-xs text-gray-500 ml-2">새로고침 {{ refresh.charges }} / {{ refresh.cap }}</span>
+      <div class="flex items-center gap-3">
+        <img
+          :src="shopIconUrl()"
+          alt="황금고블린"
+          class="w-12 h-12 object-contain shrink-0 rounded border border-grade-legend/40 bg-bg-tertiary/40"
+        />
+        <div>
+          <span class="text-grade-legend font-bold">황금고블린 상점</span>
+          <span class="text-xs text-gray-500 ml-2">새로고침 {{ refresh.charges }} / {{ refresh.cap }}</span>
+        </div>
       </div>
       <div class="flex items-center gap-2">
         <span class="text-stat-luck font-mono">{{ player.gold }}G</span>
@@ -81,7 +88,7 @@ async function sellAll() {
       <div class="text-xs text-gray-400">장착 중 (판매 가능)</div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div class="bg-bg-tertiary rounded p-2 space-y-2">
-          <div class="text-[10px] text-gray-500">⚔️ 무기</div>
+          <div class="text-[10px] text-gray-500">무기</div>
           <ItemDetail v-if="player.weapon" :item="player.weapon" :character="player" />
           <div v-else class="text-xs text-gray-600">맨손</div>
           <button v-if="player.weapon" class="w-full text-xs px-2 py-1 rounded bg-stat-luck/30 text-stat-luck hover:bg-stat-luck/50" @click="sellSlot('weapon')">
@@ -89,7 +96,7 @@ async function sellAll() {
           </button>
         </div>
         <div class="bg-bg-tertiary rounded p-2 space-y-2">
-          <div class="text-[10px] text-gray-500">🛡️ 갑옷</div>
+          <div class="text-[10px] text-gray-500">갑옷</div>
           <ItemDetail v-if="player.armor" :item="player.armor" :character="player" />
           <div v-else class="text-xs text-gray-600">없음</div>
           <button v-if="player.armor" class="w-full text-xs px-2 py-1 rounded bg-stat-luck/30 text-stat-luck hover:bg-stat-luck/50" @click="sellSlot('armor')">
@@ -102,7 +109,7 @@ async function sellAll() {
     <!-- 인벤토리 슬롯 판매 -->
     <div v-if="inventory.length > 0" class="panel space-y-2">
       <div class="flex items-center justify-between">
-        <div class="text-xs text-gray-400">🎒 인벤토리 (판매 가능)</div>
+        <div class="text-xs text-gray-400">인벤토리 (판매 가능)</div>
         <button
           class="text-xs px-3 py-1 rounded bg-stat-luck text-black font-bold hover:opacity-80"
           @click="sellAll"
@@ -126,7 +133,7 @@ async function sellAll() {
 
     <!-- 상점 인벤토리 (구매) -->
     <div class="panel space-y-2">
-      <div class="text-xs text-gray-400">🏪 상점 매물 (구매)</div>
+      <div class="text-xs text-gray-400">상점 매물 (구매)</div>
       <div class="grid gap-2" :style="{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }">
         <div
           v-for="item in shop.inventory"
@@ -151,7 +158,7 @@ async function sellAll() {
         :disabled="refresh.charges <= 0"
         @click="refreshShop"
       >
-        🔄 새로고침 ({{ refresh.charges }} 남음)
+        새로고침 ({{ refresh.charges }} 남음)
       </button>
       <button class="btn-secondary px-4" @click="leave">나가기</button>
     </div>

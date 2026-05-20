@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 똥모양 탑 어댑티브 아이콘 (climetop) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 바닥 그림자 -->
+    <path
+        android:fillColor="#000000"
+        android:fillAlpha="0.18"
+        android:pathData="M18,96 C18,91 90,91 90,96 C90,100 18,100 18,96 Z" />
+
+    <!-- 1층 (큰 똥) - 본체 -->
+    <path
+        android:fillColor="#5C3A1F"
+        android:pathData="M14,82 C14,72 94,72 94,82 L94,92 C94,98 14,98 14,92 Z" />
+    <!-- 1층 - swirl 상단 (하이라이트) -->
+    <path
+        android:fillColor="#7A4F2A"
+        android:pathData="M14,76 C14,66 36,70 54,74 C72,70 94,66 94,76 C94,82 14,82 14,76 Z" />
+
+    <!-- 2층 (중간 똥) - 본체 -->
+    <path
+        android:fillColor="#5C3A1F"
+        android:pathData="M24,62 C24,52 84,52 84,62 L84,72 C84,76 24,76 24,72 Z" />
+    <!-- 2층 - swirl 상단 -->
+    <path
+        android:fillColor="#7A4F2A"
+        android:pathData="M24,58 C24,48 42,52 54,56 C66,52 84,48 84,58 C84,64 24,64 24,58 Z" />
+
+    <!-- 3층 (작은 똥) - 본체 -->
+    <path
+        android:fillColor="#5C3A1F"
+        android:pathData="M36,46 C36,36 72,36 72,46 L72,56 C72,60 36,60 36,56 Z" />
+    <!-- 3층 - swirl 상단 -->
+    <path
+        android:fillColor="#7A4F2A"
+        android:pathData="M36,42 C36,32 48,36 54,40 C60,36 72,32 72,42 C72,48 36,48 36,42 Z" />
+
+    <!-- 꼭대기 cherry/꼬리 -->
+    <path
+        android:fillColor="#5C3A1F"
+        android:pathData="M48,30 C48,22 60,22 60,30 C60,36 48,36 48,30 Z" />
+    <path
+        android:fillColor="#7A4F2A"
+        android:pathData="M48,28 C48,22 60,22 60,28 C60,30 48,30 48,28 Z" />
+
+    <!-- 눈 (whites) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M44,48 L48,48 L48,52 L44,52 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M60,48 L64,48 L64,52 L60,52 Z" />
+    <!-- 눈동자 -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M45,49 L47,49 L47,51 L45,51 Z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M61,49 L63,49 L63,51 L61,51 Z" />
+
+    <!-- 입 (작은 미소) -->
+    <path
+        android:fillColor="#3A2410"
+        android:pathData="M50,55 L58,55 L58,57 L50,57 Z" />
+
+</vector>

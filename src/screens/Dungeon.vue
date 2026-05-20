@@ -36,9 +36,9 @@ const challengeOneLine = computed(() => {
   return items.join(' · ')
 })
 
-// 자동 진입: 일반몬스터/보스/치유샘만 자동 진입.
-// 상점/보물/특별이벤트는 사용자 선택을 위해 자동 진입 X.
-const AUTO_ENTER_TYPES = new Set(['monster', 'boss', 'healing_spring'])
+// 자동 진입: 일반몬스터/보스/치유샘/보물 자동 진입.
+// 상점/특별이벤트는 사용자 선택을 위해 자동 진입 X.
+const AUTO_ENTER_TYPES = new Set(['monster', 'boss', 'healing_spring', 'treasure'])
 let autoEnterTimer: ReturnType<typeof setTimeout> | null = null
 
 function tryAutoEnter() {
@@ -83,12 +83,12 @@ const floorImage = computed(() =>
 const floorLabel = computed(() => {
   if (!floor.value) return '챕터 클리어'
   const labels: Record<string, string> = {
-    monster: '⚔️ 일반 몬스터',
-    boss: '👑 보스',
-    shop: '🪙 상점',
-    treasure: '📦 보물상자',
-    healing_spring: '⛲ 회복샘',
-    special_event: '✨ 특별 이벤트',
+    monster: '일반 몬스터',
+    boss: '보스',
+    shop: '상점',
+    treasure: '보물상자',
+    healing_spring: '회복샘',
+    special_event: '특별 이벤트',
   }
   return labels[floor.value.type] ?? floor.value.type
 })
@@ -106,22 +106,22 @@ const floorLabel = computed(() => {
         <div class="text-xs text-gray-500">{{ ch.currentFloor + 1 }} / {{ ch.floors.length }}층</div>
       </div>
       <button
-        class="btn-secondary text-xs px-2 py-1 flex items-center gap-1"
+        class="btn-secondary text-xs px-3 py-1"
         @click="statusOpen = true"
         title="상태창"
       >
-        📊 <span class="hidden sm:inline">상태</span>
+        상태
       </button>
       <button
-        class="btn-secondary text-xs px-2 py-1 flex items-center gap-1 relative"
+        class="btn-secondary text-xs px-3 py-1 flex items-center gap-1 relative"
         @click="inventoryOpen = true"
         title="인벤토리"
       >
-        🎒 <span class="hidden sm:inline">인벤</span>
+        인벤
         <span class="text-[10px] text-gray-400">{{ inventory.length }}/{{ inventoryCap }}</span>
       </button>
-      <button class="btn-secondary text-xs px-2 py-1" @click="quit" title="메인 메뉴로">
-        🏠
+      <button class="btn-secondary text-xs px-3 py-1" @click="quit" title="메인 메뉴로">
+        메뉴
       </button>
     </div>
 

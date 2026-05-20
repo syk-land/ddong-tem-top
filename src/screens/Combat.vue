@@ -235,7 +235,15 @@ watch(
   }
 )
 
-function setSpeed(s: number) {
+async function setSpeed(s: number) {
+  if (s === 4 && game.combatSpeed !== 4) {
+    const ok = await game.confirmModal('광고를 보고 4배속을 사용하시겠습니까?', {
+      title: '광고 시청',
+      okLabel: '예 (광고 보기)',
+      cancelLabel: '아니오',
+    })
+    if (!ok) return
+  }
   game.setCombatSpeed(s)
 }
 function flee() {
@@ -303,7 +311,7 @@ function closeAndAdvance() {
                 <h3 class="text-sm font-bold text-log-enemy">
                   <span v-if="m.hp <= 0" class="line-through text-gray-500">{{ m.template.name }}</span>
                   <span v-else>{{ m.template.name }}</span>
-                  <span v-if="m.isBoss" class="text-grade-legend text-xs ml-1">👑</span>
+                  <span v-if="m.isBoss" class="text-grade-legend text-xs ml-1 font-bold">[보스]</span>
                   <span v-if="m.isMimic" class="text-status-bleed text-xs ml-1">미믹</span>
                   <span v-if="m.hp <= 0" class="text-gray-500 text-xs ml-1">처치됨</span>
                 </h3>
@@ -384,7 +392,7 @@ function closeAndAdvance() {
             {{ s }}x
           </button>
           <span class="flex-1" />
-          <button class="btn-secondary text-sm" @click="flee">🏃 도주</button>
+          <button class="btn-secondary text-sm" @click="flee">도주</button>
         </div>
 
         <!-- 종료 화면 -->

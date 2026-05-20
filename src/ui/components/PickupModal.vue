@@ -23,7 +23,7 @@ function refuse() {
   >
     <div class="panel max-w-lg w-full space-y-4">
       <header class="text-center space-y-1">
-        <div class="text-lg font-bold text-status-burn">🎒 인벤토리가 가득 찼다</div>
+        <div class="text-lg font-bold text-status-burn">인벤토리가 가득 찼다</div>
         <div class="text-xs text-gray-400">새 아이템을 받으려면 한 칸을 폐기하거나, 신규 아이템을 포기하세요.</div>
       </header>
 
@@ -36,7 +36,7 @@ function refuse() {
         <div class="text-[10px] text-gray-500">
           T{{ pending.tier }} ·
           <span :class="gradeColorClass[pending.grade]">{{ pending.grade }}</span>
-          · coef {{ pending.coef }}
+          · 등급계수 {{ pending.coef.toFixed(2) }}
         </div>
       </div>
 
@@ -57,7 +57,7 @@ function refuse() {
               <div class="text-[10px] text-gray-500">
                 T{{ slot.tier }} ·
                 <span :class="gradeColorClass[slot.grade]">{{ slot.grade }}</span>
-                · coef {{ slot.coef }}
+                · 등급계수 {{ slot.coef.toFixed(2) }}
               </div>
             </div>
             <span class="text-[10px] text-status-burn ml-2">✕ 폐기</span>

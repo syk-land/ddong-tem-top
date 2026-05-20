@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- climetop 황금고블린 테마 — 깊은 황금 배경 + 똥색 탑 -->
+    <color name="ic_launcher_background">#D4A23A</color>
 </resources>

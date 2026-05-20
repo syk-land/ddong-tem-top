@@ -885,8 +885,7 @@ export function validateMonsterTraitKeys(allTraitKeys: string[]): { missing: str
   const missing = allTraitKeys.filter((k) => !(k in MONSTER_TRAITS))
   if (missing.length === 0) return { missing }
 
-  const msg = `[monsterTraits] 미등록 trait 키 (${missing.length}개): ${missing.join(', ')}`
-  console.warn(msg)
+  // 개발 모드 경고는 호출측에서 처리 (전역 콘솔 노출 X)
   return { missing }
 }
 

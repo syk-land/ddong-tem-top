@@ -39,7 +39,7 @@ const activeChallenges = computed(() => {
 
 async function unequipSlot(slot: 'weapon' | 'armor') {
   const result = game.unequipToInventory(slot)
-  if (!result.ok) await game.alertModal(result.reason ?? '해제 실패', '⚠️ 해제 실패')
+  if (!result.ok) await game.alertModal(result.reason ?? '해제 실패', '해제 실패')
 }
 function effectEntries(item: { effects: Record<string, number | undefined> }) {
   return Object.entries(item.effects).filter(([, v]) => v !== undefined && v !== 0)
@@ -63,7 +63,7 @@ function breakdownAtk(): Breakdown[] {
     out.push({
       from: `무기 (${w.baseKey})`,
       value: weaponPart,
-      note: `${wb.baseAtk} × (coef ${w.coef} + 특성 ${pct.toFixed(2)})`,
+      note: `${wb.baseAtk} × (등급 ${w.coef} + 특성 ${pct.toFixed(2)})`,
     })
   }
   return out
@@ -82,7 +82,7 @@ function breakdownDef(): Breakdown[] {
     out.push({
       from: `갑옷 (${a.baseKey})`,
       value: armorPart,
-      note: `${ab.baseDef} × 2 × (coef ${a.coef} + 특성 ${pct.toFixed(2)})`,
+      note: `${ab.baseDef} × 2 × (등급 ${a.coef} + 특성 ${pct.toFixed(2)})`,
     })
   }
   return out
@@ -192,7 +192,7 @@ function openDetail(name: string, total: number, entries: Breakdown[]) {
   >
     <div class="panel max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-3">
       <header class="flex items-center justify-between sticky top-0 bg-bg-panel z-10 -mx-3 px-3 py-1">
-        <div class="text-lg font-bold">📊 상태창</div>
+        <div class="text-lg font-bold">상태창</div>
         <button class="text-gray-400 hover:text-white text-xl leading-none" @click="emit('close')">✕</button>
       </header>
 
@@ -299,7 +299,7 @@ function openDetail(name: string, total: number, entries: Breakdown[]) {
       <!-- 장착 무기 -->
       <div class="bg-bg-tertiary rounded p-2 space-y-2">
         <div class="flex items-center justify-between">
-          <div class="text-xs text-gray-400">⚔️ 무기</div>
+          <div class="text-xs text-gray-400">무기</div>
           <button
             v-if="c.weapon"
             class="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-gray-300 hover:bg-slate-600"
@@ -313,7 +313,7 @@ function openDetail(name: string, total: number, entries: Breakdown[]) {
           <div class="text-[10px] text-gray-500">
             T{{ c.weapon.tier }} ·
             <span :class="gradeColorClass[c.weapon.grade]">{{ c.weapon.grade }}</span>
-            · coef {{ c.weapon.coef }}
+            · 등급계수 {{ c.weapon.coef.toFixed(2) }}
           </div>
           <div v-if="effectEntries(c.weapon as any).length > 0" class="mt-1 text-[10px] grid grid-cols-2 gap-x-3 font-mono">
             <div v-for="[k, v] in effectEntries(c.weapon as any)" :key="k" class="text-gray-300">
@@ -327,7 +327,7 @@ function openDetail(name: string, total: number, entries: Breakdown[]) {
       <!-- 장착 갑옷 -->
       <div class="bg-bg-tertiary rounded p-2 space-y-2">
         <div class="flex items-center justify-between">
-          <div class="text-xs text-gray-400">🛡️ 갑옷</div>
+          <div class="text-xs text-gray-400">갑옷</div>
           <button
             v-if="c.armor"
             class="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-gray-300 hover:bg-slate-600"
@@ -341,7 +341,7 @@ function openDetail(name: string, total: number, entries: Breakdown[]) {
           <div class="text-[10px] text-gray-500">
             T{{ c.armor.tier }} ·
             <span :class="gradeColorClass[c.armor.grade]">{{ c.armor.grade }}</span>
-            · coef {{ c.armor.coef }}
+            · 등급계수 {{ c.armor.coef.toFixed(2) }}
           </div>
           <div v-if="effectEntries(c.armor as any).length > 0" class="mt-1 text-[10px] grid grid-cols-2 gap-x-3 font-mono">
             <div v-for="[k, v] in effectEntries(c.armor as any)" :key="k" class="text-gray-300">

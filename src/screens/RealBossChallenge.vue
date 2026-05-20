@@ -15,11 +15,12 @@ function start() {
 }
 
 function decline() {
-  // 거절도 카운터를 소진 — 이미 startRealBoss에서 처리됨
+  // 거절 — 누적 골드 보존, 이번 세션 동안 보스 프롬프트 재트리거 안 함
   game.realBossMonster = null
   game.realBossWeakRecord = null
   game.realBossTheme = null
   game.realBossInitialMaxHp = 0
+  game.realBossDeclinedThisSession = true
   game.setScreen('menu')
 }
 </script>
@@ -31,7 +32,7 @@ function decline() {
     :style="{ backgroundImage: `linear-gradient(rgba(10,14,26,0.78), rgba(10,14,26,0.92)), url(${bgUrl})` }"
   >
     <div class="panel text-center space-y-3 mb-4">
-      <h1 class="text-2xl font-bold text-trait-special">⚔️ 탑의 부름</h1>
+      <h1 class="text-2xl font-bold text-trait-special">탑의 부름</h1>
       <p class="text-sm text-gray-300">
         탑이 가장 빛바랜 영혼을 불러냈다.<br />
         진짜 보스에 도전해 깎은 비율만큼 다음 캐릭터의 힘이 된다.
@@ -88,7 +89,7 @@ function decline() {
 
     <div class="grid grid-cols-2 gap-2 mt-4">
       <button class="btn-secondary" @click="decline">나중에</button>
-      <button class="btn-primary" @click="start">⚔️ 도전 시작</button>
+      <button class="btn-primary" @click="start">도전 시작</button>
     </div>
   </section>
 </template>

@@ -70,7 +70,7 @@ export interface ChallengeFlags {
   trackBoss100Tick?: boolean
   trackLowHp500Tick?: boolean
   trackCursedNeverRemove?: boolean
-  trackNoPotionPurchase?: boolean
+  trackNoRefreshEver?: boolean   // 상점 새로고침 1회라도 사용 시 실패
   trackSpeedBelow6?: boolean
   trackAvgTier3OrLower?: boolean
 }
@@ -458,12 +458,12 @@ export const CHALLENGES: ChallengeDef[] = [
     flags: { trackCursedNeverRemove: true },
   },
   {
-    key: '노포션', category: 'risk', group: '가혹', name: '노 포션',
-    description: '상점 포션 0구매.',
+    key: '고집불통', category: 'risk', group: '가혹', name: '고집불통',
+    description: '상점 새로고침 절대 사용 X.',
     reward: '100층 돌파 시 보너스 +10pt',
-    penalty: '포션 1개라도 구매 시 실패',
+    penalty: '상점 새로고침 1회라도 사용 시 실패',
     metaBonus: 10,
-    flags: { trackNoPotionPurchase: true },
+    flags: { trackNoRefreshEver: true },
   },
   {
     key: '만성피로', category: 'risk', group: '가혹', name: '만성 피로',

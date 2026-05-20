@@ -141,11 +141,10 @@ function simBossPerChapter(weaponKey: string, armorKey: string, grade: Grade, ru
 }
 
 export function runCli() {
-  const RUNS = 500
+  const RUNS = 300
   const GRADES: Grade[] = ['노말', '레어', '스페셜', '레전드']
-  const MAGIC_REPS = ['완드_불', '스태프_불', '마도서_불']
-  const PHYSICAL = WEAPON_KEYS.filter((k) => !k.includes('_'))
-  const WEAPONS_TO_TEST = [...PHYSICAL, ...MAGIC_REPS]
+  // 전체 무기 시뮬: 물리 13종 + 마법 21종(3타입×7속성) = 34종
+  const WEAPONS_TO_TEST = WEAPON_KEYS
 
   console.log(`\n=== Climetop 100층 종주 시뮬레이터 v6 — ${RUNS} runs/case ===`)
   console.log(`(보너스 없는 캐릭터: 5스탯 각 10, 보통 특성 고정)`)

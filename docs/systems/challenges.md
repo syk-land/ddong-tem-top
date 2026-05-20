@@ -1,60 +1,151 @@
-# 챌린지 시스템
+# 챌린지 시스템 (50종)
 
-## 개요
-캐릭터 생성 시 3개의 챌린지 카드 중 1개 선택 (또는 미선택). 선택한 챌린지는 게임 내내 적용되며, 끝까지 조건을 지켜 클리어하면 메타 보너스 추가 부여.
+> 캐릭터 생성 시 풀에서 3개(즉시 2 + 리스크 1) 랜덤 제시, 1개 선택. 선택 안 해도 시작 가능.
 
-## 두 카테고리
-| 카테고리 | 설명 |
-| --- | --- |
-| **instant** (즉시 보상) | 캐릭터 생성 직후 보상 적용. 조건 위반 시 일부 페널티만 |
-| **bet** (리스크 베팅) | 페널티 부담. 끝까지 조건 만족하면 큰 보상 |
+코드: `src/data/challenges.ts` (정의), `src/core/challengeRuntime.ts` (추적/판정)
 
-## 챌린지 구조 (`ChallengeDef`)
-```ts
-{
-  key: string
-  group: string        // 분류
-  name: string
-  description: string
-  category: 'instant' | 'bet'
-  reward: string       // 텍스트
-  penalty: string      // 텍스트
-  flags: { ... }       // 런타임 동작에 영향 (예: noShop, mpCapFixed)
-}
+---
+
+## 분류
+
+### 즉시 보상형 (instant) — 25개
+시작 시 스탯/골드 보너스 + 제약. 클리어 여부 무관.
+
+| 그룹 | 챌린지 | 보상 | 페널티 |
+|---|---|---|---|
+| 공격력 제약 | 과유불급 | 시작 체력 +10 | 최종 공격력 40 초과 시 즉사 |
+| 공격력 제약 | 녹슨칼날의맹세 | 시작 민첩 +5, 행운 +3 | 하급 특성 무기만 |
+| 공격력 제약 | 유리대포 | 시작 힘 +16 | 갑옷 장착 불가 |
+| 공격력 제약 | 체중감량 | 시작 민첩 +12 | 속도계수 0.8 이하 무기 불가 |
+| 공격력 제약 | 마법혐오증 | 시작 체력 +6 | 마법 무기 장착 불가 |
+| 재화 제약 | 진정한무소유 | 시작 체력 +6, 행운 +4 | 골드 0 고정, 상점 X |
+| 재화 제약 | 단벌신사 | 시작 골드 +300 | 시작 장비 해제/변경 불가 |
+| 재화 제약 | 미니멀리스트 | 시작 민첩 +6 | 인벤토리 1슬롯 |
+| 재화 제약 | 파괴주의자 | 시작 힘 +8 | 장비 buyback 불가 |
+| 재화 제약 | 황금알레르기 | 전 스탯 +3 | 누적 골드 500 초과 시 사망 |
+| 상점 제약 | 불매운동 | 시작 행운 +8 | 상점 진입 불가 |
+| 상점 제약 | 요행은없다 | 시작 힘 +6 | 회복샘 이용 불가 |
+| 상점 제약 | 불신주의자 | 시작 민첩 +10 | 모험가 구출 시 즉사 |
+| 상점 제약 | 리롤금지령 | 시작 체력 +3, 마력 +3 | 상점 새로고침 불가 |
+| 상점 제약 | 정가매입 | 시작 체력 +6 | 상점 할인 X |
+| 속도 제약 | 굼벵이전술 | 시작 체력 +15 | 최종 속도 5 고정 |
+| 속도 제약 | 조급증 | 시작 민첩 +5 | 공격 스킬 사용 불가 (평타만) |
+| 속도 제약 | 강박증 | 시작 행운 +6 | 속도계수 1.0 무기만 |
+| 속도 제약 | 속전속결 | 시작 힘 +7 | 매 전투 50틱 이내 미승리 시 패배 |
+| 속도 제약 | 유지력상실 | 시작 힘 +10 | 최대 MP 30 고정 |
+| 생존 제약 | 혈우병 | 시작 행운 +10 | 출혈 시 룰렛 대실패 +20% |
+| 생존 제약 | 야맹증 | 시작 힘 +8 | 암흑 상태/챕터에서 명중 -30 |
+| 생존 제약 | 절대정수 | 시작 체력 +10 | 회복 효율 -50% |
+| 생존 제약 | 의지박약 | 시작 마력 +8 | 불굴의 의지 스킬 사용 불가 |
+| 생존 제약 | 연약한피부 | 시작 민첩 +4, 힘 +4 | 판금/중갑 장착 불가 |
+
+### 리스크 베팅형 (risk) — 25개
+50/100층 클리어 시 metaBonus 적립. 위반 시 챌린지 실패, 보너스 X.
+
+| 그룹 | 챌린지 | 보상 | 페널티 |
+|---|---|---|---|
+| 장비 제한 | 무소유의장노말 | metaBonus +10 | 특별/레전드 장비 1회라도 X |
+| 장비 제한 | 순수가난 | metaBonus +6 (50층) | 1티어 외 장비 시 실패 |
+| 장비 제한 | 명품거부증 | metaBonus +8 | 상점 구매 1개 시 실패 |
+| 장비 제한 | 특성봉인 | metaBonus +12 | 특성 붙은 장비 시 실패 |
+| 장비 제한 | 알몸의순례자 | metaBonus +7 (50층) | 갑옷 1회라도 X |
+| 전투 스타일 | 운칠기삼 | 다음 회차 행운 +5 영구 | 행운 외 모든 스탯 3 |
+| 전투 스타일 | 평화주의자 | metaBonus +15 (초고난도) | 공격 스킬 사용 시 실패 |
+| 전투 스타일 | 철저한등가교환 | 다음 회차 분배 포인트 +5 | 제단 무시 또는 3회 미달 |
+| 전투 스타일 | 스킬미학 | metaBonus +5 (50층) | 평타 시 실패 |
+| 전투 스타일 | 자연치유거부 | 다음 회차 마력 상한 ↑ | 챕터 종료 시 MP > 0 실패 |
+| 경제 | 자산동결 | metaBonus +10 | 최종 보스 시 골드 > 0 실패 |
+| 경제 | 황금고블린파트너 | 다음 회차 시작 골드 +200 영구 | 새로고침 1회라도 안 쓰면 실패 |
+| 경제 | 짠돌이의탑 | metaBonus +9 | 누적 소비 300 초과 시 실패 |
+| 경제 | 미믹사냥꾼 | 다음 회차 미믹 확률 ↓ | 미믹 1회라도 도주 시 실패 |
+| 경제 | 암시장VIP | 다음 회차 암시장 20% 할인 영구 | 누적 10회 미만 실패 |
+| 테마 특화 | 환영파괴자 | 다음 회차 민첩 +5 영구 | 환영 챕터 1회라도 피격 |
+| 테마 특화 | 도박중독 | metaBonus +8 | 룰렛 대성공 3회 미달 |
+| 테마 특화 | 대장장이은인 | 다음 회차 대장장이 +15% | 베팅 80% 미만 또는 실패 |
+| 테마 특화 | 배신저항군 | 다음 회차 체력 +5 영구 | PvP 피격 3회 초과 |
+| 테마 특화 | 속전속결의장 | metaBonus +11 | 보스 100틱 초과 시 실패 |
+| 가혹 | 빈사의유령 | metaBonus +14 | HP 30% 이하 500틱 미달 |
+| 가혹 | 저주의동반자 | metaBonus +13 | 저주의 무기 해제 시 실패 |
+| 가혹 | **고집불통** | metaBonus +10 | 상점 새로고침 1회라도 사용 시 실패 |
+| 가혹 | 만성피로 | metaBonus +7 (50층) | 최종 속도 7 이상 실패 |
+| 가혹 | 가난이체질 | metaBonus +10 + EX | 평균 티어 3 초과 실패 |
+
+> 옛 "노 포션"은 climetop에 포션 시스템이 없어 영구 자동성공 상태였음. v6.1 에서 **고집불통**(새로고침 0회)으로 교체.
+
+---
+
+## 추적 플래그 (`ChallengeFlags`)
+
+`challenges.ts:ChallengeFlags` 에 50+개 정의. 종류:
+
+### 무기/방어구 제약
+- `forceLowTraitsOnly`, `forceCommonNormalOnly`, `forceLowNormalOnly`
+- `noArmor`, `lockStartingGear`, `forbidPlateHeavy`, `forbidLargeWeapon`, `forbidMagicWeapon`, `onlySpeedCoef1`
+- `maxAtk`, `speedFixed`, `mpCapFixed`
+
+### 경제
+- `goldZero`, `goldMax500Death`, `noShop`, `noShopRefresh`, `noBuyback`, `noShopDiscount`
+- `noHealingSpring`, `noRescueAdventurer`
+- `noIronWill`, `noActiveSkills`, `onlyActiveSkills`
+- `combatTimeLimit`, `blindExtra`, `bleedBadLuckPct`, `healEffMult`
+
+### 트래킹 (위반 시 챌린지 실패)
+- `trackNoLegendaryEver`, `trackOnlyTier1`, `trackNoShopBuy`, `trackNoTraitEquip`, `trackNoArmorEver`
+- `trackLuckOnly`, `trackPacifist`, `trackAltarEveryChapter`, `trackSkillOnly`, `trackMpEmptyAtChapterEnd`
+- `trackGoldZeroAtFinalBoss`, `trackUseRefreshEveryChapter`, `trackTotalSpendUnder300`, `trackKillAllMimics`, `trackBlackMarketCount`
+- `trackDodgeAllMirage`, `trackRouletteGreat3`, `trackSmith80PctBet`, `trackBetrayalPerfect`, `trackBoss100Tick`
+- `trackLowHp500Tick`, `trackCursedNeverRemove`, **`trackNoRefreshEver`** (신규), `trackSpeedBelow6`, `trackAvgTier3OrLower`
+
+---
+
+## 챌린지 생명주기
+
+```
+[캐릭터 생성]
+    │
+    ├ pickThreeRandomChallenges() → 즉시 2 + 리스크 1
+    │
+    ↓ 사용자 선택
+[makeChallengeContext(keys)]
+    │
+    ├ applyInstantRewards(character, ctx) — instant 챌린지의 보너스 적용
+    │
+    ↓ 게임 진행 중
+[Tracking 훅 — game.ts에서 이벤트마다 호출]
+    │
+    ├ onEquipItem        — 장비 트래킹
+    ├ onShopBuy          — 상점 구매
+    ├ onShopRefresh      — 상점 새로고침
+    ├ onMimicFlee        — 미믹 도주
+    ├ onBossFightEnd     — 보스 전투 종료 (틱 카운트)
+    ├ onTick             — HP/속도 매 틱 추적
+    ├ onChapterEnd       — 챕터 종료 시점 검사
+    ├ onAltarUsed/Offered — 제단
+    ├ onRouletteResult   — 룰렛
+    ├ onSmithBet         — 대장장이
+    ├ onBlackMarketUsed  — 암시장
+    ├ onPvpHit           — PvP 피격
+    ├ onPlayerHitByTheme — 테마별 피격 (환영)
+    └ recordBasicAttackUse / recordActiveSkillUse — 평화주의자/스킬미학
+    │
+    ↓ 클리어 시
+[evaluateFinalChallenges]
+    │
+    ├ trackXxx 카운터 검사 → 미달 시 ac.failed=true
+    │
+    ↓
+[calcChallengeMetaBonus]
+    │
+    └ 활성 챌린지 중 !failed 만 metaBonus 합산 → pendingClear.bonus 에 가산
 ```
 
-## 플래그 종류 (`flags`)
-- `noShop` — 상점 진입 차단 (불매 운동)
-- `noShopRefresh` — 상점 새로고침 금지 (리롤 금지령)
-- `noHealingSpring` — 회복샘 사용 차단 (절대 정수)
-- `noRescueAdventurer` — 위기 모험가 구하면 사망 (불신주의자)
-- `mpCapFixed` — MP 최대치 고정
-- `forbidActiveSkills` — 액티브 스킬 사용 불가
-- `forbidBasicAttacks` — 평타 사용 불가
-- `trackCursedNeverRemove` — 저주의 무기 절대 제거 금지
-- 기타 다수
+---
 
-## 런타임 컨텍스트 (`ChallengeContext`)
-- `active: ActiveChallenge[]` — 활성 챌린지들 (보통 1개)
-- 각 챌린지의 `counters`, `failed` 플래그
-- 매 턴 훅 호출: `onTick / onShopBuy / onShopRefresh / onEquipItem / onMimicFlee / onBossFightEnd / onChapterEnd / onSmithBet / onRouletteResult / onAltarUsed / onBlackMarketUsed / onPvpHit / onPlayerHitByTheme`
+## 보너스 합산
 
-## 평가
-탑 클리어 시 `evaluateFinalChallenges` 호출:
-- 모든 챌린지의 최종 조건 충족 검사
-- 충족 → `calcChallengeMetaBonus` → 메타 보너스 분배 가능 포인트 +N
-- 실패 → 보너스 미부여 (페널티는 이미 진행 중 적용됨)
+```
+clearBonus = rank.bonus (1~10, 무기/갑옷 티어 합산 기반)
+           + sum(challenge.metaBonus if !failed)
+```
 
-## 30+ 챌린지 예시
-- **불매 운동**: 상점 이용 불가 — 보상: 최종 골드 ×3
-- **리롤 금지령**: 새로고침 불가 — 보상: 메타 보너스 +3
-- **저주의 동반자**: 저주의 무기 시작 + 절대 제거 금지 — 보상: 메타 보너스 +5
-- **미니멀리스트**: 인벤토리 1칸 — 보상: 메타 보너스 +4
-- **속전속결**: 전 보스 30턴 내 처치 — 보상: 메타 보너스 +6
-- **저체력**: HP 30% 이하 유지 — 보상: 골드 +30%, 메타 +2
-- (전체 목록은 `src/data/challenges.ts` 참고)
-
-## 관련 파일
-- `src/data/challenges.ts` — `ChallengeDef`, `pickThreeRandomChallenges`, `CHALLENGES_MAP`
-- `src/core/challengeRuntime.ts` — 컨텍스트 + 훅 + 평가
-- `src/types/index.ts` — `TowerRun.challengeKeys`
+`game.ts:onVictory` 에서 합산. 평화주의자 (+15) 클리어하면 rank EX + 15 = 최대 25pt 적립 가능.

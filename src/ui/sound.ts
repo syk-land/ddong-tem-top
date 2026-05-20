@@ -537,16 +537,22 @@ const MENU_BGM: BgmTrack = (() => {
   return { notes, loopMs: 4000 }
 })()
 
-const BGM_TRACKS: Record<BgmKind, BgmTrack> = {
+const BGM_TRACKS: Record<'splash' | 'menu', BgmTrack> = {
   splash: SPLASH_BGM,
   menu: MENU_BGM,
 }
 
-export type BgmKind = 'splash' | 'menu'
+// 외부 MP3 BGM (gemini_music.mp3 등) — HTMLAudioElement 기반
+const MP3_BGM_URLS: Record<string, string> = {
+  gemini: '/sound/gemini_music.mp3',
+}
+
+export type BgmKind = 'splash' | 'menu' | 'gemini'
 
 let bgmTimer: number | null = null
 let bgmCurrent: BgmKind | null = null
 let bgmScheduledOscillators: { osc: OscillatorNode; gain: GainNode; stopAt: number }[] = []
+let bgmAudioEl: HTMLAudioElement | null = null
 
 function scheduleBgmLoop(track: BgmTrack, ctxStartTime: number) {
   const ctx = getCtx()
@@ -625,6 +631,27 @@ export function playBgm(kind: BgmKind) {
     bgmCurrent = kind  // 토글 켜졌을 때 시작할 수 있게 기억
     return
   }
+
+  // MP3 기반 BGM 분기 (HTMLAudioElement)
+  const mp3Url = MP3_BGM_URLS[kind]
+  if (mp3Url) {
+    bgmCurrent = kind
+    try {
+      bgmAudioEl = new Audio(mp3Url)
+      bgmAudioEl.loop = true
+      bgmAudioEl.volume = config.bgmVolume
+      const playPromise = bgmAudioEl.play()
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {
+          // autoplay 차단 — 첫 인터랙션 시 재시도
+          pendingBgmKind = kind
+          attachUnlockListener()
+        })
+      }
+    } catch {}
+    return
+  }
+
   const ctx = getCtx()
   if (!ctx) return
   if (ctx.state === 'suspended') {
@@ -638,7 +665,7 @@ export function playBgm(kind: BgmKind) {
     }
   }
 
-  const track = BGM_TRACKS[kind]
+  const track = BGM_TRACKS[kind as 'splash' | 'menu']
   if (!track) return
   bgmCurrent = kind
 
@@ -657,6 +684,24 @@ export function stopBgm() {
   if (bgmTimer !== null) {
     clearInterval(bgmTimer)
     bgmTimer = null
+  }
+  // MP3 BGM 정지 (페이드아웃)
+  if (bgmAudioEl) {
+    try {
+      const el = bgmAudioEl
+      const startVol = el.volume
+      const steps = 8
+      let i = 0
+      const fadeTimer = setInterval(() => {
+        i++
+        try { el.volume = Math.max(0, startVol * (1 - i / steps)) } catch {}
+        if (i >= steps) {
+          clearInterval(fadeTimer)
+          try { el.pause(); el.src = '' } catch {}
+        }
+      }, 20)
+    } catch {}
+    bgmAudioEl = null
   }
   // 현재 재생 중인 모든 BGM 오실레이터를 빠르게 페이드아웃
   const ctx = getCtx()
@@ -705,6 +750,9 @@ export function setSoundVolume(v: number) {
 export function setBgmVolume(v: number) {
   config.bgmVolume = Math.max(0, Math.min(1, v))
   saveConfig(config)
+  if (bgmAudioEl) {
+    try { bgmAudioEl.volume = config.bgmVolume } catch {}
+  }
 }
 
 export function getBgmVolume(): number {

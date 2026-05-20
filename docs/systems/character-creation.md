@@ -1,42 +1,91 @@
-# 캐릭터 생성 (v6)
+# 캐릭터 생성
 
-## 단계
-1. **외형**: 자동 1명 랜덤 추첨 (`pickRandomUserAvatars(1)`)
-2. **챌린지 선택**: 3장 카드 중 1개 (또는 미선택) — `pickThreeRandomChallenges()`
-3. **주사위 굴림**: 최대 3회. 굴리지 않으면 5스탯 각 10 (총 50pt) 균등
-   - 한 번 굴릴 때마다 5스탯 ↔ 35pt 자유 분배 (각 최소 3, 최대 20)
-4. **메타 풀 자유 분배**: `meta.totalBonusStats > 0` 이면 5스탯 분배 가능
-5. **도전 보너스** (있을 때): 5스탯 1/5 균등 자동 + 잔여 힘 → 민첩 → 체력 → 마력 → 행운 순서
-6. **탑 진입** → `newGame(allocation)`
+코드: `src/screens/CharacterCreation.vue`, `src/core/character.ts`
 
-## 분배 흐름 (v6)
+---
+
+## 진입
+
+`MainMenu` → "🆕 새 캐릭터" 버튼:
+1. `triggerRealBossIfDue` 체크 — 누적 골드 5만 도달 시 도전 모드로 우회.
+2. `startCharacterCreation()`:
+   - 4배속 → 1배속 자동 리셋
+   - 자동 진입 OFF 자동 리셋
+   - 저장된 진행 상태 (loadCreation) 복원 또는 신규 생성:
+     - `pickThreeRandomChallenges()` → 챌린지 3개 (즉시 2 + 리스크 1)
+     - 주사위 3회 초기화
+     - 랜덤 아바타 1개
+   - 화면 → `create`.
+
+---
+
+## UI 패널
+
+### 1. 진짜 보스 도전 누적 보상 (조건부)
+`meta.permanentStartBonus > 0` 일 때만:
+- "마지막 도전: 보스 체력 NN/100 깎음"
+- "시작 능력치 총합 50 → (50 + N)pt (+Npt 영구, 5스탯 균등 자동 분배)"
+
+### 2. 주사위
+- 남은 굴림 3회 (소진 시 굴리기 버튼 비활성).
+- 주사위 굴림 → `generateRandomStats()` → 5스탯에 50pt 랜덤 분배 (각 최소 3, 최대 20).
+- 결과 미리보기: 5스탯 카드 + 총합. **영구 보너스가 자동 분배된 최종 값** 표시.
+
+### 3. 챌린지 선택
+- 3개 카드 (즉시 보상형 2 + 리스크 베팅형 1).
+- 카드 클릭 → 토글 (선택/해제).
+- 선택 안 해도 시작 가능.
+
+### 4. 누적 보너스 자유 분배 (조건부)
+`meta.totalBonusStats > 0` 일 때만:
+- 5스탯에 +/- 버튼으로 분배.
+- 길게 누르면 가속 연타 (350ms 시작, ×0.82 가속).
+- 합계 ≤ totalBonusStats 까지만.
+
+### 5. 탑 진입
+`newGame(allocation)` 호출 → `createCharacter` → 첫 챕터 진입.
+
+---
+
+## 캐릭터 빌드 흐름 (`createCharacter`)
+
+```ts
+function createCharacter(bonusAllocation, customStats?, pendingStartBonus = 0): Character {
+  stats = customStats ?? uniformStartingStats()  // 5스탯 각 10
+
+  // 1) 메타 보너스 자유 분배 적용
+  for k in bonusAllocation:
+    stats[k] += bonusAllocation[k]
+
+  // 2) 진짜 보스 영구 보너스 자동 분배 (5스탯 균등 + 나머지)
+  if pendingStartBonus > 0:
+    base = floor(pendingStartBonus / 5)
+    rem  = pendingStartBonus - base × 5
+    for k in [힘,민첩,체력,마력,행운]: stats[k] += base
+    for i in 0..rem-1: stats[five[i]] += 1
+
+  return Character {
+    stats, hp: maxHp, maxHp: 10×체력+50, mp/maxMp, weapon: starter, armor: null, gold: 50, ...
+  }
+}
 ```
-탑 클리어
-  → VictoryScreen "+N pt 획득" 알림만 (분배 X)
-  → confirmClearBonus({}) → meta.totalBonusStats += N
-  → 메인메뉴
 
-새 캐릭터
-  → CharacterCreation 메타 분배 패널 (5스탯)
-  → 사용자가 분배 (분배 안 한 부분은 풀에 남음)
-  → 탑 진입 → consumeBonusFromPool(allocation) → meta.totalBonusStats -= used
-```
+---
 
-분배 안 한 잔여는 풀에 누적 — 다음 캐릭터에서도 분배 가능.
+## 시작 장비
 
-## 시작 무기 / 인벤토리
-- 무기: `하급 노말` 임의 무기 1개 (`createStartingWeapon`)
-- 갑옷: 없음 (장비 없이 시작)
-- 인벤토리 4칸 (미니멀리스트 1칸)
-- 골드: 50
+- 무기: 무작위 물리 무기 (등급 노말, 트레잇 하급).
+- 갑옷: 없음.
+- 골드: 50G + 챌린지 보너스.
 
-## 챌린지 즉시 보상
-챌린지에 따라 5스탯 보너스/골드/인벤 슬롯 등 적용 (`applyInstantRewards`).
+---
 
-## 관련 파일
-- `src/stores/game.ts` — `startCharacterCreation / rollCharacterDice / newGame / persistCreation`
-- `src/core/character.ts` — `createCharacter` (도전 보너스 1/5 균등 분배)
-- `src/core/meta.ts` — `commitClearBonus / consumeBonusFromPool`
-- `src/screens/CharacterCreation.vue` — UI
+## 저장/복원
 
-밸런스 수치는 [balance.md](../balance.md).
+`localStorage['climetop:creation:v1']` (`saveCreation`):
+- 주사위 굴림 결과 (`rolledStats`)
+- 남은 굴림 (`rollsLeft`)
+- 챌린지 목록 + 선택
+- 선택한 아바타
+
+뒤로가기/새로고침 시 보존되어 같은 상태로 복원.

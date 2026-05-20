@@ -24,7 +24,7 @@ function proceed() {
   >
     <!-- 게임 클리어 분기 -->
     <div v-if="isGameClear" class="panel text-center space-y-4 w-full border-2 border-grade-legend">
-      <h1 class="text-4xl font-bold text-grade-legend">🏆 게임 클리어!</h1>
+      <h1 class="text-4xl font-bold text-grade-legend">게임 클리어!</h1>
       <div class="text-lg text-trait-special">진짜 보스를 처치했다.</div>
       <div class="text-sm text-gray-300">탑의 정점에 도달한 영혼.</div>
       <div class="text-5xl font-bold font-mono text-log-reward">100%</div>
@@ -36,7 +36,7 @@ function proceed() {
 
     <!-- 일반 결과 -->
     <div v-else class="panel text-center space-y-4 w-full">
-      <h1 class="text-2xl font-bold text-grade-legend">⚔️ 도전 종료</h1>
+      <h1 class="text-2xl font-bold text-grade-legend">도전 종료</h1>
       <div class="text-sm text-gray-400">진짜 보스 체력을 깎은 비율</div>
       <div class="text-5xl font-bold font-mono text-trait-special">{{ percent }}%</div>
       <div class="text-xs text-gray-500">({{ Math.round(ratio * 10000) / 100 }} / 100)</div>

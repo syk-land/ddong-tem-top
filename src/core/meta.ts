@@ -41,10 +41,7 @@ function migrateAllocations(old: Partial<Record<string, number>> | undefined): P
 export function loadMeta(): MetaBonuses {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_META)
-    if (!raw) {
-      console.log('[meta] loadMeta: no saved data, using defaults')
-      return defaultMeta()
-    }
+    if (!raw) return defaultMeta()
     const m = JSON.parse(raw) as Partial<MetaBonuses>
     const loaded = {
       clearCount: m.clearCount ?? 0,
@@ -65,10 +62,8 @@ export function loadMeta(): MetaBonuses {
       realBossDefeated: m.realBossDefeated ?? false,
       totalGoldEarned: m.totalGoldEarned ?? 0,
     }
-    console.log('[meta] loadMeta:', { clearCount: loaded.clearCount, totalBonusStats: loaded.totalBonusStats, totalGoldEarned: loaded.totalGoldEarned })
     return loaded
-  } catch (e) {
-    console.error('[meta] loadMeta failed, using defaults:', e)
+  } catch {
     return defaultMeta()
   }
 }
@@ -81,9 +76,7 @@ export function rollNextChallengeAt(): number {
 export function saveMeta(meta: MetaBonuses) {
   try {
     localStorage.setItem(STORAGE_KEY_META, JSON.stringify(meta))
-  } catch (e) {
-    console.error('Failed to save meta', e)
-  }
+  } catch {}
 }
 
 export function defaultMeta(): MetaBonuses {
@@ -142,7 +135,6 @@ export function incrementRunCounter(meta: MetaBonuses) {
 // v6: 클리어 시점 남은 골드를 totalGoldEarned 에 누적
 export function accumulateClearGold(meta: MetaBonuses, gold: number) {
   meta.totalGoldEarned = (meta.totalGoldEarned ?? 0) + gold
-  console.log(`[meta] accumulateClearGold +${gold} → ${meta.totalGoldEarned} (도전 임계 50000)`)
   saveMeta(meta)
 }
 
@@ -180,8 +172,6 @@ export function commitClearBonus(meta: MetaBonuses, _ignored: Partial<Stats>, pe
   const before = meta.totalBonusStats
   meta.clearCount += 1
   meta.totalBonusStats = before + pendingBonus
-  // 디버그 (브라우저 콘솔에서 확인)
-  console.log(`[meta] commitClearBonus: ${before} + ${pendingBonus} = ${meta.totalBonusStats}, clearCount=${meta.clearCount}`)
   saveMeta(meta)
 }
 
@@ -203,9 +193,7 @@ export function saveRun(run: TowerRun) {
     // Maps와 Sets를 직렬화 가능하게 변환
     const serializable = JSON.parse(JSON.stringify(run))
     localStorage.setItem(STORAGE_KEY_RUN, JSON.stringify(serializable))
-  } catch (e) {
-    console.error('Failed to save run', e)
-  }
+  } catch {}
 }
 
 export function loadRun(): TowerRun | null {

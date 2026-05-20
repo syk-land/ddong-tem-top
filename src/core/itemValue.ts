@@ -13,7 +13,7 @@
 // 무기 슬롯 = 공격벨류만, 갑옷 슬롯 = 방어벨류만 (반대편은 0).
 // 단, 갑옷의 speedMult / mpBonus 같은 일부 효과는 *공격* 영향도 있으므로 양쪽 일부 부여.
 
-import type { ItemInstance } from '@/types'
+import type { ItemInstance, Character } from '@/types'
 import { WEAPONS } from '@/data/weapons'
 import { ARMORS } from '@/data/armor'
 import { WEAPON_TRAITS, ARMOR_TRAITS } from '@/data/traits'
@@ -31,13 +31,43 @@ export interface ItemValueBreakdown {
   defParts: ValuePart[]
 }
 
-export function computeItemValue(item: ItemInstance | null): ItemValueBreakdown {
+export function computeItemValue(item: ItemInstance | null, character?: Character | null): ItemValueBreakdown {
   if (!item) return { atkValue: 0, defValue: 0, atkParts: [], defParts: [] }
-  return item.kind === 'weapon' ? computeWeaponValue(item) : computeArmorValue(item)
+  return item.kind === 'weapon' ? computeWeaponValue(item, character) : computeArmorValue(item, character)
+}
+
+// 캐릭터의 무기에서 DPS 추정치 산출 (방어구 공속 페널티 환산용)
+function estimateCharWeaponDps(character?: Character | null): number {
+  if (!character?.weapon) return 15  // 기본값
+  const w = character.weapon
+  const base = WEAPONS[w.baseKey]
+  const td = WEAPON_TRAITS[w.trait]
+  if (!base || !td) return 15
+  const atkPct = (td.effects.공격력_pct ?? 0) + (td.effects.전스탯_pct ?? 0)
+  return base.baseAtk * (w.coef + atkPct) * base.speedCoef
+}
+
+// 마법 무기용 마력계수 추정 (stats.ts와 동일 공식: clamp(1 + (총마력 - 15) × 0.05, 0.1, 1.8))
+//   캐릭터 마력 + 갑옷 base/trait 마력 + 무기 trait 마력
+function estimateMagicCoef(character: Character | null | undefined, viewedWeapon: ItemInstance): number {
+  const wEffMp = (WEAPON_TRAITS[viewedWeapon.trait]?.effects.마력 ?? 0)
+  let baseMp = 15  // 캐릭터 없으면 magicCoef = 1.0 (중립)
+  let armorBoost = 0
+  if (character) {
+    baseMp = character.stats.마력 ?? 15
+    if (character.armor) {
+      const ab = ARMORS[character.armor.baseKey as keyof typeof ARMORS]
+      armorBoost += ab?.mpBonus ?? 0
+      armorBoost += ARMOR_TRAITS[character.armor.trait]?.effects.마력 ?? 0
+    }
+  }
+  const totalMp = baseMp + armorBoost + wEffMp
+  const coef = 1 + (totalMp - 15) * 0.05
+  return Math.max(0.1, Math.min(1.8, coef))
 }
 
 // 무기: 공격벨류 위주
-function computeWeaponValue(w: ItemInstance): ItemValueBreakdown {
+function computeWeaponValue(w: ItemInstance, character?: Character | null): ItemValueBreakdown {
   const base = WEAPONS[w.baseKey]
   const td = WEAPON_TRAITS[w.trait]
   if (!base || !td) return { atkValue: 0, defValue: 0, atkParts: [], defParts: [] }
@@ -45,14 +75,24 @@ function computeWeaponValue(w: ItemInstance): ItemValueBreakdown {
   const atkParts: ValuePart[] = []
   const defParts: ValuePart[] = []
 
-  // 1) 종합 공격력 (DPS) = baseAtk × (coef + trait%) × speedCoef
+  // 1) 종합 공격력 (DPS) = baseAtk × (coef + trait%) × speedCoef × armorSpeedMult × (마법무기면 magicCoef)
+  //    캐릭터에 갑옷이 장착돼 있으면 갑옷의 공속 배율도 곱해 실효 DPS 반영
+  //    마법 무기는 캐릭터의 마력 + 갑옷/특성 마력 보너스로 마력계수 산출해 곱함
   const atkPct = (td.effects.공격력_pct ?? 0) + (td.effects.전스탯_pct ?? 0)
   const rawAtk = base.baseAtk * (w.coef + atkPct)
-  const dps = rawAtk * base.speedCoef
+  const armorSpeed = character?.armor ? (ARMORS[character.armor.baseKey as keyof typeof ARMORS]?.speedMult ?? 1) : 1
+  let magicCoef = 1
+  let magicNote = ''
+  if (base.isMagic) {
+    magicCoef = estimateMagicCoef(character, w)
+    magicNote = ` × ${magicCoef.toFixed(2)}(마력계수)`
+  }
+  const dps = rawAtk * base.speedCoef * armorSpeed * magicCoef
+  const armorSpeedNote = armorSpeed !== 1 ? ` × ${armorSpeed.toFixed(2)}(갑옷 공속)` : ''
   atkParts.push({
-    label: '평균 DPS',
+    label: base.isMagic ? '평균 마법 공격력' : '평균 공격력',
     value: dps,
-    note: `${base.baseAtk}(base) × (${w.coef}(coef) + ${atkPct.toFixed(2)}(trait)) × ${base.speedCoef}(공속)`,
+    note: `${base.baseAtk}(기본) × (${w.coef}(등급) + ${atkPct.toFixed(2)}(특성)) × ${base.speedCoef}(공속)${armorSpeedNote}${magicNote}`,
   })
 
   // 2) 명중 — 공격 기여 (적 회피 무력화)
@@ -100,7 +140,7 @@ function computeWeaponValue(w: ItemInstance): ItemValueBreakdown {
 }
 
 // 갑옷: 방어벨류 위주
-function computeArmorValue(a: ItemInstance): ItemValueBreakdown {
+function computeArmorValue(a: ItemInstance, character?: Character | null): ItemValueBreakdown {
   const base = ARMORS[a.baseKey as keyof typeof ARMORS]
   const td = ARMOR_TRAITS[a.trait]
   if (!base || !td) return { atkValue: 0, defValue: 0, atkParts: [], defParts: [] }
@@ -114,7 +154,7 @@ function computeArmorValue(a: ItemInstance): ItemValueBreakdown {
   defParts.push({
     label: '방어력',
     value: rawDef,
-    note: `${base.baseDef}(base) × 2 × (${a.coef}(coef) + ${defPct.toFixed(2)}(trait))`,
+    note: `${base.baseDef}(기본) × 2 × (${a.coef}(등급) + ${defPct.toFixed(2)}(특성))`,
   })
 
   // 2) 회피 (갑옷 base + 특성)
@@ -132,14 +172,16 @@ function computeArmorValue(a: ItemInstance): ItemValueBreakdown {
     defParts.push({ label: '마력 보너스 (저항↑)', value: mpBonus * 0.2, note: `+${mpBonus} (×0.2)` })
   }
 
-  // 5) 속도 배율 → 공격에 영향
+  // 5) 속도 배율 → 공격에 영향 (실제 무기 DPS 비례 환산)
+  //    캐릭터 무기가 있으면 그 DPS 기준, 없으면 평균 추정치(15)
   const speedMult = base.speedMult
   if (Math.abs(speedMult - 1) > 0.001) {
-    const speedAtkDelta = (speedMult - 1) * 20
+    const charDps = estimateCharWeaponDps(character)
+    const speedAtkDelta = (speedMult - 1) * charDps
     atkParts.push({
-      label: speedMult > 1 ? '공속 + (가죽갑/로브)' : '공속 - (판금/중갑)',
+      label: speedMult > 1 ? '공속 가속 (가죽갑/로브)' : '공속 감속 (판금/중갑)',
       value: speedAtkDelta,
-      note: `×${speedMult.toFixed(2)}`,
+      note: `×${speedMult.toFixed(2)} × 공격력 ${charDps.toFixed(1)}`,
     })
   }
 

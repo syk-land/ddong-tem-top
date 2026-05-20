@@ -63,16 +63,34 @@ function bumpActivity() {
   if (expanded.value) scheduleAutoCollapse()
 }
 
-function setSpeed(s: number) {
-  game.setCombatSpeed(s)
+async function setSpeed(s: number) {
   sfx.click()
   bumpActivity()
+  // 4배속은 광고 시청 후 사용 (PoC: 모달만 — 실제 광고 SDK는 별도 연동)
+  if (s === 4 && game.combatSpeed !== 4) {
+    const ok = await game.confirmModal('광고를 보고 4배속을 사용하시겠습니까?', {
+      title: '광고 시청',
+      okLabel: '예 (광고 보기)',
+      cancelLabel: '아니오',
+    })
+    if (!ok) return
+  }
+  game.setCombatSpeed(s)
 }
 
-function toggleAutoEnter() {
-  game.setAutoEnter(!game.autoEnter)
+async function toggleAutoEnter() {
   sfx.click()
   bumpActivity()
+  // OFF → ON 전환만 광고 (ON → OFF 는 즉시 해제)
+  if (!game.autoEnter) {
+    const ok = await game.confirmModal('광고를 보고 자동 진입을 사용하시겠습니까?', {
+      title: '광고 시청',
+      okLabel: '예 (광고 보기)',
+      cancelLabel: '아니오',
+    })
+    if (!ok) return
+  }
+  game.setAutoEnter(!game.autoEnter)
 }
 
 function expand() {

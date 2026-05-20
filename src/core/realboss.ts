@@ -54,7 +54,7 @@ export function pickLatestRecord(meta: MetaBonuses): CharacterRecord | null {
 //   레전드 상급(coef 3.0+) 무기 + 능력치 120pt 캐릭터의 DPS 시 ~30턴 클리어 → HP 약 +3.0배
 //   능력치 90pt 평범한 캐릭터는 보스 ATK가 압도 → HP 거의 못 깎음
 export const REAL_BOSS_HP_MULT = 3.0
-export const REAL_BOSS_ATK_MULT = 1.8
+export const REAL_BOSS_ATK_MULT = 9.0  // v6.1: 1.8 → 9.0 (×5 강화). 평범 캐릭터에게 한 방 압도하도록.
 export const REAL_BOSS_DEF_MULT = 1.6
 
 export function makeRealBoss(theme: ChapterTheme): MonsterInstance {

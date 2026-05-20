@@ -13,7 +13,7 @@ const inventoryCap = computed(() => game.run?.inventoryCap ?? 0)
 
 async function equipItem(idx: number) {
   const result = game.equipFromInventory(idx)
-  if (!result.ok) await game.alertModal(result.reason ?? '장착 실패', '⚠️ 장착 실패')
+  if (!result.ok) await game.alertModal(result.reason ?? '장착 실패', '장착 실패')
 }
 async function discardItem(idx: number) {
   const item = inventory.value[idx]
@@ -26,7 +26,7 @@ async function discardItem(idx: number) {
 }
 async function unequipSlot(slot: 'weapon' | 'armor') {
   const result = game.unequipToInventory(slot)
-  if (!result.ok) await game.alertModal(result.reason ?? '해제 실패', '⚠️ 해제 실패')
+  if (!result.ok) await game.alertModal(result.reason ?? '해제 실패', '해제 실패')
 }
 </script>
 
@@ -39,7 +39,7 @@ async function unequipSlot(slot: 'weapon' | 'armor') {
     <div class="panel max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-3">
       <header class="flex items-center justify-between sticky top-0 bg-bg-panel z-10 -mx-3 px-3 py-1">
         <div class="text-lg font-bold">
-          🎒 인벤토리
+          인벤토리
           <span class="text-xs text-gray-500 ml-2">{{ inventory.length }} / {{ inventoryCap }}</span>
         </div>
         <button class="text-gray-400 hover:text-white text-xl leading-none" @click="emit('close')">✕</button>
@@ -51,7 +51,7 @@ async function unequipSlot(slot: 'weapon' | 'armor') {
         <!-- 무기 -->
         <div class="bg-bg-tertiary rounded p-2 space-y-2">
           <div class="flex items-center justify-between gap-2">
-            <div class="text-[10px] text-gray-500">⚔️ 무기</div>
+            <div class="text-[10px] text-gray-500">무기</div>
             <button
               v-if="c.weapon"
               class="text-xs px-2 py-1 rounded bg-slate-700 text-gray-300 hover:bg-slate-600"
@@ -64,7 +64,7 @@ async function unequipSlot(slot: 'weapon' | 'armor') {
         <!-- 갑옷 -->
         <div class="bg-bg-tertiary rounded p-2 space-y-2">
           <div class="flex items-center justify-between gap-2">
-            <div class="text-[10px] text-gray-500">🛡️ 갑옷</div>
+            <div class="text-[10px] text-gray-500">갑옷</div>
             <button
               v-if="c.armor"
               class="text-xs px-2 py-1 rounded bg-slate-700 text-gray-300 hover:bg-slate-600"

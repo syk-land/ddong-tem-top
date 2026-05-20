@@ -358,7 +358,8 @@ export function floorContentImage(floorType: FloorEventType, _theme: _CT, _isHar
     case 'shop':
       return shopIconUrl()
     case 'treasure':
-      return '/images/ITEM/보물상자.png'
+      // 적절한 보물상자 일러스트가 없음 — null 반환해 배경+라벨만 표시
+      return null
     case 'healing_spring':
       return null
     case 'special_event':

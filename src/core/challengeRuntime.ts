@@ -285,9 +285,6 @@ export function onShopBuy(ctx: ChallengeContext, item: ItemInstance, price: numb
       ac.counters.totalGoldSpent = (ac.counters.totalGoldSpent ?? 0) + price
       if ((ac.counters.totalGoldSpent ?? 0) > 300) ac.failed = true
     }
-    if (f.trackNoPotionPurchase) {
-      // climetop엔 포션 시스템 X — 일단 모든 구매를 포션 취급 X (스킵)
-    }
   })
 }
 
@@ -299,6 +296,9 @@ export function onShopRefresh(ctx: ChallengeContext, chapter: number, cost: numb
     if (f.trackUseRefreshEveryChapter) {
       if (!ac.counters.refreshUsedByChapter) ac.counters.refreshUsedByChapter = {}
       ac.counters.refreshUsedByChapter[chapter] = true
+    }
+    if (f.trackNoRefreshEver) {
+      ac.failed = true
     }
     if (f.trackTotalSpendUnder300) {
       ac.counters.totalGoldSpent = (ac.counters.totalGoldSpent ?? 0) + cost

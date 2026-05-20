@@ -115,6 +115,7 @@ interface GameState {
   realBossTheme: ChapterTheme | null
   realBossMonster: MonsterInstance | null
   realBossWeakRecord: CharacterRecord | null
+  realBossDeclinedThisSession: boolean   // 이번 세션에서 진짜 보스 도전을 거절했는지 (메뉴 무한 재트리거 방지)
   realBossInitialMaxHp: number   // 도전 시작 시 보스 최대 HP (깎은 비율 계산용)
   realBossResultRatio: number    // 결과 화면에서 표시할 깎은 비율
   // 인트로 만화 (스플래시 후 만화 → 다시보기)
@@ -198,6 +199,7 @@ export const useGameStore = defineStore('game', {
     realBossTheme: null,
     realBossMonster: null,
     realBossWeakRecord: null,
+    realBossDeclinedThisSession: false,
     realBossInitialMaxHp: 0,
     realBossResultRatio: 0,
     introVisible: false,
@@ -283,6 +285,9 @@ export const useGameStore = defineStore('game', {
     // 저장된 진행 중 상태가 있으면 복원 (뒤로가기/새로고침 후에도 같은 챌린지/주사위 결과 유지)
     // 없으면 새로 챌린지 뽑고 주사위 3개 초기화
     startCharacterCreation() {
+      // 4배속/자동 진입은 새 런마다 광고 재시청을 요구 — 캐릭터 생성 진입 시점에 리셋
+      if (this.combatSpeed === 4) this.setCombatSpeed(1)
+      if (this.autoEnter) this.setAutoEnter(false)
       const c = loadCreation()
       if (c) {
         this.challengeOptions = c.challengeKeys
@@ -438,7 +443,7 @@ export const useGameStore = defineStore('game', {
             if (this.autoEnter) {
               this.advance()
             } else {
-              this.alertModal('⛲ 절대 정수 챌린지: 회복샘 이용 불가', '챌린지 제약')
+              this.alertModal('절대 정수 챌린지: 회복샘 이용 불가', '챌린지 제약')
                 .then(() => this.advance())
             }
             break
@@ -449,7 +454,7 @@ export const useGameStore = defineStore('game', {
           if (this.autoEnter) {
             this.advance()
           } else {
-            this.alertModal(`회복샘에서 HP +${heal} 회복했다.`, '⛲ 회복샘').then(() => this.advance())
+            this.alertModal(`회복샘에서 HP +${heal} 회복했다.`, '회복샘').then(() => this.advance())
           }
           break
         }
@@ -513,9 +518,21 @@ export const useGameStore = defineStore('game', {
         const kind = Math.random() < 0.5 ? 'weapon' : 'armor'
         rewards.push(rollItem({ kind, chapter, source: 'treasure' }))
       }
-      // 자동 인벤토리 비교 → 모달로 알림
+      // 자동 진입 모드면 모달 건너뛰고 바로 진행 (회복샘과 동일 패턴)
+      const applyRewards = () => {
+        if (this.run) {
+          for (const item of rewards) {
+            this.receiveItem(item)
+          }
+        }
+      }
+      if (this.autoEnter) {
+        applyRewards()
+        this.advance()
+        return
+      }
       const names = rewards.map((r) => `${r.trait} ${r.grade} ${r.baseKey}`).join('\n• ')
-      this.alertModal(`• ${names}`, '📦 보물상자 획득').then(() => {
+      this.alertModal(`• ${names}`, '보물상자 획득').then(() => {
         if (this.run) {
           for (const item of rewards) {
             this.receiveItem(item)
@@ -718,7 +735,7 @@ export const useGameStore = defineStore('game', {
         evaluateFinalChallenges(this.challengeContext, this.run.character)
       }
       this.pendingClear = computePendingBonus(this.run.character)
-      // 챌린지 메타 보너스 추가
+      // 챌린지 메타 보너스 추가 (rank 보너스 1~10 + 챌린지 metaBonus 합산, 챌린지 클리어 시만)
       if (this.challengeContext && this.pendingClear) {
         const extra = calcChallengeMetaBonus(this.challengeContext)
         if (extra > 0) {
@@ -744,7 +761,6 @@ export const useGameStore = defineStore('game', {
       const before = this.meta.totalBonusStats ?? 0
       this.meta.clearCount = (this.meta.clearCount ?? 0) + 1
       this.meta.totalBonusStats = before + bonus
-      console.log(`[confirmClearBonus] ${before} + ${bonus} = ${this.meta.totalBonusStats}, clearCount=${this.meta.clearCount}`)
       saveMeta(this.meta)
       // 보너스 소진 표시
       this.pendingClear = null
@@ -928,7 +944,7 @@ export const useGameStore = defineStore('game', {
       if (!this.run) return
       const key = pickOne(SPECIAL_EVENTS) as SpecialEventKey
       const info = SPECIAL_EVENT_INFO[key]
-      await this.alertModal(info.description, `✨ ${info.name}`, npcIconUrl(key))
+      await this.alertModal(info.description, `${info.name}`, npcIconUrl(key))
 
       let pvpStarted = false
       switch (key) {
@@ -978,7 +994,7 @@ export const useGameStore = defineStore('game', {
         await this.alertModal('🤝 동료 모험가다! 다음 상점 새로고침 슬롯 +1', '동료 발견')
         return false
       }
-      await this.alertModal('⚔️ 모험가는 적이었다! 전투 개시!', '악당 PVP')
+      await this.alertModal('모험가는 적이었다! 전투 개시!', '악당 PVP')
       const themeDef = CHAPTER_THEMES[currentChapter(this.run).theme]
       const baseTemplate = pickOne(themeDef.normalMonsters)
       const template = {
@@ -1055,7 +1071,7 @@ export const useGameStore = defineStore('game', {
       if (!this.run) return
       const stats: StatKey[] = ['힘', '민첩', '체력', '마력', '행운']
       const stat = await this.showListDialog<StatKey>({
-        title: '🎲 저주받은 도박사의 룰렛',
+        title: '저주받은 도박사의 룰렛',
         message: '베팅할 스탯을 선택. 결과: 대성공 +5 ~ 대실패 -5 (행운이 EV 결정)',
         options: stats.map((s) => ({
           label: s,
@@ -1087,7 +1103,7 @@ export const useGameStore = defineStore('game', {
       while (exchangeCount < 3) {
         const proceed = await this.confirmModal(
           `선택 스탯 -3 → 다른 스탯 +2\n(${exchangeCount + 1}/3회)`,
-          { title: '⚖️ 등가교환 제단', okLabel: '교환', cancelLabel: '종료' }
+          { title: '등가교환 제단', okLabel: '교환', cancelLabel: '종료' }
         )
         if (!proceed) break
         const from = await this.showListDialog<StatKey>({
@@ -1128,7 +1144,7 @@ export const useGameStore = defineStore('game', {
       while (true) {
         const c = this.run.character
         const stat = await this.showListDialog<StatKey | null>({
-          title: '🕳️ 암시장',
+          title: '암시장',
           message: `보유 ${c.gold}G — 스탯 +1 구매`,
           options: allStats.map((s) => ({
             label: `${s} +1`,
@@ -1147,7 +1163,7 @@ export const useGameStore = defineStore('game', {
         // 구매 확인 모달
         const ok = await this.confirmModal(
           `${stat} +1 을 ${price}G 에 구매하시겠습니까?\n(현재 ${c.stats[stat]} → ${c.stats[stat] + 1}, 보유 ${c.gold}G → ${c.gold - price}G)`,
-          { title: '🕳️ 암시장 거래 확인', okLabel: '구매', cancelLabel: '취소' },
+          { title: '암시장 거래 확인', okLabel: '구매', cancelLabel: '취소' },
         )
         if (!ok) continue
         if (!buyStatPoint(c, chapter, stat)) {
@@ -1165,22 +1181,22 @@ export const useGameStore = defineStore('game', {
       const w = c.weapon
       const a = c.armor
       if (!w && !a) {
-        await this.alertModal('수집가가 빈손인 당신을 보고 그냥 떠났다.', '📦 탐욕의 수집가')
+        await this.alertModal('수집가가 빈손인 당신을 보고 그냥 떠났다.', '탐욕의 수집가')
         return false
       }
       const highest = w && a ? (w.tier >= a.tier ? w : a) : (w ?? a)!
       const give = await this.confirmModal(
         `${highest.trait} ${highest.grade} ${highest.baseKey} (티어 ${highest.tier})\n\n` +
           `양도 시 무작위 스탯 +1, 거절 시 보스 70% 강도 PVP`,
-        { title: '📦 탐욕의 수집가가 요구한다', okLabel: '양도', cancelLabel: '거절' }
+        { title: '탐욕의 수집가가 요구한다', okLabel: '양도', cancelLabel: '거절' }
       )
       if (give) {
         const result = greedyCollectorTake(c)
-        await this.alertModal(`${result.randomStat} +1`, '✓ 양도 완료')
+        await this.alertModal(`${result.randomStat} +1`, '양도 완료')
         saveRun(this.run)
         return false
       }
-      await this.alertModal('수집가가 격노한다!', '⚔️ 전투 개시')
+      await this.alertModal('수집가가 격노한다!', '전투 개시')
       const themeDef = CHAPTER_THEMES[currentChapter(this.run).theme]
       const template = {
         ...themeDef.boss,
@@ -1318,7 +1334,7 @@ export const useGameStore = defineStore('game', {
       if (this.challengeContext) {
         const check = canEquipItem(item, this.challengeContext)
         if (!check.ok) {
-          await this.alertModal(check.reason ?? '챌린지 제약으로 장착 불가', '⚠️ 챌린지')
+          await this.alertModal(check.reason ?? '챌린지 제약으로 장착 불가', '챌린지')
           return false
         }
       }
@@ -1330,14 +1346,14 @@ export const useGameStore = defineStore('game', {
           // 미니멀리스트: 인벤토리 0칸 → 기존 장비 폐기 동의
           const ok = await this.confirmModal(
             `기존 장비 "${prev.trait} ${prev.grade} ${prev.baseKey}"를 보관할 인벤토리가 없습니다.\n폐기하고 새 장비를 장착할까요?`,
-            { title: '⚠️ 인벤토리 없음', danger: true, okLabel: '폐기 후 장착', cancelLabel: '구매 취소' }
+            { title: '인벤토리 없음', danger: true, okLabel: '폐기 후 장착', cancelLabel: '구매 취소' }
           )
           if (!ok) return false
           prevDiscarded = true
         } else if (this.run.inventory.length >= this.run.inventoryCap) {
           const ok = await this.confirmModal(
             `기존 장비 "${prev.trait} ${prev.grade} ${prev.baseKey}"를 넣을 인벤토리 빈 자리가 없습니다.\n폐기하고 새 장비를 장착할까요?`,
-            { title: '⚠️ 인벤토리 가득', danger: true, okLabel: '폐기 후 장착', cancelLabel: '구매 취소' }
+            { title: '인벤토리 가득', danger: true, okLabel: '폐기 후 장착', cancelLabel: '구매 취소' }
           )
           if (!ok) return false
           prevDiscarded = true
@@ -1392,7 +1408,7 @@ export const useGameStore = defineStore('game', {
       if (!this.run || !this.shop) return false
       // 챌린지: 리롤 금지령 (noShopRefresh) — 새로고침 차단
       if (this.challengeContext && shopRefreshForbidden(this.challengeContext)) {
-        this.alertModal('🔄 리롤 금지령 챌린지: 새로고침 불가', '챌린지 제약')
+        this.alertModal('리롤 금지령 챌린지: 새로고침 불가', '챌린지 제약')
         return false
       }
       const chapter = currentChapter(this.run).chapter
@@ -1428,15 +1444,31 @@ export const useGameStore = defineStore('game', {
     // 메인 메뉴 진입 시 카운터 도달했는지 확인하고 도전 화면으로 전환
     triggerRealBossIfDue(): boolean {
       if (!isChallengeDue(this.meta)) return false
+      if (this.realBossDeclinedThisSession) return false  // 거절 후 무한 재트리거 방지
       this.startRealBoss()
       return true
     },
 
     // 도전 화면 진입: 가장 최근 클리어 캐릭터 부활 + 진짜 보스 생성.
     // "탑을 5번 오른 그 캐릭터로 최종 보스에 도전" — 게임 최종 목표.
-    startRealBoss() {
+    //   * 도전 직전에 일러스트 + "진짜 보스에 도전하시겠습니까?" 확인 모달.
+    //   * "예" 누른 후에만 totalGoldEarned 소진 + 도전 화면으로 진입.
+    async startRealBoss() {
       const latest = pickLatestRecord(this.meta)
       if (!latest) return
+
+      const ok = await this.confirmModal('진짜 보스에 도전하시겠습니까?', {
+        title: '진짜 보스의 부름',
+        okLabel: '도전하기',
+        cancelLabel: '나중에',
+        imageUrl: '/images/REALBOSS/진짜보스직전.png',
+      })
+      if (!ok) {
+        // 누적 골드는 보존 — 이번 세션은 거절 처리 (메뉴 재진입 시 다시 안 뜸)
+        this.realBossDeclinedThisSession = true
+        return
+      }
+
       consumeChallengeTrigger(this.meta)
       this.realBossWeakRecord = latest  // (필드명은 호환 위해 유지)
       this.realBossTheme = latest.lastChapterTheme
@@ -1474,6 +1506,7 @@ export const useGameStore = defineStore('game', {
     // Combat 종료 후 호출 — realboss 결과 처리.
     //   * 깎은 비율 × 60pt 만큼 permanentStartBonus 영구 누적 (다음 캐릭터부터 시작 스탯 ↑)
     //   * 비율 100% (완전 클리어) → realBossDefeated = true (게임 클리어)
+    //   * 누적 보너스 풀(totalBonusStats) 이 자리에서 0 리셋 — 어떤 경로로 캐릭터 생성에 가도 안전
     finishRealBossCombat() {
       const boss = this.realBossMonster
       const initialHp = this.realBossInitialMaxHp
@@ -1492,23 +1525,21 @@ export const useGameStore = defineStore('game', {
       if (ratio >= 0.9999) {
         this.meta.realBossDefeated = true  // 게임 클리어
       }
-      // 누적 풀 리셋은 proceedFromRealBossResult (튜토리얼 인트로 시작 시점)에서 처리
+      // 누적 풀 리셋 — 결과 화면 버튼 클릭 여부와 무관하게 보스전 종료 시점에 처리
+      this.meta.totalBonusStats = 0
+      this.meta.allocations = {}
       saveMeta(this.meta)
       this.combat = null
       this.screen = 'realboss_result'
     },
 
     // 결과 화면 → 만화(t1~t3) → 캐릭터 생성
+    //   누적 풀 리셋은 finishRealBossCombat 에서 이미 처리. 여기선 라우팅만.
     proceedFromRealBossResult() {
       this.realBossMonster = null
       this.realBossWeakRecord = null
       this.realBossTheme = null
       this.realBossInitialMaxHp = 0
-      // v6.1: 진짜 보스전 종료 후 튜토리얼 인트로 시점에 누적 풀 리셋
-      console.log(`[realBoss] proceed → totalBonusStats ${this.meta.totalBonusStats} → 0 리셋`)
-      this.meta.totalBonusStats = 0
-      this.meta.allocations = {}
-      saveMeta(this.meta)
       this.openIntroComic('afterRealBoss')
     },
 

@@ -21,7 +21,7 @@ function confirm() {
     :style="{ backgroundImage: `linear-gradient(rgba(10,14,26,0.78), rgba(10,14,26,0.92)), url(${bgUrl})` }"
   >
     <div class="panel text-center space-y-3 w-full">
-      <h1 class="text-3xl font-bold text-grade-legend">🏆 탑 클리어!</h1>
+      <h1 class="text-3xl font-bold text-grade-legend">탑 클리어!</h1>
       <div class="text-sm text-gray-400">최종 클리어 등급</div>
       <img v-if="rankIconUrl(pending.rank)" :src="rankIconUrl(pending.rank)!" :alt="pending.rank" class="mx-auto h-24 w-auto" />
       <div :class="[rankColorClass[pending.rank], 'text-6xl font-bold']">{{ pending.rank }}</div>

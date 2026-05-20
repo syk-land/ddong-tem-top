@@ -50,13 +50,13 @@ async function resetMeta() {
       </header>
 
       <div class="space-y-3">
-        <button class="btn-primary w-full" @click="startNew">🆕 새 캐릭터 (3챌린지 선택)</button>
+        <button class="btn-primary w-full" @click="startNew">새 캐릭터 (3챌린지 선택)</button>
         <button
           v-if="game.hasSavedRun"
           class="btn-secondary w-full"
           @click="loadGame"
         >
-          ▶ 이어하기
+          이어하기
         </button>
         <button class="btn-secondary w-full text-xs opacity-70" @click="resetMeta">
           데이터 리셋

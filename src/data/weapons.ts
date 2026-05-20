@@ -98,22 +98,22 @@ const ELEMENT_SKILL: Record<Element, string> = {
 }
 
 for (const el of ELEMENTS) {
-  // 완드 — MP 효율 + 빠른 발사 (마법무기 약화 v6)
+  // 완드 — MP 효율 + 빠른 발사 (마법무기 약화 v6.1)
   WEAPONS[`완드_${el}`] = {
-    key: `완드_${el}`, category: 'magic', baseAtk: 2, speedCoef: 1.1,
-    accBonus: 10, mpBonus: -3, magicPenBonus: 0, penBonus: 0,
+    key: `완드_${el}`, category: 'magic', baseAtk: 2, speedCoef: 1.05,
+    accBonus: 5, mpBonus: -3, magicPenBonus: 0, penBonus: 0,
     isMagic: true, element: el, autoSkill: ELEMENT_SKILL[el],
   }
   // 스태프 — 균형 + 마법 관통
   WEAPONS[`스태프_${el}`] = {
-    key: `스태프_${el}`, category: 'magic', baseAtk: 5, speedCoef: 0.75,
-    accBonus: 10, mpBonus: 0, magicPenBonus: 5, penBonus: 0,
+    key: `스태프_${el}`, category: 'magic', baseAtk: 4, speedCoef: 0.75,
+    accBonus: 5, mpBonus: 0, magicPenBonus: 3, penBonus: 0,
     isMagic: true, element: el, autoSkill: ELEMENT_SKILL[el],
   }
   // 마도서 — 강력 + MP 비싸고 명중 -
   WEAPONS[`마도서_${el}`] = {
-    key: `마도서_${el}`, category: 'magic', baseAtk: 7, speedCoef: 0.8,
-    accBonus: -10, mpBonus: 3, magicPenBonus: 8, penBonus: 0,
+    key: `마도서_${el}`, category: 'magic', baseAtk: 6, speedCoef: 0.8,
+    accBonus: -10, mpBonus: 3, magicPenBonus: 5, penBonus: 0,
     isMagic: true, element: el, autoSkill: ELEMENT_SKILL[el],
   }
 }
