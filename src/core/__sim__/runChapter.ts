@@ -352,7 +352,188 @@ function simRunClear2(character: Character): boolean {
   return true
 }
 
+// ============================================================
+// Custom 시뮬 — 분배 6종 (균등 + 스탯별 몰빵) × 등급페어 2종 × 갑옷 4종
+//   사용: SIM_MODE=custom npm run sim
+// ============================================================
+const CUSTOM_BUILDS: { name: string; stats: Stats }[] = [
+  { name: '균등',     stats: { 힘: 12, 민첩: 12, 체력: 12, 마력: 12, 행운: 12 } },
+  { name: '힘몰빵',   stats: { 힘: 40, 민첩: 5,  체력: 5,  마력: 5,  행운: 5  } },
+  { name: '민첩몰빵', stats: { 힘: 5,  민첩: 40, 체력: 5,  마력: 5,  행운: 5  } },
+  { name: '체력몰빵', stats: { 힘: 5,  민첩: 5,  체력: 40, 마력: 5,  행운: 5  } },
+  { name: '마력몰빵', stats: { 힘: 5,  민첩: 5,  체력: 5,  마력: 40, 행운: 5  } },
+  { name: '행운몰빵', stats: { 힘: 5,  민첩: 5,  체력: 5,  마력: 5,  행운: 40 } },
+]
+
+const GRADE_PAIRS: { name: string; wGrade: Grade; aGrade: Grade }[] = [
+  { name: '스페셜·스페셜', wGrade: '스페셜', aGrade: '스페셜' },
+  { name: '레전드·레전드', wGrade: '레전드', aGrade: '레전드' },
+]
+
+function makeCharCustom(wKey: string, aKey: string, wGrade: Grade, aGrade: Grade, stats: Stats): Character {
+  const weapon = rollItem({ kind: 'weapon', forceBaseKey: wKey, forceGrade: wGrade, forceTraitTier: '보통' })
+  const armor  = rollItem({ kind: 'armor',  forceBaseKey: aKey, forceGrade: aGrade, forceTraitTier: '보통' })
+  return {
+    stats: { ...stats },
+    hp: computeMaxHp(stats.체력),
+    maxHp: computeMaxHp(stats.체력),
+    mp: computeMaxMp(stats.마력),
+    maxMp: computeMaxMp(stats.마력),
+    weapon, armor,
+    gold: 100,
+    statuses: [],
+    actionGauge: 0,
+  }
+}
+
+export function runCliCustom() {
+  const RUNS = 200
+  console.log(`\n=== Custom 시뮬 — 분배 ${CUSTOM_BUILDS.length}종 × 등급페어 ${GRADE_PAIRS.length}종 × 갑옷 ${ARMOR_KEYS.length}종 × ${RUNS} runs ===`)
+  console.log(`(총 60pt, 무기는 매 판 랜덤 추첨, 트레잇=보통 고정)\n`)
+
+  for (const pair of GRADE_PAIRS) {
+    console.log(`\n## 무기 ${pair.wGrade} · 갑옷 ${pair.aGrade}`)
+    const header = '분배       | ' + ARMOR_KEYS.map((a) => a.padStart(8)).join(' | ') + ' |    평균'
+    console.log(header)
+    console.log('-----------+' + ARMOR_KEYS.map(() => '----------').join('+') + '+---------')
+    for (const build of CUSTOM_BUILDS) {
+      const cells: number[] = []
+      for (const armorKey of ARMOR_KEYS) {
+        let wins = 0
+        for (let i = 0; i < RUNS; i++) {
+          const wKey = WEAPON_KEYS[Math.floor(Math.random() * WEAPON_KEYS.length)]
+          const char = makeCharCustom(wKey, armorKey, pair.wGrade, pair.aGrade, build.stats)
+          if (simRunClear2(char)) wins++
+        }
+        cells.push(wins / RUNS)
+      }
+      const avg = cells.reduce((a, b) => a + b, 0) / cells.length
+      const cellsStr = cells.map((r) => formatPct(r).padStart(8)).join(' | ')
+      console.log(`${build.name.padEnd(10)} | ${cellsStr} | ${formatPct(avg).padStart(7)}`)
+    }
+  }
+  console.log('\n=== Custom 완료 ===\n')
+}
+
+export function runCliCustomMagic() {
+  const RUNS = 200
+  const MAGIC_WEAPONS = ['완드', '스태프', '마도서']
+  const FIXED_ARMOR = '로브'
+  console.log(`\n=== Custom 시뮬 (마법 빌드 강제) — 분배 ${CUSTOM_BUILDS.length}종 × 등급페어 ${GRADE_PAIRS.length}종 × ${RUNS} runs ===`)
+  console.log(`(무기 ${MAGIC_WEAPONS.join('/')} 매 판 랜덤, 갑옷 로브 고정, trait=보통, magicSynergy=1.7 발동)\n`)
+
+  for (const pair of GRADE_PAIRS) {
+    console.log(`\n## 무기 ${pair.wGrade} · 갑옷 ${pair.aGrade}`)
+    console.log('분배       | 클리어률')
+    console.log('-----------+---------')
+    for (const build of CUSTOM_BUILDS) {
+      let wins = 0
+      for (let i = 0; i < RUNS; i++) {
+        const wKey = MAGIC_WEAPONS[Math.floor(Math.random() * MAGIC_WEAPONS.length)]
+        const char = makeCharCustom(wKey, FIXED_ARMOR, pair.wGrade, pair.aGrade, build.stats)
+        if (simRunClear2(char)) wins++
+      }
+      console.log(`${build.name.padEnd(10)} | ${formatPct(wins / RUNS).padStart(7)}`)
+    }
+  }
+  console.log('\n=== Custom 마법 완료 ===\n')
+}
+
+export function runCliCustomBow() {
+  const RUNS = 200
+  const BOW_WEAPONS = ['숏보우', '롱보우', '석궁']
+  const BOW_BUILDS = CUSTOM_BUILDS.filter((b) => b.name === '균등' || b.name === '민첩몰빵')
+  console.log(`\n=== Custom 시뮬 (활 빌드 강제) — 분배 ${BOW_BUILDS.length}종 × 등급페어 ${GRADE_PAIRS.length}종 × 갑옷 ${ARMOR_KEYS.length}종 × ${RUNS} runs ===`)
+  console.log(`(무기 ${BOW_WEAPONS.join('/')} 매 판 랜덤, ranged 카테고리 — 물리 atk = (힘 + 민첩×0.5) × ...)\n`)
+
+  for (const pair of GRADE_PAIRS) {
+    console.log(`\n## 무기 ${pair.wGrade} · 갑옷 ${pair.aGrade}`)
+    const header = '분배       | ' + ARMOR_KEYS.map((a) => a.padStart(8)).join(' | ') + ' |    평균'
+    console.log(header)
+    console.log('-----------+' + ARMOR_KEYS.map(() => '----------').join('+') + '+---------')
+    for (const build of BOW_BUILDS) {
+      const cells: number[] = []
+      for (const armorKey of ARMOR_KEYS) {
+        let wins = 0
+        for (let i = 0; i < RUNS; i++) {
+          const wKey = BOW_WEAPONS[Math.floor(Math.random() * BOW_WEAPONS.length)]
+          const char = makeCharCustom(wKey, armorKey, pair.wGrade, pair.aGrade, build.stats)
+          if (simRunClear2(char)) wins++
+        }
+        cells.push(wins / RUNS)
+      }
+      const avg = cells.reduce((a, b) => a + b, 0) / cells.length
+      const cellsStr = cells.map((r) => formatPct(r).padStart(8)).join(' | ')
+      console.log(`${build.name.padEnd(10)} | ${cellsStr} | ${formatPct(avg).padStart(7)}`)
+    }
+  }
+  console.log('\n=== Custom 활 완료 ===\n')
+}
+
+type SimScenario = {
+  build: string
+  stats: Stats
+  weapons: string[]
+  fixedArmor?: string
+}
+
+export function runCliCustomMix() {
+  const RUNS = 200
+  const MAGIC_KEYS = ['완드', '스태프', '마도서']
+  const BOW_KEYS = ['숏보우', '롱보우', '석궁']
+  const NON_MAGIC_KEYS = WEAPON_KEYS.filter((k) => !MAGIC_KEYS.includes(k))
+
+  const SCENARIOS: SimScenario[] = [
+    { build: '균등 (전체)',      stats: { 힘: 12, 민첩: 12, 체력: 12, 마력: 12, 행운: 12 }, weapons: WEAPON_KEYS },
+    { build: '힘몰빵 (전체)',    stats: { 힘: 40, 민첩: 5,  체력: 5,  마력: 5,  행운: 5  }, weapons: WEAPON_KEYS },
+    { build: '체력몰빵 (전체)',  stats: { 힘: 5,  민첩: 5,  체력: 40, 마력: 5,  행운: 5  }, weapons: WEAPON_KEYS },
+    { build: '행운몰빵 (전체)',  stats: { 힘: 5,  민첩: 5,  체력: 5,  마력: 5,  행운: 40 }, weapons: WEAPON_KEYS },
+    { build: '민첩 (마법X)',     stats: { 힘: 5,  민첩: 40, 체력: 5,  마력: 5,  행운: 5  }, weapons: NON_MAGIC_KEYS },
+    { build: '민첩 (활)',        stats: { 힘: 5,  민첩: 40, 체력: 5,  마력: 5,  행운: 5  }, weapons: BOW_KEYS },
+    { build: '마력 (마법+로브)', stats: { 힘: 5,  민첩: 5,  체력: 5,  마력: 40, 행운: 5  }, weapons: MAGIC_KEYS, fixedArmor: '로브' },
+  ]
+
+  console.log(`\n=== Custom MIX — 분배별 조건 무기 × 등급페어 ${GRADE_PAIRS.length}종 × ${RUNS} runs ===\n`)
+  for (const pair of GRADE_PAIRS) {
+    console.log(`\n## 무기 ${pair.wGrade} · 갑옷 ${pair.aGrade}`)
+    const header = '분배              | ' + ARMOR_KEYS.map((a) => a.padStart(8)).join(' | ') + ' |    평균'
+    console.log(header)
+    console.log('------------------+' + ARMOR_KEYS.map(() => '----------').join('+') + '+---------')
+    for (const sc of SCENARIOS) {
+      const cells: number[] = []
+      for (const armorKey of ARMOR_KEYS) {
+        if (sc.fixedArmor && sc.fixedArmor !== armorKey) {
+          cells.push(NaN)
+          continue
+        }
+        let wins = 0
+        for (let i = 0; i < RUNS; i++) {
+          const wKey = sc.weapons[Math.floor(Math.random() * sc.weapons.length)]
+          const char = makeCharCustom(wKey, armorKey, pair.wGrade, pair.aGrade, sc.stats)
+          if (simRunClear2(char)) wins++
+        }
+        cells.push(wins / RUNS)
+      }
+      const valid = cells.filter((v) => !Number.isNaN(v))
+      const avg = valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : 0
+      const cellsStr = cells.map((r) => Number.isNaN(r) ? '       -'.padStart(8) : formatPct(r).padStart(8)).join(' | ')
+      console.log(`${sc.build.padEnd(17)} | ${cellsStr} | ${formatPct(avg).padStart(7)}`)
+    }
+  }
+  console.log('\n=== MIX 완료 ===\n')
+}
+
 if (typeof process !== 'undefined' && process.argv?.[1]?.includes('runChapter')) {
-  runCliV9()
-  runCliMagic()
+  if (process.env.SIM_MODE === 'custom_mix') {
+    runCliCustomMix()
+  } else if (process.env.SIM_MODE === 'custom_bow') {
+    runCliCustomBow()
+  } else if (process.env.SIM_MODE === 'custom_magic') {
+    runCliCustomMagic()
+  } else if (process.env.SIM_MODE === 'custom') {
+    runCliCustom()
+  } else {
+    runCliV9()
+    runCliMagic()
+  }
 }
