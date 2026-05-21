@@ -84,7 +84,7 @@ export function computeEffectiveStats(c: Character): EffectiveStats {
 
   // ── 공격력 (곱셈 모델): stat × baseAtk × coef × (1 + atk_pct) × ATK_K ──
   //   ATK_K: 균등 빌드(노말+보통)에서도 atk이 적 HP에 의미 있는 비율 갖도록 보정
-  //   마법은 스킬 multiplier (2.0~2.7) 가 추가로 곱해지므로 ATK_K 작게
+  //   마법은 스킬 multiplier (4~7) 가 추가로 곱해지므로 ATK_K 작게
   const ATK_K_PHYS = 4.5
   const ATK_K_MAGIC = 2.25
   const baseAtk = wbase?.baseAtk ?? 0

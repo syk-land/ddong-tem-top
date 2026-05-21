@@ -43,33 +43,33 @@ export const SKILLS: Record<string, SkillDef> = {
     description: '체력 × 5% 회복, 상태저항 +30 (10틱간)',
   },
 
-  // === 마법 공격 7종 (v9: MP 대폭 강화 — 마법 빌드 외 사용 어려움) ===
+  // === 마법 공격 7종 (v9: MP 대폭 강화 — 마법 빌드(마력高+로브) 외엔 사용 어려움) ===
   빙결의화살: {
-    key: '빙결의화살', name: '빙결의 화살', mp: 25, kind: 'magic_atk', element: '물',
+    key: '빙결의화살', name: '빙결의 화살', mp: 40, kind: 'magic_atk', element: '물',
     description: '공격력 × 2.2, 30% 둔화',
   },
   화염구: {
-    key: '화염구', name: '화염구', mp: 30, kind: 'magic_atk', element: '불',
+    key: '화염구', name: '화염구', mp: 50, kind: 'magic_atk', element: '불',
     description: '공격력 × 6.5, 25% 점화',
   },
   폭풍칼날: {
-    key: '폭풍칼날', name: '폭풍 칼날', mp: 28, kind: 'magic_atk', element: '바람',
+    key: '폭풍칼날', name: '폭풍 칼날', mp: 45, kind: 'magic_atk', element: '바람',
     description: '공격력 × 1.05 × 3히트, 명중 +50',
   },
   바위충격: {
-    key: '바위충격', name: '바위 충격', mp: 32, kind: 'magic_atk', element: '대지',
+    key: '바위충격', name: '바위 충격', mp: 55, kind: 'magic_atk', element: '대지',
     description: '공격력 × 4.8, 40% 둔화 + 적 방어 -20% (20틱)',
   },
   번개창: {
-    key: '번개창', name: '번개창', mp: 28, kind: 'magic_atk', element: '번개',
+    key: '번개창', name: '번개창', mp: 45, kind: 'magic_atk', element: '번개',
     description: '공격력 × 5.5, 15% 감전 + 적 게이지 -10',
   },
   그림자일격: {
-    key: '그림자일격', name: '그림자 일격', mp: 32, kind: 'magic_atk', element: '암흑',
+    key: '그림자일격', name: '그림자 일격', mp: 50, kind: 'magic_atk', element: '암흑',
     description: '공격력 × 2.2, 적 명중 -20 (20틱)',
   },
   정화의광선: {
-    key: '정화의광선', name: '정화의 광선', mp: 36, kind: 'magic_atk', element: '빛',
+    key: '정화의광선', name: '정화의 광선', mp: 60, kind: 'magic_atk', element: '빛',
     description: '공격력 × 1.8, 자기 디버프 정화, 언데드/암흑 ×1.5',
   },
 
