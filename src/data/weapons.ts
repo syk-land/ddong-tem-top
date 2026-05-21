@@ -22,36 +22,36 @@ import type { WeaponBase } from '@/types'
 export const WEAPONS: Record<string, WeaponBase> = {
   // ── 속도형 근접 (baseline 0.8 / 8틱) ──
   건틀릿: {
-    key: '건틀릿', category: 'melee', baseAtk: 0.7, speedCoef: 1.429, // 7틱
+    key: '건틀릿', category: 'melee', baseAtk: 0.8, speedCoef: 1.429, // 7틱
     accBonus: 3, evaBonus: 3, mpBonus: 0, magicPenBonus: 0, penBonus: 0, isMagic: false,
     autoSkill: '연속공격',
   },
   단검: {
-    key: '단검', category: 'melee', baseAtk: 0.8, speedCoef: 1.250, // 8틱
+    key: '단검', category: 'melee', baseAtk: 0.95, speedCoef: 1.250, // 8틱
     accBonus: 2, evaBonus: 2, mpBonus: 0, magicPenBonus: 0, penBonus: 10, isMagic: false,
     autoSkill: '연속공격',
   },
   사슬낫: {
     key: '사슬낫', category: 'melee', baseAtk: 0.75, speedCoef: 1.111, // 9틱
-    accBonus: 1, evaBonus: 1, mpBonus: 0, magicPenBonus: 0, penBonus: 15, isMagic: false,
+    accBonus: 1, evaBonus: 1, mpBonus: 0, magicPenBonus: 0, penBonus: 10, isMagic: false,
     autoSkill: '급습',
   },
 
   // ── 균형형 근접 (baseline 1.0 / 10틱) ──
   검: {
-    key: '검', category: 'melee', baseAtk: 1.0, speedCoef: 1.000, // 10틱
-    accBonus: 0, evaBonus: 0, mpBonus: 0, magicPenBonus: 0, penBonus: 10, isMagic: false,
+    key: '검', category: 'melee', baseAtk: 0.95, speedCoef: 1.000, // 10틱
+    accBonus: 0, evaBonus: 0, mpBonus: 0, magicPenBonus: 0, penBonus: 5, isMagic: false,
     autoSkill: '정밀타격',
   },
   창: {
-    key: '창', category: 'melee', baseAtk: 1.1, speedCoef: 0.909, // 11틱
+    key: '창', category: 'melee', baseAtk: 1.15, speedCoef: 0.909, // 11틱
     accBonus: -1, evaBonus: -1, mpBonus: 0, magicPenBonus: 0, penBonus: 15, isMagic: false,
     autoSkill: '피어스',
   },
 
   // ── 한방형 근접 (baseline 1.2 / 12틱) ──
   철퇴: {
-    key: '철퇴', category: 'melee', baseAtk: 1.2, speedCoef: 0.833, // 12틱
+    key: '철퇴', category: 'melee', baseAtk: 1.25, speedCoef: 0.833, // 12틱
     accBonus: -2, evaBonus: -2, mpBonus: 0, magicPenBonus: 0, penBonus: 5, isMagic: false,
     autoSkill: '스매쉬',
   },
@@ -61,29 +61,29 @@ export const WEAPONS: Record<string, WeaponBase> = {
     autoSkill: '스매쉬',
   },
   양날도끼: {
-    key: '양날도끼', category: 'melee', baseAtk: 1.4, speedCoef: 0.714, // 14틱
+    key: '양날도끼', category: 'melee', baseAtk: 1.3, speedCoef: 0.714, // 14틱
     accBonus: -4, evaBonus: -4, mpBonus: 0, magicPenBonus: 0, penBonus: 15, isMagic: false,
     autoSkill: '스매쉬',
   },
   할버드: {
-    key: '할버드', category: 'melee', baseAtk: 1.7, speedCoef: 0.667, // 15틱
+    key: '할버드', category: 'melee', baseAtk: 1.95, speedCoef: 0.667, // 15틱
     accBonus: -5, evaBonus: -5, mpBonus: 0, magicPenBonus: 0, penBonus: 30, isMagic: false,
     autoSkill: '피어스',
   },
 
   // ── 원거리 (활) ──
   숏보우: {
-    key: '숏보우', category: 'ranged', baseAtk: 0.8, speedCoef: 1.250, // 8틱
+    key: '숏보우', category: 'ranged', baseAtk: 0.75, speedCoef: 1.250, // 8틱
     accBonus: 2, evaBonus: 2, mpBonus: 0, magicPenBonus: 0, penBonus: 0, isMagic: false,
     autoSkill: '정밀타격',
   },
   롱보우: {
-    key: '롱보우', category: 'ranged', baseAtk: 1.1, speedCoef: 0.909, // 11틱
+    key: '롱보우', category: 'ranged', baseAtk: 1.15, speedCoef: 0.909, // 11틱
     accBonus: -1, evaBonus: -1, mpBonus: 0, magicPenBonus: 0, penBonus: 10, isMagic: false,
     autoSkill: '피어스',
   },
   석궁: {
-    key: '석궁', category: 'ranged', baseAtk: 1.7, speedCoef: 0.667, // 15틱
+    key: '석궁', category: 'ranged', baseAtk: 1.95, speedCoef: 0.667, // 15틱
     accBonus: -5, evaBonus: -5, mpBonus: 0, magicPenBonus: 0, penBonus: 30, isMagic: false,
     autoSkill: '피어스',
   },
@@ -100,8 +100,8 @@ export const WEAPONS: Record<string, WeaponBase> = {
     autoSkill: '번개창',
   },
   마도서: {
-    key: '마도서', category: 'magic', baseAtk: 1.3, speedCoef: 0.769, // 13틱
-    accBonus: -3, evaBonus: -3, mpBonus: 3, magicPenBonus: 15, penBonus: 0, isMagic: true,
+    key: '마도서', category: 'magic', baseAtk: 1.4, speedCoef: 0.769, // 13틱
+    accBonus: -3, evaBonus: -3, mpBonus: 3, magicPenBonus: 10, penBonus: 0, isMagic: true,
     autoSkill: '바위충격',
   },
 }

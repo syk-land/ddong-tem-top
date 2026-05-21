@@ -242,7 +242,7 @@ export function runCli() {
 
 // v9: 스탯 분배 다양화 시뮬 — 사용자 목표 (스페셜 ~10%, 레전드 ~50%, 노말/레어 0%) 측정용
 export function runCliV9() {
-  const RUNS = 50
+  const RUNS = 500
   const GRADES: Grade[] = ['스페셜', '레전드']     // 노말/레어는 0% 의도 → 측정 skip
 
   console.log(`\n=== Climetop v9 시뮬 — 스탯 분배 ${STAT_BUILDS.length}종 × ${RUNS} runs ===`)
