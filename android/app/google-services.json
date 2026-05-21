@@ -12,7 +12,20 @@
           "package_name": "com.climetop.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "765295712321-ekbgpo0gef840hkod5qe8i5lecbt5uo8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.climetop.app",
+            "certificate_hash": "4b205e1c478ac418f8d9b2008c83862db49faa04"
+          }
+        },
+        {
+          "client_id": "765295712321-5abhhn9sfs818au002mddf7g7ouh842r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAEPUIe8Hiv-rvNihB5oToarAemxSnrSVM"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "765295712321-5abhhn9sfs818au002mddf7g7ouh842r.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

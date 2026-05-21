@@ -19,6 +19,8 @@ android/keystore.properties
 android/keystore/
 *.jks
 *.keystore
+# 예외: 안정 SHA-1 용 debug.keystore (비밀번호 'android' = AGP 디폴트, 공개 정보)
+!android/app/debug.keystore
 
 # IDE / OS
 .vscode/
