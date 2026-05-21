@@ -43,7 +43,9 @@ const THEMES: ChapterTheme[] = [
 ]
 const GRADES: Grade[] = ['노말', '레어', '스페셜', '레전드']
 const GRADE_CHAPTER: Record<Grade, number> = { '노말': 3, '레어': 6, '스페셜': 9, '레전드': 10 }
-const TICKS = 10000
+const TICKS = 100000
+// MP 무한 모드 — 스킬 발동률 모델의 진짜 한계 측정용
+const INFINITE_MP = true
 
 function clampN(v: number, lo: number, hi: number): number { return Math.max(lo, Math.min(hi, v)) }
 
@@ -61,11 +63,22 @@ function randomStats(): Stats {
 }
 
 function makeChar(stats: Stats, w: ItemInstance, a: ItemInstance): Character {
+  const baseMp = computeMaxMp(stats.마력)
   return {
     stats: { ...stats },
     hp: computeMaxHp(stats.체력), maxHp: computeMaxHp(stats.체력),
-    mp: computeMaxMp(stats.마력), maxMp: computeMaxMp(stats.마력),
+    mp: INFINITE_MP ? 1e9 : baseMp, maxMp: INFINITE_MP ? 1e9 : baseMp,
     weapon: w, armor: a, gold: 100, statuses: [], actionGauge: 0,
+  }
+}
+
+// 마법 무기일 때 갑옷 선택 — 로브 OR 빛나는 트레잇 갑옷 (랜덤)
+function rollArmorForMagic(grade: Grade): ItemInstance {
+  if (Math.random() < 0.5) {
+    return rollItem({ kind: 'armor', forceBaseKey: '로브', forceGrade: grade, forceTraitTier: rollTraitTier(grade) })
+  } else {
+    const aKey = ARMOR_KEYS[Math.floor(Math.random() * ARMOR_KEYS.length)]
+    return rollItem({ kind: 'armor', forceBaseKey: aKey, forceGrade: grade, forceTraitName: '빛나는' })
   }
 }
 
@@ -123,25 +136,8 @@ function predict100Tick(c: Character, chapter: number, vsBoss: boolean): { atk10
   const skillInfo = skillKey ? SKILL_MULT[skillKey] : undefined
   let avgHit = basicHit
   if (skillKey && skillInfo) {
-    let procRate = computeWeaponSkillProc(c, stats.행운)
-    const skill = SKILLS[skillKey]
-    if (skill) {
-      let mpCost = skill.mp
-      if ((skill.kind === 'magic_atk' || skill.kind === 'magic_def') && wbase.isMagic) {
-        mpCost = Math.max(0, mpCost + (wbase.mpBonus ?? 0))
-      }
-      const ticks = Math.round(10 / wbase.speedCoef)
-      const wSpeedPct = c.weapon.effects.속도_pct ?? 0
-      const aSpeedPct = c.armor.effects.속도_pct ?? 0
-      let armorSpeed = abase.speedMult ?? 1
-      if (abase.key === '로브' && wbase.isMagic) armorSpeed *= 1.15
-      const gauge = (1 + stats.민첩 / 100) * (1 + wSpeedPct + aSpeedPct) * armorSpeed
-      const attacksIn100 = (100 * gauge) / ticks
-      const wantUses = attacksIn100 * procRate
-      const afford = mpCost > 0 ? c.maxMp / mpCost : wantUses
-      const eff = Math.min(wantUses, afford)
-      procRate = attacksIn100 > 0 ? eff / attacksIn100 : 0
-    }
+    // MP 무한 — proc rate 그대로 적용 (MP 게이팅 제거)
+    const procRate = computeWeaponSkillProc(c, stats.행운)
     const skillHit = Math.max(1, totalAtk * skillInfo.mult * (1 - effDef)) * hitRate
     avgHit = (1 - procRate) * basicHit + procRate * skillHit
   }
@@ -177,7 +173,9 @@ function predict100Tick(c: Character, chapter: number, vsBoss: boolean): { atk10
 
 // ── 실제 100틱 측정 ──
 function measure100Tick(c: Character, chapter: number, vsBoss: boolean): { actAtk100: number; actDef100: number } {
-  c.hp = c.maxHp; c.mp = c.maxMp; c.statuses = []; c.actionGauge = 0
+  c.hp = c.maxHp
+  c.mp = c.maxMp  // INFINITE_MP 면 1e9
+  c.statuses = []; c.actionGauge = 0
   const theme = THEMES[Math.floor(Math.random() * THEMES.length)]
   const tdef = CHAPTER_THEMES[theme]
   const monsterTemplate = vsBoss ? tdef.boss : tdef.normalMonsters[0]
@@ -280,9 +278,12 @@ function run() {
     for (let i = 0; i < PER_GRADE; i++) {
       const stats = randomStats()
       const wKey = WEAPON_KEYS[Math.floor(Math.random() * WEAPON_KEYS.length)]
-      const aKey = ARMOR_KEYS[Math.floor(Math.random() * ARMOR_KEYS.length)]
+      const isMagic = WEAPONS[wKey].isMagic
       const w = rollItem({ kind: 'weapon', forceBaseKey: wKey, forceGrade: g, forceTraitTier: rollTraitTier(g) })
-      const a = rollItem({ kind: 'armor',  forceBaseKey: aKey, forceGrade: g, forceTraitTier: rollTraitTier(g) })
+      // 마법무기 → 로브 또는 빛나는 트레잇 갑옷, 그 외 → 자유
+      const a = isMagic
+        ? rollArmorForMagic(g)
+        : rollItem({ kind: 'armor', forceBaseKey: ARMOR_KEYS[Math.floor(Math.random() * ARMOR_KEYS.length)], forceGrade: g, forceTraitTier: rollTraitTier(g) })
       const c = makeChar(stats, w, a)
       const chapter = GRADE_CHAPTER[g]
       // 현재 모델
@@ -350,8 +351,12 @@ function run() {
     const N = 100
     for (let i = 0; i < N; i++) {
       const stats = randomStats()
-      const w = rollItem({ kind: 'weapon', forceBaseKey: WEAPON_KEYS[Math.floor(Math.random() * WEAPON_KEYS.length)], forceGrade: '레어', forceTraitTier: '보통' })
-      const a = rollItem({ kind: 'armor',  forceBaseKey: ARMOR_KEYS[Math.floor(Math.random() * ARMOR_KEYS.length)], forceGrade: '레어', forceTraitTier: '보통' })
+      const wKey = WEAPON_KEYS[Math.floor(Math.random() * WEAPON_KEYS.length)]
+      const isMagic = WEAPONS[wKey].isMagic
+      const w = rollItem({ kind: 'weapon', forceBaseKey: wKey, forceGrade: '레어', forceTraitTier: '보통' })
+      const a = isMagic
+        ? rollArmorForMagic('레어')
+        : rollItem({ kind: 'armor',  forceBaseKey: ARMOR_KEYS[Math.floor(Math.random() * ARMOR_KEYS.length)], forceGrade: '레어', forceTraitTier: '보통' })
       sampleChars.push(makeChar(stats, w, a))
     }
     function avg(chapter: number, mode: 'cur' | 'new'): { atk: number; def: number } {
