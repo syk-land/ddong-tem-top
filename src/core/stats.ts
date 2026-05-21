@@ -12,7 +12,7 @@ import { clamp } from './rng'
 //
 //   공격력 (물리) = 힘 × baseAtk × coef × (1 + trait_atk_pct)
 //   공격력 (마법) = 마력 × baseAtk × coef × (1 + trait_atk_pct)
-//   방어%        = baseDef × coef × (1 + trait_def_pct) + 체력 × 0.3
+//   방어%        = baseDef × coef × (1 + trait_def_pct) + 체력 × 0.3 × coef
 //   데미지       = max(1, atk × (1 − 실효방어%))
 //   관통         = 적 방어% 절대값 차감 (%p)
 //
@@ -86,20 +86,23 @@ export function computeEffectiveStats(c: Character): EffectiveStats {
   //   ATK_K: 균등 빌드(노말+보통)에서도 atk이 적 HP에 의미 있는 비율 갖도록 보정
   //   마법은 스킬 multiplier (4~7) 가 추가로 곱해지므로 ATK_K 작게
   //   로브 + 마법무기 시너지: 마법 atk ×1.5 (마법 빌드 = 마법무기+로브 강제)
+  //   활(ranged) 무기: 물리 atk 의 스탯 항을 (힘 + 민첩 × 0.3) 로 적용 — 민첩 빌드 활용
   const ATK_K_PHYS = 3.0
   const ATK_K_MAGIC = 1.5
   const baseAtk = wbase?.baseAtk ?? 0
   const weaponCoef = weapon?.coef ?? 0
   const atkMultBase = baseAtk * weaponCoef * (1 + atkPct)
-  const magicSynergy = (abase?.key === '로브' && wbase?.isMagic) ? 1.7 : 1.0
-  const finalAtk = s.힘 * atkMultBase * ATK_K_PHYS
+  const magicSynergy = (abase?.key === '로브' && wbase?.isMagic) ? 1.5 : 1.0
+  const physStat = wbase?.category === 'ranged' ? s.힘 + s.민첩 * 0.3 : s.힘
+  const finalAtk = physStat * atkMultBase * ATK_K_PHYS
   const finalMagicAtk = wbase?.isMagic ? s.마력 * atkMultBase * ATK_K_MAGIC * magicSynergy : 0
 
-  // ── 방어% (곱셈 모델): baseDef × coef × (1 + def_pct) + 체력 × 0.3 ──
+  // ── 방어% (곱셈 모델): baseDef × coef × (1 + def_pct) + 체력 × 0.3 × coef ──
+  // v9.x: 체력 방어 기여에도 갑옷 coef 곱 적용 (좋은 갑옷일수록 같은 체력이 더 큰 방어로)
   const armorBaseDef = abase?.baseDef ?? 0
   const armorCoefVal = armor?.coef ?? 0
   const armorDefPct = armorBaseDef * armorCoefVal * (1 + defPct)
-  const defEffPct = armorDefPct + s.체력 * 0.3
+  const defEffPct = armorDefPct + s.체력 * 0.3 * armorCoefVal
 
   // ── 게이지 가속 & 갑옷 속도 ──
   let armorSpeedMult = abase?.speedMult ?? 1.0

@@ -18,7 +18,7 @@
 //   DPS = 평균 hit × 크리 보정 × attacks/tick
 //
 // 전투력(방) [갑옷]:
-//   def% = baseDef × coef × (1+trait_pct) + 체력 × 0.3
+//   def% = baseDef × coef × (1+trait_pct) + 체력 × 0.3 × coef
 //   회피 +/- 무기 ticks 공속 / 마력 / 저항 / 피격회복 / 반사
 
 import type { ItemInstance, Character } from '@/types'
@@ -217,12 +217,13 @@ function computeArmorValue(
   // ── 방어% (v9) ──
   const defPct = (td.effects.방어력_pct ?? 0) + (td.effects.전스탯_pct ?? 0)
   const armorDef = base.baseDef * a.coef * (1 + defPct)
-  const totalDef = armorDef + stats.체력 * 0.3   // 체력 기여
+  const hpDef = stats.체력 * 0.3 * a.coef
+  const totalDef = armorDef + hpDef
   // 피해 감소 점수 = 적 평타 dmg에 비례 (간단히 totalDef × 2)
   defParts.push({
     label: `방어 ${totalDef.toFixed(1)}%`,
     value: armorDef * 2.0,
-    note: `${base.baseDef} × ${a.coef.toFixed(2)} × (1+${defPct.toFixed(2)})${stats.체력 ? ` + 체력 ${(stats.체력 * 0.3).toFixed(1)}%` : ''}`,
+    note: `${base.baseDef} × ${a.coef.toFixed(2)} × (1+${defPct.toFixed(2)})${stats.체력 ? ` + 체력 ${stats.체력} × 0.3 × ${a.coef.toFixed(2)} = ${hpDef.toFixed(1)}%` : ''}`,
   })
 
   // 회피
