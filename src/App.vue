@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useGameStore } from './stores/game'
+import { useAuthStore } from './stores/auth'
 import MainMenu from './screens/MainMenu.vue'
 import CharacterCreation from './screens/CharacterCreation.vue'
 import Dungeon from './screens/Dungeon.vue'
@@ -20,6 +21,8 @@ import SpeedControl from './ui/components/SpeedControl.vue'
 import { playBgm, pauseBgm, resumeBgm, type BgmKind } from './ui/sound'
 
 const game = useGameStore()
+const auth = useAuthStore()
+auth.initAuthListener()
 
 const currentScreen = computed(() => game.screen)
 
@@ -96,7 +99,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="flex-1 flex flex-col">
+  <main class="flex-1 flex flex-col" :class="{ 'pt-8': !showSplash }">
     <MainMenu v-if="currentScreen === 'menu'" />
     <CharacterCreation v-else-if="currentScreen === 'create'" />
     <Dungeon v-else-if="currentScreen === 'dungeon'" />

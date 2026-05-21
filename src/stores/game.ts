@@ -246,6 +246,19 @@ export const useGameStore = defineStore('game', {
   },
 
   actions: {
+    // saveMeta + 클라우드 fire-and-forget 동기화 헬퍼.
+    // 순환 import 방지를 위해 auth store 는 lazy require.
+    persistMeta() {
+      saveMeta(this.meta)
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        import('./auth').then(({ useAuthStore }) => {
+          const a = useAuthStore()
+          if (a.isLoggedIn) a.syncMetaToCloud().catch(() => {})
+        }).catch(() => {})
+      } catch {}
+    },
+
     init() {
       this.meta = loadMeta()
       this.savedRunExists = loadRun() !== null
@@ -361,7 +374,7 @@ export const useGameStore = defineStore('game', {
       // pending 보너스는 1회성이라 소진 (영구는 그대로 유지)
       if ((this.meta.pendingStartBonus ?? 0) > 0) {
         this.meta.pendingStartBonus = 0
-        saveMeta(this.meta)
+        this.persistMeta()
       }
       // 챌린지 적용
       const challengeKeys = this.selectedChallengeKey ? [this.selectedChallengeKey] : []
@@ -751,6 +764,11 @@ export const useGameStore = defineStore('game', {
       const score = this.pendingClear?.score ?? computeClearScore(this.run.character, 10)
       const rank = this.pendingClear?.rank ?? getClearRank(score).rank
       pushCharacterHistory(this.meta, this.run.character, score, rank, this.runAvatar, lastCh.theme)
+      // 리더보드 제출 (로그인 시) — fire-and-forget. 실패해도 게임 흐름엔 영향 없음.
+      import('./auth').then(({ useAuthStore }) => {
+        const a = useAuthStore()
+        if (a.isLoggedIn) a.submitScore(score, rank).catch(() => {})
+      }).catch(() => {})
       // 런 카운터 증가 (호환용)
       incrementRunCounter(this.meta)
       // v6: 클리어 시점 남은 골드 누적 (5만 도달 시 진짜 보스 트리거)
@@ -764,7 +782,7 @@ export const useGameStore = defineStore('game', {
       const before = this.meta.totalBonusStats ?? 0
       this.meta.clearCount = (this.meta.clearCount ?? 0) + 1
       this.meta.totalBonusStats = before + bonus
-      saveMeta(this.meta)
+      this.persistMeta()
       // 보너스 소진 표시
       this.pendingClear = null
       this.run = null
@@ -1537,7 +1555,7 @@ export const useGameStore = defineStore('game', {
       // 누적 풀 리셋 — 결과 화면 버튼 클릭 여부와 무관하게 보스전 종료 시점에 처리
       this.meta.totalBonusStats = 0
       this.meta.allocations = {}
-      saveMeta(this.meta)
+      this.persistMeta()
       this.combat = null
       this.screen = 'realboss_result'
     },

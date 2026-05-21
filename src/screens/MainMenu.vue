@@ -1,10 +1,23 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useGameStore } from '@/stores/game'
+import { useAuthStore } from '@/stores/auth'
 import { mainImageUrl } from '@/ui/images'
 
 const game = useGameStore()
+const auth = useAuthStore()
 const bgUrl = mainImageUrl()
+
+async function loginGoogle() {
+  try {
+    await auth.login()
+  } catch (e: any) {
+    await game.confirmModal(`로그인 실패: ${e?.message ?? e}`, { title: '구글 로그인', okLabel: '확인' })
+  }
+}
+async function logoutGoogle() {
+  await auth.logout()
+}
 
 onMounted(() => {
   game.init()
@@ -60,6 +73,35 @@ async function resetMeta() {
         </button>
         <button class="btn-secondary w-full text-xs opacity-70" @click="resetMeta">
           데이터 리셋
+        </button>
+      </div>
+
+      <div class="border-t border-slate-700 pt-3">
+        <div v-if="auth.isLoggedIn" class="flex items-center gap-2">
+          <img
+            v-if="auth.photoURL"
+            :src="auth.photoURL"
+            alt="avatar"
+            class="w-8 h-8 rounded-full border border-slate-600"
+          />
+          <div class="flex-1 text-sm truncate text-gray-300">
+            {{ auth.displayName ?? '로그인됨' }}
+          </div>
+          <button
+            class="btn-secondary text-xs px-2 py-1"
+            :disabled="auth.loading"
+            @click="logoutGoogle"
+          >
+            로그아웃
+          </button>
+        </div>
+        <button
+          v-else
+          class="btn-secondary w-full text-sm"
+          :disabled="auth.loading"
+          @click="loginGoogle"
+        >
+          {{ auth.loading ? '로그인 중...' : '🔑 Google 로 로그인 (클라우드 저장)' }}
         </button>
       </div>
 

@@ -38,8 +38,21 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    if (hasKeystoreProperties) {
-        signingConfigs {
+    // app/debug.keystore 가 repo 에 커밋돼 있으면 그것을 debug 서명에 사용 (SHA-1 안정화).
+    // 없으면 AGP 가 ~/.android/debug.keystore 를 자동 생성 (SHA-1 매번 다름).
+    def committedDebugKeystore = file('debug.keystore')
+    def hasCommittedDebugKeystore = committedDebugKeystore.exists()
+
+    signingConfigs {
+        if (hasCommittedDebugKeystore) {
+            debug {
+                storeFile committedDebugKeystore
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
+        if (hasKeystoreProperties) {
             release {
                 storeFile rootProject.file(keystoreProperties['KEYSTORE_FILE'])
                 storePassword keystoreProperties['KEYSTORE_PASSWORD']
