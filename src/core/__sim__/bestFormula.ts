@@ -24,6 +24,7 @@ import { computeItemValue } from '../itemValue'
 import { computeMaxHp, computeMaxMp } from '../character'
 import { WEAPONS, WEAPON_KEYS } from '@/data/weapons'
 import { ARMOR_KEYS } from '@/data/armor'
+import { WEAPON_TRAITS } from '@/data/traits'
 import type { Character, MonsterTemplate, Grade, Stats, TraitTier } from '@/types'
 
 const TEST_CHAPTER = 5
@@ -34,25 +35,28 @@ const REF_ACC = 45
 
 // itemValue.ts 와 동기화 — 단일 타겟 dummy 상대 실효 multiplier
 // (splash/연쇄/관통은 다중 대상 시뮬에서만 의미 — 단일 대상은 제외)
-const SKILL_INFO: Record<string, { mult: number; magic: boolean; luckBoost?: number }> = {
-  스매쉬: { mult: 2.0, magic: false },
-  피어스: { mult: 1.0, magic: false },
-  연속공격: { mult: 1.4, magic: false },           // (1 + 민첩/20) × 0.7 평균
-  정밀타격: { mult: 1.5, magic: false },
-  급습: { mult: 1.5, magic: false, luckBoost: 0.03 },  // 1.5 × (1+행운×0.03)
-  빙결의화살: { mult: 2.2, magic: true },
-  화염구: { mult: 6.5, magic: true },             // 광역 splash 대신 단일이므로 main만
-  폭풍칼날: { mult: 1.05, magic: true },          // 3히트 분산 → 단일 dummy = 0.7×1.5 ≈ 1.05
-  바위충격: { mult: 4.8, magic: true },
-  번개창: { mult: 5.5, magic: true },             // 연쇄 X (단일)
-  그림자일격: { mult: 2.2, magic: true },
-  정화의광선: { mult: 1.8, magic: true },
+const SKILL_INFO: Record<string, { mult: number; magic: boolean; luckBoost?: number; mpCost: number; critBoost?: number }> = {
+  스매쉬: { mult: 2.0, magic: false, mpCost: 8, accBonus: -10 } as any,
+  피어스: { mult: 1.0, magic: false, mpCost: 6 },     // 관통 × 2 단일 dummy 효과 작음
+  연속공격: { mult: 1.4, magic: false, mpCost: 10 },   // (1 + 민첩/20) × 0.7 평균
+  정밀타격: { mult: 1.5, magic: false, mpCost: 7, critBoost: 2.0 },  // 크리 ×2
+  급습: { mult: 1.5, magic: false, mpCost: 9, luckBoost: 0.03 },
+  빙결의화살: { mult: 2.2, magic: true, mpCost: 40 },
+  화염구: { mult: 6.5, magic: true, mpCost: 50 },
+  폭풍칼날: { mult: 1.05, magic: true, mpCost: 45 },   // 3히트 분산 (단일 ≈ 0.7×1.5)
+  바위충격: { mult: 4.8, magic: true, mpCost: 55 },
+  번개창: { mult: 5.5, magic: true, mpCost: 45 },
+  그림자일격: { mult: 2.2, magic: true, mpCost: 50 },
+  정화의광선: { mult: 1.8, magic: true, mpCost: 60 },
 }
 const BASE_PROC: Record<string, number> = {
   건틀릿: 0.18, 단검: 0.22, 사슬낫: 0.30, 완드: 0.25, 숏보우: 0.25,
   검: 0.35, 창: 0.40, 철퇴: 0.50, 스태프: 0.40, 롱보우: 0.40,
   대검: 0.55, 양날도끼: 0.65, 할버드: 0.70, 마도서: 0.55, 석궁: 0.50,
 }
+// buildBalance.ts 와 동기화 — 등급/특성 procRate 보정
+const GRADE_PROC_MOD: Record<string, number> = { 노말: 0.10, 레어: 0.05, 스페셜: 0.0, 레전드: -0.05 }
+const TRAIT_TIER_PROC_MOD: Record<string, number> = { 하급: 0.05, 보통: 0.0, 희귀: -0.03, 특별: -0.05 }
 
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)) }
 
@@ -77,23 +81,30 @@ export function predictAtkRaw(c: Character): number {
   // 평타 데미지: 항상 물리 공격력
   const basicDmg = Math.max(1, eff.공격력 * (1 - effDef)) * hit
 
-  // 스킬 정보
+  // 스킬 정보 — buildBalance.ts 와 동기화 (등급/특성 procRate 보정)
   const wKey = c.weapon?.baseKey
   const skillKey = wKey ? WEAPONS[wKey].autoSkill : undefined
   const skill = skillKey ? SKILL_INFO[skillKey] : undefined
   const baseProc = wKey ? (BASE_PROC[wKey] ?? 0.3) : 0
-  const procRateRaw = clamp(baseProc * (1 + eff.행운 * 0.005), 0.05, 0.85)
+  const wGrade = c.weapon?.grade ?? '보통'
+  const wTraitTier = c.weapon ? (WEAPON_TRAITS[c.weapon.trait]?.tier ?? '보통') : '보통'
+  const gradeMod = GRADE_PROC_MOD[wGrade] ?? 0
+  const traitMod = TRAIT_TIER_PROC_MOD[wTraitTier] ?? 0
+  const procRateRaw = clamp((baseProc + gradeMod + traitMod) * (1 + eff.행운 * 0.005), 0.05, 0.85)
 
   // 공격 빈도
   const attacksPerTick = eff.게이지가속 * eff.armorSpeedMult / eff.무기ticks
   const attacksInSim = attacksPerTick * SIM_TICKS
 
   // 스킬 발동률: MP 제약 — maxMp / mpCost 번 발동 가능
+  // 마법 스킬 mp_cost 에 weaponMpBonus 적용 (완드 -3, 마도서 +3)
   let effProc = 0
   let skillDmg = 0
   if (skill && skillKey) {
-    const mpCost = skill.magic ? MAGIC_SKILL_MP : PHYS_SKILL_MP
-    const maxProcsInSim = c.maxMp / mpCost
+    const mpCost = skill.magic
+      ? Math.max(0, skill.mpCost + eff.weaponMpBonus)
+      : skill.mpCost
+    const maxProcsInSim = mpCost > 0 ? c.maxMp / mpCost : Infinity
     const idealProcs = attacksInSim * procRateRaw
     effProc = procRateRaw * clamp(maxProcsInSim / Math.max(0.1, idealProcs), 0, 1)
 
@@ -102,6 +113,7 @@ export function predictAtkRaw(c: Character): number {
     // 행운 보너스 (급습 등)
     const effMult = skill.luckBoost ? skill.mult * (1 + eff.행운 * skill.luckBoost) : skill.mult
     skillDmg = Math.max(1, skillAtk * effMult * (1 - effDef)) * hit
+    // 정밀타격 등 크리 부스트는 critBoost 에 가산 효과
   }
 
   // 평균 hit
@@ -368,14 +380,17 @@ export function runBestFormula() {
   console.log(`############################################################`)
 
   // ── 데이터 수집 ──
+  // 실제 게임 핵심 영역 (예산 30~200) 가중 — 균등하게 샘플
+  const TRAIN_BUDGETS = [30, 60, 90, 120, 150, 180, 200]
   function collect(n: number, label: string) {
-    console.log(`\n${label} 수집 중...`)
+    console.log(`\n${label} 수집 중 (budget ${TRAIN_BUDGETS.join('/')})...`)
     const t0 = Date.now()
     const chars: Character[] = []
     const dps: number[] = []
     const eHp: number[] = []
     for (let i = 0; i < n; i++) {
-      const c = randomChar()
+      const budget = TRAIN_BUDGETS[i % TRAIN_BUDGETS.length]
+      const c = randomChar(undefined, budget)
       chars.push(c)
       dps.push(measureDps(c, TICKS))
       eHp.push(measureEffectiveHp(c, ATTACKS))
