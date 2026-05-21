@@ -43,7 +43,7 @@ const THEMES: ChapterTheme[] = [
 ]
 const GRADES: Grade[] = ['노말', '레어', '스페셜', '레전드']
 const GRADE_CHAPTER: Record<Grade, number> = { '노말': 3, '레어': 6, '스페셜': 9, '레전드': 10 }
-const TICKS = 100
+const TICKS = 1000
 
 function clampN(v: number, lo: number, hi: number): number { return Math.max(lo, Math.min(hi, v)) }
 
@@ -270,9 +270,9 @@ function pctWithin(pred: number[], act: number[], k: number, tol: number): numbe
 function run() {
   const PER_GRADE = 250
   const TOTAL = PER_GRADE * GRADES.length
-  console.log(`\n=== 100틱 누적 예측 모델 vs 현재 DPS 모델 비교 — ${TOTAL} 런 ===\n`)
+  console.log(`\n=== ${TICKS}틱 누적 예측 모델 vs 현재 DPS 모델 비교 — ${TOTAL} 런 ===\n`)
   console.log(`현재 모델: itemValue.ts (calibrated DPS / reduction%, ch5 baseline)`)
-  console.log(`신규 모델: 100틱 동안 현재 챕터 보스에 가하는 누적 dmg / 감소 dmg\n`)
+  console.log(`신규 모델: ${TICKS}틱 동안 현재 챕터 보스에 가하는 누적 dmg / 감소 dmg\n`)
 
   const rows: Row[] = []
   const t0 = Date.now()
@@ -301,12 +301,12 @@ function run() {
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1)
 
   // ── 비교 ──
-  console.log(`\n## 정확도 비교 (실측 100틱 dmg / 감소량 기준)`)
-  // 현재 모델 — atkValue 는 DPS 이므로 ×100 으로 100틱 환산 비교
+  console.log(`\n## 정확도 비교 (실측 ${TICKS}틱 dmg / 감소량 기준)`)
+  // 현재 모델 — atkValue 는 DPS 이므로 ×TICKS 로 환산 비교
   const curAtkArr = rows.map((r) => r.curAtk * TICKS)
   const newAtkArr = rows.map((r) => r.newAtk100)
   const actAtkArr = rows.map((r) => r.actAtk100)
-  // 현재 모델 — defValue 는 % 이므로 100틱 보스 baseline 으로 환산
+  // 현재 모델 — defValue 는 % 이므로 TICKS 보스 baseline 으로 환산
   const curDefArr = rows.map((r) => {
     const enemy = getBossBaseline(r.chapter)
     const dmgNoArmor = enemy.atk * (TICKS / enemy.ticks)
@@ -325,14 +325,14 @@ function run() {
     const meanAct = act.reduce((a, b) => a + b, 0) / act.length
     console.log(`  ${label}:  Pearson ${pc.toFixed(3)}  | k=${k.toFixed(3)} | ±10% ${(within10 * 100).toFixed(0)}% | ±25% ${(within25 * 100).toFixed(0)}% | 평균 pred ${meanPred.toFixed(1)} / act ${meanAct.toFixed(1)}`)
   }
-  report('공 — 현재 (DPS×100)        ', curAtkArr, actAtkArr)
-  report('공 — 신규 (100틱 예측)      ', newAtkArr, actAtkArr)
-  report('방 — 현재 (% × 100틱 환산)  ', curDefArr, actDefArr)
-  report('방 — 신규 (100틱 감소 예측) ', newDefArr, actDefArr)
+  report(`공 — 현재 (DPS×${TICKS})       `, curAtkArr, actAtkArr)
+  report(`공 — 신규 (${TICKS}틱 예측)     `, newAtkArr, actAtkArr)
+  report(`방 — 현재 (% × ${TICKS}틱 환산) `, curDefArr, actDefArr)
+  report(`방 — 신규 (${TICKS}틱 감소 예측)`, newDefArr, actDefArr)
 
   // ── 등급별 평균 ──
-  console.log(`\n## 등급별 평균 — 신규 모델 (적정 챕터 보스)`)
-  console.log(`등급     | 예측 공100  실측 공100  비율  | 예측 방100  실측 방100  비율`)
+  console.log(`\n## 등급별 평균 — 신규 모델 (적정 챕터 보스, ${TICKS}틱 누적)`)
+  console.log(`등급     | 예측 공     실측 공     비율  | 예측 방     실측 방     비율`)
   console.log('---------+-------------+----------+------+-----------+-----------+--------')
   for (const g of GRADES) {
     const recs = rows.filter((r) => r.grade === g)
@@ -376,7 +376,7 @@ function run() {
     console.log(`    신규 모델: ch3 공 ${new3.atk.toFixed(0)}/방 ${new3.def.toFixed(0)} → ch10 공 ${new10.atk.toFixed(0)}/방 ${new10.def.toFixed(0)}  (변화 ${((new10.atk / new3.atk - 1) * 100).toFixed(0)}% / ${((new10.def / new3.def - 1) * 100).toFixed(0)}%)`)
   }
 
-  console.log(`\n총 ${TOTAL} 보스전 (100틱), 소요 ${elapsed}s`)
+  console.log(`\n총 ${TOTAL} 보스전 (${TICKS}틱), 소요 ${elapsed}s`)
 }
 
 if (typeof process !== 'undefined' && process.argv?.[1]?.includes('itemValue100Tick')) {
