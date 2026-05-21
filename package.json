@@ -11,7 +11,8 @@
     "android": "npm run build && npx cap sync android && npx cap open android",
     "android:build": "npm run build && npx cap sync android",
     "cap:init": "npx cap init climetop com.climetop.app --web-dir=dist",
-    "sim": "npx tsx src/core/__sim__/runChapter.ts"
+    "sim": "npx tsx src/core/__sim__/runChapter.ts",
+    "sim:dummy": "npx tsx src/core/__sim__/dummyValue.ts"
   },
   "dependencies": {
     "@capacitor/app": "^6.0.3",
