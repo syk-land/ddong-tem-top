@@ -62,32 +62,27 @@ const currentEquipped = computed(() => {
 const coef = computed(() => props.item.coef)
 const effects = computed(() => props.item.effects)
 
-// 기본 능력치 분해 — v4 가산식 모델
-// 공식 (stats.ts):
-//   무기: 종합 공격계수 = baseAtk × (등급보너스 + 특성보너스)
-//   갑옷: 종합 방어계수 = baseDef × 2 × (등급보너스 + 특성보너스)
-// 등급보너스 = coef (등급 굴림 결과)
-// 특성보너스 = trait%_base (unscaled)
-// ( ) 안은 두 보너스의 단일 합계로 출력
+// 기본 능력치 분해 — v9 곱셈 모델
+// 공식:
+//   무기 atk = 힘 × baseAtk × coef × (1 + trait_pct) × 3.0
+//   갑옷 def% = baseDef × coef × (1 + trait_pct)  (+ 체력 × 0.3, stats.ts에서)
 const baseSpecLines = computed(() => {
   const lines: string[] = []
-  const fmt = (n: number) => (n >= 0 ? '+' : '') + n.toFixed(2)
+  const fmt = (n: number) => (n >= 0 ? '+' : '') + (n * 100).toFixed(0) + '%'
   if (weaponBase.value) {
     const base = weaponBase.value.baseAtk
     const traitPctBase = (traitBase.value.공격력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
-    const sumBonus = coef.value + traitPctBase
-    const final = base * sumBonus
+    const mult = base * coef.value * (1 + traitPctBase)
     lines.push(
-      `공격력 ${base.toFixed(2)} × (${coef.value.toFixed(2)} ${fmt(traitPctBase)}) = ${base.toFixed(2)} × ${sumBonus.toFixed(2)} = ${final.toFixed(2)}`,
+      `atk 계수 ${base.toFixed(2)} × ${coef.value.toFixed(2)} × (1${fmt(traitPctBase)}) = ${mult.toFixed(2)} (× 힘 × 3.0)`,
     )
   }
   if (armorBase.value) {
     const baseD = armorBase.value.baseDef
     const defPctBase = (traitBase.value.방어력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
-    const sumBonus = coef.value + defPctBase
-    const dF = baseD * 2.0 * sumBonus
+    const dF = baseD * coef.value * (1 + defPctBase)
     lines.push(
-      `방어력 ${baseD.toFixed(2)} × 2 × (${coef.value.toFixed(2)} ${fmt(defPctBase)}) = ${baseD.toFixed(2)} × 2 × ${sumBonus.toFixed(2)} = ${dF.toFixed(2)}`,
+      `방어 ${baseD} × ${coef.value.toFixed(2)} × (1${fmt(defPctBase)}) = ${dF.toFixed(2)}%  (+ 체력 × 0.3)`,
     )
   }
   return lines
@@ -109,7 +104,7 @@ const skillLine = computed(() => {
   return `${skill.value.name} (마나 ${skill.value.mp}${procStr}) — ${skill.value.description}`
 })
 
-// 명중/회피/속도 한 줄
+// 명중/회피/공격주기 한 줄 — v9
 const acc = computed(() => {
   let t = 0
   if (weaponBase.value) t += weaponBase.value.accBonus
@@ -118,24 +113,30 @@ const acc = computed(() => {
 })
 const eva = computed(() => {
   let t = 0
+  if (weaponBase.value) t += weaponBase.value.evaBonus
   if (armorBase.value) t += armorBase.value.evasion
   if (effects.value.회피) t += effects.value.회피
   return t
 })
-const speedMult = computed(() => {
-  if (weaponBase.value) return weaponBase.value.speedCoef
-  if (armorBase.value) return armorBase.value.speedMult
-  return 1
-})
 const speedPctTrait = computed(() => effects.value.속도_pct ?? 0)
-// 속도 최종 배율 = 베이스 배율 × (1 + 특성 %)
-const speedFinal = computed(() => speedMult.value * (1 + speedPctTrait.value))
+// 무기 ticks (게이지 임계값) 또는 갑옷 speedMult
+const weaponTicks = computed(() => {
+  if (!weaponBase.value) return 0
+  return Math.round(10 / weaponBase.value.speedCoef)
+})
+const armorSpeedMult = computed(() => armorBase.value?.speedMult ?? 1)
 
 const moveLine = computed(() => {
   const parts: string[] = []
-  parts.push(`명중 ${acc.value >= 0 ? '+' : ''}${acc.value.toFixed(2)}`)
-  parts.push(`회피 ${eva.value >= 0 ? '+' : ''}${eva.value.toFixed(2)}`)
-  parts.push(`속도 ×${speedFinal.value.toFixed(2)}`)
+  if (acc.value !== 0) parts.push(`명중 ${acc.value >= 0 ? '+' : ''}${acc.value.toFixed(0)}`)
+  if (eva.value !== 0) parts.push(`회피 ${eva.value >= 0 ? '+' : ''}${eva.value.toFixed(0)}`)
+  if (weaponBase.value) parts.push(`공격주기 ${weaponTicks.value}틱`)
+  if (armorBase.value && armorSpeedMult.value !== 1) {
+    parts.push(`갑옷 게이지 ×${armorSpeedMult.value.toFixed(2)}`)
+  }
+  if (speedPctTrait.value !== 0) {
+    parts.push(`게이지 ${speedPctTrait.value >= 0 ? '+' : ''}${(speedPctTrait.value * 100).toFixed(0)}%`)
+  }
   return parts.join(' / ')
 })
 
