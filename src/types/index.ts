@@ -284,6 +284,8 @@ export interface TowerRun {
   inventoryCap: number         // 기본 6, 미니멀리스트 = 0
   // 선택한 챌린지 (key 보관 — 복원 시 컨텍스트 재생성)
   challengeKeys?: string[]
+  // v10: 광고 보고 부활 — 런당 1회
+  adReviveUsed?: boolean
 }
 
 // ====== 상점 ======

@@ -1248,7 +1248,7 @@ export const useGameStore = defineStore('game', {
       this.savedRunExists = false
     },
 
-    handleCombatEnd() {
+    async handleCombatEnd() {
       if (!this.combat) return
       // 진짜 보스 도전 모드: run 없이 진행. 승패 무관하게 결과 화면
       if (this.realBossMonster) {
@@ -1257,6 +1257,26 @@ export const useGameStore = defineStore('game', {
       }
       if (!this.run) return
       if (!this.combat.victory) {
+        // v10: 광고 부활 (런당 1회). 도전 모드 / 진짜 보스에서는 비활성.
+        if (!this.run.adReviveUsed && !this.realBossMonster) {
+          const revive = await this.confirmModal(
+            '광고를 보고 부활하시겠습니까?',
+            { title: '💀 사망', okLabel: '예 (광고 시청)', cancelLabel: '아니오' }
+          )
+          if (revive) {
+            // 추후 AdMob/AdSense 연동 자리 — 지금은 즉시 부활
+            this.run.adReviveUsed = true
+            this.combat.player.hp = this.combat.player.maxHp
+            this.combat.player.mp = this.combat.player.maxMp
+            this.combat.player.statuses = []
+            this.combat.player.silencedUntilTick = undefined
+            this.combat.ended = false
+            this.combat.victory = false
+            pushLog(this.combat, '✨ 부활! (광고 시청 보상)', 'reward')
+            saveRun(this.run)
+            return
+          }
+        }
         // 사망 → 게임 오버. (도전 모드 카운터는 클리어만 증가하므로 여기선 카운트 X)
         sfx.death()
         // v10: 도달 챕터 기반 보상 (4~6=F=+1pt / 7~9=E=+2pt / 1~3=없음)

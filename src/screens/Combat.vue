@@ -163,6 +163,14 @@ onMounted(() => {
 })
 onUnmounted(() => stopAutoTick())
 
+// 광고 부활 시 combat.ended 가 true → false 로 전환되면 ticker 재시작
+watch(
+  () => combat.value?.ended,
+  (newVal, oldVal) => {
+    if (oldVal === true && newVal === false) startAutoTick()
+  },
+)
+
 let autoAdvanceTimer: ReturnType<typeof setTimeout> | null = null
 function maybeAutoAdvance() {
   if (!game.autoEnter) return
