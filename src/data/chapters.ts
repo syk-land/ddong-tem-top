@@ -138,30 +138,35 @@ export const CHAPTER_THEMES: Record<ChapterTheme, ChapterThemeDef> = {
 
 export const ALL_THEME_KEYS = Object.keys(CHAPTER_THEMES) as ChapterTheme[]
 
-// 7.2 챕터별 몬스터 스탯 베이스라인
-// 일반: HP = 25 + 10N, atk = 5 + 2N, def = 2 + 1.2N, 속도 8
-// 보스: HP × 5, atk × 1.2, def × 1.6, 속도 10
-// 미믹: 보스의 70% 강도
+// 7.2 챕터별 몬스터 스탯 베이스라인 (v9)
+//   def = % 단위 방어율 (0~100)
+//   acc/eva = %p 단위 명중/회피
+//   ticks = 게이지 임계값 (작을수록 빠름) — 모두 틱당 +1 게이지 누적
 
 export interface BaselineStats {
   hp: number
   atk: number
-  def: number
-  speed: number
+  def: number      // v9: % 방어율
+  speed: number    // (deprecated)
+  ticks: number    // v9: 게이지 임계값
+  acc: number      // v9: 명중 (%p)
+  eva: number      // v9: 회피 (%p)
 }
 
-// v6 일반 몬스터 — 평탄한 선형 (ch1~10 격차 ~2배)
+// v9 일반 몬스터
 export function getNormalMonsterBaseline(chapter: number): BaselineStats {
   return {
     hp: 50 + 6 * chapter,
     atk: 8 + 1.2 * chapter,
-    def: 3 + 1.0 * chapter,
+    def: 3 + 1.0 * chapter,       // 챕터 1 = 4%, 챕터 10 = 13%
     speed: 8,
+    ticks: 10,
+    acc: 30 + 3 * chapter,        // 챕터 1 = 33, 챕터 10 = 60
+    eva: 5 + 1 * chapter,         // 챕터 1 = 6, 챕터 10 = 15
   }
 }
 
-// v6 보스 — 도전감 위해 hp/atk 강화
-//   ch1: hp ~280, atk ~13 / ch10: hp ~550, atk ~28
+// v9 보스 — 도전감 위해 hp/atk 강화
 export function getBossBaseline(chapter: number): BaselineStats {
   const n = getNormalMonsterBaseline(chapter)
   return {
@@ -169,6 +174,9 @@ export function getBossBaseline(chapter: number): BaselineStats {
     atk: n.atk * 1.7,
     def: n.def * 1.55,
     speed: 10,
+    ticks: 8,                     // 보스는 빠름
+    acc: n.acc + 10,              // 보스 명중 +10
+    eva: n.eva + 5,               // 보스 회피 +5
   }
 }
 
@@ -179,5 +187,8 @@ export function getMimicBaseline(chapter: number): BaselineStats {
     atk: b.atk * 0.85,
     def: b.def * 0.9,
     speed: 8,
+    ticks: 12,                    // 미믹은 느림
+    acc: b.acc - 5,
+    eva: b.eva - 3,
   }
 }

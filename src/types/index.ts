@@ -213,8 +213,11 @@ export interface MonsterInstance {
   hp: number
   maxHp: number
   atk: number
-  def: number
-  speed: number
+  def: number      // v9: % 단위 방어율 (0~100)
+  speed: number    // (deprecated) v9에서 ticks 로 대체
+  ticks: number    // v9: 게이지 임계값 (작을수록 빠름)
+  acc: number      // v9: 명중 (%p)
+  eva: number      // v9: 회피 (%p)
   isBoss: boolean
   isMimic: boolean
   statuses: StatusInstance[]

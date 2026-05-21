@@ -73,6 +73,9 @@ export function makeMonster(template: MonsterTemplate, chapter: number, kind: 'n
     atk,
     def,
     speed,
+    ticks: baseline.ticks,
+    acc: baseline.acc,
+    eva: baseline.eva,
     isBoss: kind === 'boss',
     isMimic: kind === 'mimic',
     statuses: [],
@@ -131,18 +134,23 @@ export function applyHealing(ctx: CombatContext, raw: number): number {
   return Math.round(raw * mult)
 }
 
-// 3.3 명중 공식
+// v9 명중 공식: 성공률 = clamp((acc - eva) / 100, 0, 1.0)
+//   acc/eva 는 %p 단위. 명중 80 vs 회피 10 = 70% 성공.
+//   명중/회피는 성공률에만 영향, 데미지에는 영향 X.
 export function rollHit(accuracy: number, evasion: number, blindMod: number = 0): boolean {
   const acc = accuracy + blindMod
-  const chance = clamp(0.85 + (acc - evasion) * 0.01, 0.30, 0.95)
+  const chance = clamp((acc - evasion) / 100, 0, 1.0)
   return Math.random() < chance
 }
 
-// 3.2 크리티컬 굴림
-export function rollCrit(luck: number): { isCrit: boolean; multiplier: number } {
-  const critChance = clamp(luck * 0.05 + 0.05, 0, 0.95)
+// v9 크리 굴림
+//   확률 = clamp(민첩 × 0.003, 0, 1.0) — 민첩 100 = 30%, 민첩 333 = 100% cap
+//   배수 = 1.3 + 행운/100 — 행운 0 = 1.3배, 행운 100 = 2.3배
+export function rollCrit(agility: number, luck: number): { isCrit: boolean; multiplier: number } {
+  const critChance = clamp(agility * 0.003, 0, 1.0)
+  const critMult = 1.3 + luck / 100
   if (Math.random() < critChance) {
-    return { isCrit: true, multiplier: 2.0 }
+    return { isCrit: true, multiplier: critMult }
   }
   return { isCrit: false, multiplier: 1.0 }
 }
@@ -169,34 +177,23 @@ export interface DamageOptions {
 }
 
 export function computeDamage(
-  attackerStats: { 공격력: number; 행운: number; 관통: number },
+  attackerStats: { 공격력: number; 민첩: number; 행운: number; 관통: number },
   defender: { 방어: number },
   opts: DamageOptions = {}
 ): { dmg: number; isCrit: boolean } {
   const { multiplier = 1.0, penBoost = 1.0, ignoreCrit = false } = opts
 
   const effectiveAtk = attackerStats.공격력 * multiplier
-  // LOL 방어 공식 (게임 스케일 맞춤): damage = atk × K / (K + def)
-  // 우리 게임 평균 effective_def 20~50 — LOL의 K=100 → K=25
-  //   def 0   → 100% dmg
-  //   def 30  → 50% (K=30 균등)
-  //   def 50  → 38%
-  //   def 100 → 23%
-  //   def 200 → 13%
-  //
-  // v8: 관통은 % 방어 무시 (0~100). 절대값 차감이 아닌 비율로 동작.
-  //   pen 0   → 적 방어 그대로
-  //   pen 30  → 적 방어 30% 무시
-  //   pen 100 → 적 방어 완전 무시
-  // → 후반 고방어 적에도 관통이 비율적 가치 유지 (절대값 차감보다 일관됨)
-  const DEF_K = 30
-  const penRatio = Math.min(1.0, Math.max(0, attackerStats.관통 * penBoost / 100))
-  const effectiveDef = Math.max(0, defender.방어 * (1 - penRatio))
-  let dmg = Math.max(1, effectiveAtk * DEF_K / (DEF_K + effectiveDef))
+  // v9: 방어는 % 단위. 관통은 절대값 차감.
+  //   적 방어 30% / 관통 10% → 실효 방어 20%
+  //   상한 없음 — 방어 100%+ 도 가능하지만 최소 데미지 1 보장
+  const penPct = Math.max(0, attackerStats.관통 * penBoost)
+  const effectiveDefPct = Math.max(0, defender.방어 - penPct) / 100
+  let dmg = Math.max(1, effectiveAtk * (1 - effectiveDefPct))
 
   let isCrit = false
   if (!ignoreCrit) {
-    const c = rollCrit(attackerStats.행운)
+    const c = rollCrit(attackerStats.민첩, attackerStats.행운)
     isCrit = c.isCrit
     dmg = Math.round(dmg * c.multiplier)
   }
@@ -213,13 +210,13 @@ export function playerBasicAttack(ctx: CombatContext) {
   const blindMod = getAccuracyModifier(ctx.player)
 
   // 명중 굴림
-  if (!rollHit(eff.명중률 + (buff.accBonus ?? 0), 0, blindMod)) {
+  if (!rollHit(eff.명중률 + (buff.accBonus ?? 0), target.eva, blindMod)) {
     pushLog(ctx, `공격이 빗나갔다.`, 'miss')
     return
   }
 
   const { dmg, isCrit } = computeDamage(
-    { 공격력: eff.공격력, 행운: eff.행운, 관통: eff.관통 },
+    { 공격력: eff.공격력, 민첩: eff.민첩, 행운: eff.행운, 관통: eff.관통 },
     { 방어: target.def },
     {}
   )
@@ -295,21 +292,20 @@ export function monsterAttack(ctx: CombatContext, attacker: MonsterInstance) {
   const buff = activeBuff(ctx)
   const blindMod = getAccuracyModifier(attacker)
 
-  if (!rollHit(0, eff.회피율 + (buff.evaBonus ?? 0), blindMod)) {
+  if (!rollHit(attacker.acc, eff.회피율 + (buff.evaBonus ?? 0), blindMod)) {
     pushLog(ctx, `${attacker.template.name}의 공격을 회피했다.`, 'miss')
     attacker._attacksMade = (attacker._attacksMade ?? 0) + 1
     return
   }
 
   const defMult = buff.defMult ?? 1
-  let effDef = eff.방어력_effective * defMult
+  let effDefPct = eff.방어력_effective * defMult
   // trait: 마법 공격자는 플레이어 방어를 절반만 적용 (S1-Q1 결정)
   if (attacker.template.trait === 'magic_attacker') {
-    effDef *= 0.5
+    effDefPct *= 0.5
   }
-  // LOL 방어 공식 (게임 스케일 K=25): damage = atk × 25 / (25 + def)
-  const DEF_K = 30
-  const finalDmg = Math.max(1, Math.round(attacker.atk * DEF_K / (DEF_K + Math.max(0, effDef))))
+  // v9: 방어는 % 단위 — 받는 데미지 = atk × (1 - def%/100), 최소 1
+  const finalDmg = Math.max(1, Math.round(attacker.atk * (1 - Math.max(0, effDefPct) / 100)))
 
   // 갑옷 데미지 흡혈 (피격 시 HP 회복)
   if (eff.damageTakenHealPct > 0) {
@@ -424,16 +420,17 @@ export function advanceTick(ctx: CombatContext) {
     if (b.duration <= 0) ctx.buffs.delete(key)
   }
 
-  // 게이지 누적 (플레이어). v6: eff.속도가 이미 무기 speedCoef 까지 포함하므로 중복 X.
+  // v9 게이지 누적: 베이스 1/틱 × (1 + 민첩/100) × armorSpeedMult × 상태이상 modifier
+  //   임계값은 무기/몬스터 ticks (각 actor마다 다름) — checkActionReady 에서 비교
   const speedMod = getSpeedModifier(ctx.player)
-  const playerSpeed = eff.속도 * speedMod
-  ctx.player.actionGauge += playerSpeed
+  const playerGauge = eff.게이지가속 * eff.armorSpeedMult * speedMod
+  ctx.player.actionGauge += playerGauge
 
-  // 각 몬스터 게이지 누적
+  // 각 몬스터 게이지 누적 (몬스터는 민첩/갑옷 없음 → 1 × speedMod)
   for (const m of ctx.monsters) {
     if (m.hp <= 0) continue
     const monsterSpeedMod = getSpeedModifier(m)
-    m.actionGauge += m.speed * monsterSpeedMod * 1.0
+    m.actionGauge += monsterSpeedMod
   }
 
   checkPlayerDeath(ctx)
@@ -442,17 +439,18 @@ export function advanceTick(ctx: CombatContext) {
 
 export interface ActionReady {
   player: boolean
-  // 게이지 100 도달한 살아있는 몬스터들
   readyMonsters: MonsterInstance[]
 }
 
-export function checkActionReady(ctx: CombatContext): ActionReady {
+// v9: 플레이어 임계값 = 무기 ticks (eff.무기ticks), 몬스터 임계값 = m.ticks
+export function checkActionReady(ctx: CombatContext, playerTicks: number): ActionReady {
   return {
-    player: ctx.player.actionGauge >= 100,
-    readyMonsters: ctx.monsters.filter((m) => m.hp > 0 && m.actionGauge >= 100),
+    player: ctx.player.actionGauge >= playerTicks,
+    readyMonsters: ctx.monsters.filter((m) => m.hp > 0 && m.actionGauge >= m.ticks),
   }
 }
 
-export function consumeAction(actor: { actionGauge: number }) {
-  actor.actionGauge -= 100
+// v9: 행동 소모 — 임계값만큼 차감 (오버플로 보존으로 빠른 무기 연속 발동 가능)
+export function consumeAction(actor: { actionGauge: number }, threshold: number) {
+  actor.actionGauge -= threshold
 }

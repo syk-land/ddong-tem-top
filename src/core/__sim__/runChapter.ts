@@ -14,6 +14,7 @@
 // Vite 빌드에 포함 안 됨.
 
 import { createCombatContext, makeMonster, advanceTick, checkActionReady, monsterAttack, consumeAction, playerBasicAttack } from '../combat'
+import { computeEffectiveStats } from '../stats'
 import { useSkill, pickAutoAction } from '../skills'
 import { rollItem } from '../items'
 import { CHAPTER_THEMES } from '@/data/chapters'
@@ -67,20 +68,21 @@ function simBossFight(chapter: number, theme: ChapterTheme, character: Character
 
   while (!ctx.ended && ctx.tick < MAX_TICKS) {
     advanceTick(ctx)
-    const ready = checkActionReady(ctx)
+    const playerEff = computeEffectiveStats(ctx.player)
+    const ready = checkActionReady(ctx, playerEff.무기ticks)
     for (const m of ready.readyMonsters) {
       if (ctx.ended) break
       monsterAttack(ctx, m)
-      consumeAction(m)
+      consumeAction(m, m.ticks)
     }
-    if (!ctx.ended && ctx.player.actionGauge >= 100) {
+    if (!ctx.ended && ctx.player.actionGauge >= playerEff.무기ticks) {
       const action = pickAutoAction(ctx, {})
       if (action.kind === 'skill') {
         if (!useSkill(ctx, action.key)) playerBasicAttack(ctx)
       } else {
         playerBasicAttack(ctx)
       }
-      consumeAction(ctx.player)
+      consumeAction(ctx.player, playerEff.무기ticks)
     }
   }
   return ctx.victory

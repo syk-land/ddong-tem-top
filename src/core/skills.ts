@@ -196,12 +196,12 @@ function attackSkill(
   const target = currentTarget(ctx)
   if (!target) return
   const eff = computeEffectiveStats(ctx.player)
-  if (!rollHit(eff.명중률 + (opts.accBonus ?? 0), 0)) {
+  if (!rollHit(eff.명중률 + (opts.accBonus ?? 0), target.eva)) {
     pushLog(ctx, '공격이 빗나갔다.', 'miss')
     return
   }
   const { dmg, isCrit } = computeDamage(
-    { 공격력: eff.공격력, 행운: eff.행운, 관통: eff.관통 },
+    { 공격력: eff.공격력, 민첩: eff.민첩, 행운: eff.행운, 관통: eff.관통 },
     { 방어: target.def },
     { multiplier, penBoost: opts.penBoost ?? 1.0 }
   )
@@ -258,12 +258,12 @@ function magicAttackOnTarget(
 ) {
   if (target.hp <= 0) return
   const eff = computeEffectiveStats(ctx.player)
-  if (!rollHit(eff.명중률 + (opts.accBonus ?? 0), 0)) {
+  if (!rollHit(eff.명중률 + (opts.accBonus ?? 0), target.eva)) {
     if (!opts.silent) pushLog(ctx, '마법이 빗나갔다.', 'miss')
     return
   }
   const { dmg, isCrit } = computeDamage(
-    { 공격력: eff.마법공격력, 행운: eff.행운, 관통: eff.관통 },
+    { 공격력: eff.마법공격력, 민첩: eff.민첩, 행운: eff.행운, 관통: eff.관통 },
     { 방어: target.def },
     { multiplier }
   )
