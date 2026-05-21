@@ -31,6 +31,18 @@ import { WEAPON_TRAITS, ARMOR_TRAITS } from '@/data/traits'
 const DEFAULT_STATS = { 힘: 12, 민첩: 12, 체력: 12, 마력: 12, 행운: 12 }
 const DEFAULT_CHAPTER = 5
 
+// 표시값 → 실측 calibration (1000런 시뮬 기반 — itemValueCalibrate.ts)
+//   k_atk: 표시 atkValue × k_atk ≈ 실측 DPS
+//   k_def: 표시 defValue × k_def ≈ 실측 피해감소%
+//   atkParts / defParts 의 각 항목 value 에 동일 곱 적용
+const CALIB_ATK = 0.603
+const CALIB_DEF = 0.515
+
+function applyCalibration(atkParts: ValuePart[], defParts: ValuePart[]) {
+  for (const p of atkParts) p.value *= CALIB_ATK
+  for (const p of defParts) p.value *= CALIB_DEF
+}
+
 // v9 스킬 multiplier — skills.ts 와 동기화
 const SKILL_ATK_MULT: Record<string, { mult: number; magic: boolean; note?: string }> = {
   스매쉬: { mult: 2.0, magic: false },
@@ -201,6 +213,7 @@ function computeWeaponValue(
   if (w.effects.회피) defParts.push({ label: '회피 (무기 특성)', value: w.effects.회피 * 0.5 })
   if (w.effects.상태저항) defParts.push({ label: '저항 (무기 특성)', value: w.effects.상태저항 * 0.3 })
 
+  applyCalibration(atkParts, defParts)
   const atkValue = atkParts.reduce((s, p) => s + p.value, 0)
   const defValue = defParts.reduce((s, p) => s + p.value, 0)
   return { atkValue, defValue, atkParts, defParts }
@@ -342,6 +355,7 @@ function computeArmorValue(
     atkParts.push({ label: '행운 (갑옷 특성)', value: charDps * a.effects.행운 * 0.005, note: `+${a.effects.행운.toFixed(0)}` })
   }
 
+  applyCalibration(atkParts, defParts)
   const atkValue = atkParts.reduce((s, p) => s + p.value, 0)
   const defValue = defParts.reduce((s, p) => s + p.value, 0)
   return { atkValue, defValue, atkParts, defParts }
