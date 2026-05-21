@@ -206,6 +206,73 @@ function openDetail(name: string, total: number, entries: Breakdown[]) {
   detailModal.value = { name, total, entries }
 }
 
+// ===== 스탯별 기여 분해 (5스탯 클릭 시) =====
+function breakdownStat힘(): Breakdown[] {
+  const s = c.value.stats
+  const w = c.value.weapon
+  const wb = w ? WEAPONS[w.baseKey] : null
+  if (w && wb) {
+    const t = WEAPON_TRAITS[w.trait]?.effects ?? {}
+    const pct = (t.공격력_pct ?? 0) + (t.전스탯_pct ?? 0)
+    return [
+      { from: '공격력', value: s.힘 * wb.baseAtk * w.coef * (1 + pct) * 3.0,
+        note: `힘 ${s.힘} × baseAtk ${wb.baseAtk} × 등급 ${w.coef} × (1+${pct.toFixed(2)}) × 3.0` },
+    ]
+  }
+  return [{ from: '공격력', value: 0, note: '무기 없음 — 힘 기여 0' }]
+}
+function breakdownStat민첩(): Breakdown[] {
+  const s = c.value.stats
+  return [
+    { from: '게이지 가속', value: s.민첩 / 100, note: `+${s.민첩}% (1pt당 +1%)` },
+    { from: '명중 +', value: s.민첩 * 0.5, note: '민첩 × 0.5' },
+    { from: '회피 +', value: s.민첩 * 0.5, note: '민첩 × 0.5' },
+    { from: '크리 확률', value: s.민첩 * 0.003, note: `민첩 × 0.3% = ${(s.민첩 * 0.3).toFixed(1)}%` },
+  ]
+}
+function breakdownStat체력(): Breakdown[] {
+  const s = c.value.stats
+  const a = c.value.armor
+  const coef = a?.coef ?? 0
+  return [
+    { from: '방어 %', value: s.체력 * 0.3 * coef,
+      note: a ? `체력 ${s.체력} × 0.3 × 갑옷등급 ${coef.toFixed(2)}` : '갑옷 없음 (등급계수 0)' },
+    { from: '상태저항', value: s.체력 * 0.5, note: '체력 × 0.5' },
+    { from: '최대 HP', value: c.value.maxHp, note: 'computeMaxHp(체력)' },
+  ]
+}
+function breakdownStat마력(): Breakdown[] {
+  const s = c.value.stats
+  const w = c.value.weapon
+  const a = c.value.armor
+  const wb = w ? WEAPONS[w.baseKey] : null
+  const out: Breakdown[] = []
+  if (w && wb?.isMagic) {
+    const t = WEAPON_TRAITS[w.trait]?.effects ?? {}
+    const pct = (t.공격력_pct ?? 0) + (t.전스탯_pct ?? 0)
+    const synergy = a?.baseKey === '로브' ? 1.7 : 1.0
+    out.push({
+      from: '마법공격력',
+      value: s.마력 * wb.baseAtk * w.coef * (1 + pct) * 1.5 * synergy,
+      note: `마력 ${s.마력} × baseAtk ${wb.baseAtk} × 등급 ${w.coef} × 1.5${synergy !== 1 ? ` × 로브 ${synergy}` : ''}`,
+    })
+  }
+  out.push({ from: '상태저항', value: s.마력 * 0.5, note: '마력 × 0.5' })
+  out.push({ from: '최대 MP', value: c.value.maxMp, note: 'computeMaxMp(마력)' })
+  return out
+}
+function breakdownStat행운(): Breakdown[] {
+  const s = c.value.stats
+  return [
+    { from: '명중 +', value: s.행운 * 0.1, note: '행운 × 0.1' },
+    { from: '회피 +', value: s.행운 * 0.1, note: '행운 × 0.1' },
+    { from: '크리 배수 +', value: s.행운 / 100, note: `+${(s.행운 / 100).toFixed(2)}` },
+    { from: '상태저항 +', value: s.행운 * 0.3, note: '행운 × 0.3' },
+    { from: '스킬 발동률', value: s.행운 * 0.005,
+      note: `× (1 + 행운 × 0.005) = ×${(1 + s.행운 * 0.005).toFixed(3)}` },
+  ]
+}
+
 function showSkillDetail(key: string) {
   const skill = SKILLS[key]
   if (!skill) return
@@ -269,18 +336,34 @@ function showSkillDetail(key: string) {
         >상세 능력치</button>
       </div>
 
-      <!-- 기본 능력치 (5스탯만) -->
-      <div v-if="tab === 'base'" class="bg-bg-tertiary rounded p-2 space-y-1">
-        <div class="text-xs text-gray-400 mb-1">5스탯</div>
-        <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm font-mono">
-          <div :class="statColorClass.힘"><span class="text-gray-500">힘</span> {{ c.stats.힘 }}</div>
-          <div :class="statColorClass.민첩"><span class="text-gray-500">민첩</span> {{ c.stats.민첩 }}</div>
-          <div :class="statColorClass.체력"><span class="text-gray-500">체력</span> {{ c.stats.체력 }}</div>
-          <div :class="statColorClass.마력"><span class="text-gray-500">마력</span> {{ c.stats.마력 }}</div>
-          <div :class="statColorClass.행운"><span class="text-gray-500">행운</span> {{ c.stats.행운 }}</div>
-        </div>
-        <div class="text-[10px] text-gray-500 mt-2 leading-snug">
-          힘 → 공격력 / 민첩 → 게이지가속·명중·회피·크리확률 / 체력 → 방어·HP / 마력 → MP·마법공격력 / 행운 → 크리데미지·명중·회피·저항
+      <!-- 기본 능력치 — 각 스탯 탭하면 기여 능력치 분해 -->
+      <div v-if="tab === 'base'" class="bg-bg-tertiary rounded p-2">
+        <div class="grid grid-cols-2 gap-1.5 text-sm font-mono">
+          <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-3 py-2 min-h-11 transition-colors"
+                  @click="openDetail('힘', c.stats.힘, breakdownStat힘())">
+            <span :class="statColorClass.힘" class="text-gray-500">힘</span>
+            <span :class="statColorClass.힘" class="font-bold text-base ml-2">{{ c.stats.힘 }}</span>
+          </button>
+          <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-3 py-2 min-h-11 transition-colors"
+                  @click="openDetail('민첩', c.stats.민첩, breakdownStat민첩())">
+            <span :class="statColorClass.민첩" class="text-gray-500">민첩</span>
+            <span :class="statColorClass.민첩" class="font-bold text-base ml-2">{{ c.stats.민첩 }}</span>
+          </button>
+          <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-3 py-2 min-h-11 transition-colors"
+                  @click="openDetail('체력', c.stats.체력, breakdownStat체력())">
+            <span :class="statColorClass.체력" class="text-gray-500">체력</span>
+            <span :class="statColorClass.체력" class="font-bold text-base ml-2">{{ c.stats.체력 }}</span>
+          </button>
+          <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-3 py-2 min-h-11 transition-colors"
+                  @click="openDetail('마력', c.stats.마력, breakdownStat마력())">
+            <span :class="statColorClass.마력" class="text-gray-500">마력</span>
+            <span :class="statColorClass.마력" class="font-bold text-base ml-2">{{ c.stats.마력 }}</span>
+          </button>
+          <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-3 py-2 min-h-11 transition-colors col-span-2"
+                  @click="openDetail('행운', c.stats.행운, breakdownStat행운())">
+            <span :class="statColorClass.행운" class="text-gray-500">행운</span>
+            <span :class="statColorClass.행운" class="font-bold text-base ml-2">{{ c.stats.행운 }}</span>
+          </button>
         </div>
       </div>
 

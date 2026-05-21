@@ -22,12 +22,11 @@ const bgUrl = computed(() => {
   const ch = game.currentChapterState
   return ch ? themeBgUrl(ch.theme) : ''
 })
-// 도전 모드 여부
 const isRealBoss = computed(() => !!game.realBossMonster && !!game.realBossTheme)
 const realBossImg = computed(() => game.realBossTheme ? realBossImageUrl(game.realBossTheme) : null)
 
 // ============================================================
-// 피격 이펙트: monster.hp 변화 감지 → 흔들림 + 데미지 부동 숫자
+// 피격 이펙트
 // ============================================================
 interface DamageEvent {
   id: number
@@ -40,16 +39,14 @@ const shakingIdx = ref<Set<number>>(new Set())
 const previousHp = ref<number[]>([])
 let dmgIdCounter = 0
 
-// 초기화
 watch(
   () => monsters.value.length,
-  (n) => {
+  () => {
     previousHp.value = monsters.value.map((m) => m.hp)
   },
   { immediate: true }
 )
 
-// HP 변화 감지
 watch(
   () => monsters.value.map((m) => m.hp),
   (newHps) => {
@@ -57,9 +54,7 @@ watch(
       const oldHp = previousHp.value[i] ?? newHps[i]
       const delta = oldHp - newHps[i]
       if (delta > 0) {
-        // 피격 발생
         const id = ++dmgIdCounter
-        // 크리티컬 판별: 최근 로그에 '크리티컬' 포함 여부
         const recentLog = log.value[log.value.length - 1]
         const isCrit = !!recentLog && /크리티컬/.test(recentLog.text)
         damageEvents.value.push({ id, monsterIdx: i, amount: delta, isCrit })
@@ -112,13 +107,33 @@ watch(
   }
 )
 
-// 자동 전투용 스킬 정보 (UI 표시)
 const skillKeys = computed(() => game.availableSkills)
 const procPct = computed(() => game.weaponSkillProcPct)
 
-const BASE_INTERVAL = 60 // ms
+// 스킬 상세 모달
+const selectedSkill = ref<string | null>(null)
+const selectedSkillDef = computed(() =>
+  selectedSkill.value ? SKILLS[selectedSkill.value] ?? null : null
+)
+const isAttackSkill = computed(() => {
+  const k = selectedSkillDef.value?.kind
+  return k === 'physical_atk' || k === 'magic_atk'
+})
+const skillKindLabel: Record<string, string> = {
+  physical_atk: '물리 공격',
+  physical_def: '물리 방어',
+  magic_atk: '마법 공격',
+  magic_def: '마법 방어',
+}
+const skillKindColor: Record<string, string> = {
+  physical_atk: 'text-stat-phys_atk',
+  physical_def: 'text-stat-phys_def',
+  magic_atk: 'text-stat-mag_atk',
+  magic_def: 'text-stat-mag_def',
+}
 
-// 자동 틱 (전투 종료 전까지 무한 — 플레이어 액션도 자동)
+const BASE_INTERVAL = 60
+
 let ticker: number | null = null
 function startAutoTick() {
   if (ticker) return
@@ -148,16 +163,12 @@ onMounted(() => {
 })
 onUnmounted(() => stopAutoTick())
 
-// 전투 종료 감지: 자동 정지
 let autoAdvanceTimer: ReturnType<typeof setTimeout> | null = null
 function maybeAutoAdvance() {
   if (!game.autoEnter) return
   if (!combat.value || !combat.value.ended) return
-  // 패배(사망)는 자동 진행 X — 게임오버 화면에서 사용자 확인
   if (!combat.value.victory) return
-  // 드랍 인벤토리 풀 모달 떠있으면 대기
   if (game.pendingPickup) return
-  // 일반 모달도 대기
   if (game.dialog || game.inputDialog || game.listDialog) return
   if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer)
   const delay = Math.max(300, Math.round(900 / Math.max(1, game.combatSpeed)))
@@ -179,7 +190,6 @@ watch(
     }
   }
 )
-// pendingPickup이 사라지면 (사용자가 드랍 결정 완료) 자동 진행 재시도
 watch(
   () => game.pendingPickup,
   (p) => {
@@ -193,11 +203,16 @@ onUnmounted(() => {
   }
 })
 
-// 속도 변경 → 타이머 재시작
 watch(
   () => game.combatSpeed,
   () => restartTicker()
 )
+
+// ============================================================
+// 로그 접기/펼치기
+// ============================================================
+const logExpanded = ref(false)
+const recentLogs = computed(() => log.value.slice(-3))
 
 watch(
   () => log.value.length,
@@ -205,19 +220,15 @@ watch(
     requestAnimationFrame(() => {
       if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight
     })
-    // 새 로그 항목 → 일부 보조 사운드 트리거 (로그 kind 기반)
-    //   — 평타/스킬/몬스터 피격/사망은 core에서 직접 sfx 호출하므로 여기선 보조만
     if (oldLen != null && newLen > oldLen) {
       for (let i = oldLen; i < newLen; i++) {
         const entry = log.value[i]
         if (!entry) continue
         switch (entry.kind) {
           case 'critical':
-            // 크리티컬은 강조용 — 위에 monsterHit과 같이 울려 풍성하게
             sfx.crit()
             break
           case 'enemy':
-            // 적이 플레이어를 때렸을 때 (hit 사운드)
             if (entry.text.includes('피해')) sfx.hit()
             break
           case 'miss':
@@ -235,34 +246,10 @@ watch(
   }
 )
 
-async function setSpeed(s: number) {
-  if (s === 4 && game.combatSpeed !== 4) {
-    const ok = await game.confirmModal('광고를 보고 4배속을 사용하시겠습니까?', {
-      title: '광고 시청',
-      okLabel: '예 (광고 보기)',
-      cancelLabel: '아니오',
-    })
-    if (!ok) return
-  }
-  game.setCombatSpeed(s)
-}
-async function toggleAuto() {
-  // OFF → ON 전환만 광고 시청 흐름 (ON → OFF 는 즉시 해제)
-  if (!game.autoEnter) {
-    const ok = await game.confirmModal('광고를 보고 자동 진입을 사용하시겠습니까?', {
-      title: '광고 시청',
-      okLabel: '예 (광고 보기)',
-      cancelLabel: '아니오',
-    })
-    if (!ok) return
-  }
-  game.setAutoEnter(!game.autoEnter)
-}
 function closeAndAdvance() {
   game.closeCombat()
 }
 
-// 백그라운드 일시정지 — 틱 타이머 동기화
 watch(
   () => game.paused,
   (p) => {
@@ -273,37 +260,53 @@ watch(
 </script>
 
 <template>
-  <section class="flex-1 flex flex-col px-3 py-3 max-w-4xl mx-auto w-full">
-    <!-- 통합 배경 컨테이너 (적부터 컨트롤까지 하나의 챕터 배경 이어짐) -->
+  <section class="flex-1 flex flex-col px-2 py-2 sm:px-3 sm:py-3 max-w-4xl mx-auto w-full">
+    <!-- 통합 배경 컨테이너 -->
     <div class="relative flex-1 flex flex-col rounded-lg overflow-hidden border border-slate-700">
-      <!-- 챕터 배경 (한 장으로 이어짐) -->
+      <!-- 챕터 배경 -->
       <div
         v-if="bgUrl"
         class="absolute inset-0 bg-cover bg-center"
         :style="{ backgroundImage: `url(${bgUrl})` }"
       />
-      <div class="absolute inset-0 bg-black/45" />
+      <div class="absolute inset-0 bg-black/50" />
 
-      <!-- 내부 카드들 (반투명 panel-glass) -->
-      <div class="relative z-10 flex flex-col gap-3 p-3">
-        <!-- 적 상태 (다수 가능) -->
-        <div class="panel-glass p-0 overflow-hidden">
-          <!-- 몬스터 이미지 (도전 모드는 큰 이미지 사용) -->
+      <div class="relative z-10 flex flex-col gap-2 p-2 sm:gap-3 sm:p-3">
+        <!-- ====================================================== -->
+        <!-- 적 카드 — rose 액센트                                   -->
+        <!-- ====================================================== -->
+        <div class="rounded-lg overflow-hidden border border-rose-500/40 bg-bg-secondary/55 backdrop-blur-sm shadow-[0_0_20px_rgba(244,63,94,0.15)_inset]">
+          <!-- 헤더 -->
+          <div class="px-3 py-1.5 bg-rose-950/40 border-b border-rose-500/30 flex items-center justify-between">
+            <span class="text-xs font-bold text-rose-300 tracking-wide">
+              <span v-if="isRealBoss">⚔ 도전 보스</span>
+              <span v-else>⚔ 적 {{ aliveMonsterCount }} / {{ monsters.length }}</span>
+            </span>
+            <span class="text-[11px] text-rose-200/60">
+              {{ isRealBoss ? '진짜 보스전' : (combat.ended ? '전투 종료' : '진행 중') }}
+            </span>
+          </div>
+
+          <!-- 적 컨테이너: 도전모드는 단일 큰 카드, 일반은 가로 카드 그리드 -->
           <div
-            class="flex justify-center items-end gap-3 pt-3"
-            :style="{ minHeight: isRealBoss ? '360px' : '140px' }"
+            class="flex justify-center items-end gap-2 sm:gap-3 px-2 pt-3 pb-1"
+            :style="{ minHeight: isRealBoss ? '320px' : '150px' }"
           >
             <div
               v-for="(m, idx) in monsters"
-              :key="'img-' + idx"
-              :class="['relative flex flex-col items-center', m.hp <= 0 ? 'opacity-30 grayscale' : '']"
+              :key="'card-' + idx"
+              :class="[
+                'relative flex flex-col items-center',
+                isRealBoss ? 'flex-1' : 'flex-1 max-w-[140px]',
+                m.hp <= 0 ? 'opacity-40 grayscale' : '',
+              ]"
             >
               <img
                 :src="isRealBoss && realBossImg ? realBossImg : monsterImageUrl(m.template.name)"
                 :alt="m.template.name"
                 :class="[
                   'object-contain drop-shadow-2xl',
-                  isRealBoss ? 'max-h-[360px] max-w-[100%] w-auto' : 'max-h-[120px] max-w-[120px]',
+                  isRealBoss ? 'max-h-[300px] max-w-[100%] w-auto' : 'max-h-[110px] max-w-[110px]',
                   shakingIdx.has(idx) ? 'animate-shake animate-flash-red' : '',
                 ]"
                 @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
@@ -312,134 +315,153 @@ watch(
                 v-for="ev in damageFor(idx)"
                 :key="ev.id"
                 class="absolute left-1/2 top-2 pointer-events-none font-bold animate-damage-float"
-                :class="ev.isCrit ? 'text-3xl text-log-critical drop-shadow-[0_0_4px_rgba(245,158,11,0.8)]' : 'text-2xl text-status-burn drop-shadow-[0_0_3px_rgba(239,68,68,0.8)]'"
+                :class="ev.isCrit
+                  ? 'text-3xl text-log-critical drop-shadow-[0_0_4px_rgba(245,158,11,0.8)]'
+                  : 'text-2xl text-status-burn drop-shadow-[0_0_3px_rgba(239,68,68,0.8)]'"
               >
                 -{{ ev.amount }}<span v-if="ev.isCrit" class="text-sm ml-0.5">✦</span>
               </div>
             </div>
           </div>
-          <div class="p-2 space-y-2 bg-black/25">
-            <div class="text-[10px] text-gray-300">적 {{ aliveMonsterCount }} / {{ monsters.length }} 마리</div>
+
+          <!-- 적 정보 영역 -->
+          <div class="px-3 py-2 space-y-2 bg-black/30">
             <div
               v-for="(m, idx) in monsters"
-              :key="idx"
-              :class="['space-y-1', m.hp <= 0 ? 'opacity-40' : '']"
+              :key="'info-' + idx"
+              :class="['space-y-1', m.hp <= 0 ? 'opacity-50' : '']"
             >
-              <div class="flex items-baseline justify-between">
-                <h3 class="text-sm font-bold text-log-enemy">
+              <div class="flex items-baseline justify-between gap-2">
+                <h3 class="text-sm font-bold text-rose-200 truncate">
                   <span v-if="m.hp <= 0" class="line-through text-gray-500">{{ m.template.name }}</span>
                   <span v-else>{{ m.template.name }}</span>
                   <span v-if="m.isBoss" class="text-grade-legend text-xs ml-1 font-bold">[보스]</span>
                   <span v-if="m.isMimic" class="text-status-bleed text-xs ml-1">미믹</span>
                   <span v-if="m.hp <= 0" class="text-gray-500 text-xs ml-1">처치됨</span>
                 </h3>
-                <span class="text-[10px] text-gray-300">속도 {{ m.speed }}</span>
+                <span class="text-xs text-stat-speed shrink-0">⚡{{ m.speed }}</span>
               </div>
               <HpMpBar :current="m.hp" :max="m.maxHp" kind="hp" />
-              <StatusBadges :statuses="m.statuses" />
-              <div class="w-full h-1 bg-slate-800 rounded overflow-hidden">
-                <div class="h-full bg-log-enemy transition-all" :style="{ width: Math.min(100, m.actionGauge) + '%' }" />
+              <!-- 액션 게이지: HP 와 시각적 분리 — 얇은 라인 + 다른 색 -->
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] text-rose-300/70 font-mono w-8">행동</span>
+                <div class="flex-1 h-[3px] bg-slate-900/70 rounded-full overflow-hidden">
+                  <div class="h-full bg-rose-400/80 transition-all" :style="{ width: Math.min(100, m.actionGauge) + '%' }" />
+                </div>
               </div>
+              <StatusBadges v-if="m.statuses.length" :statuses="m.statuses" />
             </div>
           </div>
         </div>
 
-        <!-- 플레이어 상태 (로그를 아래로 이동) -->
-        <div class="panel-glass p-2 space-y-2">
-          <div class="flex items-center gap-3">
-            <div class="relative flex-shrink-0">
-              <img
-                :src="playerImageUrl(game.runAvatar)"
-                alt="플레이어"
-                :class="[
-                  'w-20 h-20 object-contain drop-shadow-2xl',
-                  playerShaking ? 'animate-shake animate-flash-red' : '',
-                ]"
-                @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
-              />
-              <div
-                v-for="ev in playerDamageEvents"
-                :key="ev.id"
-                class="absolute left-1/2 top-2 pointer-events-none font-bold text-2xl text-status-burn animate-damage-float drop-shadow-[0_0_3px_rgba(239,68,68,0.8)]"
+        <!-- ====================================================== -->
+        <!-- 플레이어 카드 — teal 액센트                             -->
+        <!-- ====================================================== -->
+        <div class="rounded-lg overflow-hidden border border-cyan-500/40 bg-bg-secondary/55 backdrop-blur-sm shadow-[0_0_20px_rgba(34,211,238,0.15)_inset]">
+          <div class="p-3 space-y-2">
+            <div class="flex items-center gap-3">
+              <div class="relative flex-shrink-0">
+                <img
+                  :src="playerImageUrl(game.runAvatar)"
+                  alt="플레이어"
+                  :class="[
+                    'w-20 h-20 object-contain drop-shadow-2xl',
+                    playerShaking ? 'animate-shake animate-flash-red' : '',
+                  ]"
+                  @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+                />
+                <div
+                  v-for="ev in playerDamageEvents"
+                  :key="ev.id"
+                  class="absolute left-1/2 top-2 pointer-events-none font-bold text-2xl text-status-burn animate-damage-float drop-shadow-[0_0_3px_rgba(239,68,68,0.8)]"
+                >
+                  -{{ ev.amount }}
+                </div>
+              </div>
+              <div class="flex-1 min-w-0 space-y-1.5">
+                <HpMpBar :current="player.hp" :max="player.maxHp" kind="hp" />
+                <HpMpBar :current="player.mp" :max="player.maxMp" kind="mp" />
+                <div class="text-xs flex items-center gap-1.5 flex-wrap">
+                  <ItemName :item="player.weapon" compact />
+                  <span class="text-gray-600">·</span>
+                  <ItemName :item="player.armor" compact />
+                </div>
+                <StatusBadges v-if="player.statuses.length" :statuses="player.statuses" />
+              </div>
+            </div>
+
+            <!-- 플레이어 액션 게이지 — 적과 다른 색(cyan) + 얇은 라인 -->
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] text-cyan-300/70 font-mono w-8">행동</span>
+              <div class="flex-1 h-[3px] bg-slate-900/70 rounded-full overflow-hidden">
+                <div class="h-full bg-cyan-400/80 transition-all" :style="{ width: playerGauge + '%' }" />
+              </div>
+            </div>
+
+            <!-- 자동 발동 스킬 — 칩 (탭하면 상세 모달) -->
+            <div v-if="skillKeys.length > 0" class="flex flex-wrap items-center gap-1.5 text-xs pt-0.5">
+              <span class="text-cyan-300/80 text-[11px]">자동</span>
+              <button
+                v-for="key in skillKeys"
+                :key="key"
+                type="button"
+                class="px-2 py-1 rounded-md bg-slate-800/80 text-log-skill flex items-center gap-1 border border-cyan-500/20 hover:bg-slate-700/80 active:scale-95 transition-transform"
+                :title="`${SKILLS[key]?.name ?? key} — 상세 보기`"
+                @click="selectedSkill = key"
               >
-                -{{ ev.amount }}
-              </div>
-            </div>
-            <div class="flex-1 min-w-0 space-y-1">
-              <HpMpBar :current="player.hp" :max="player.maxHp" kind="hp" />
-              <HpMpBar :current="player.mp" :max="player.maxMp" kind="mp" />
-              <div class="text-[10px] flex items-center gap-2 flex-wrap">
-                <ItemName :item="player.weapon" compact />
-                <span class="text-gray-700">·</span>
-                <ItemName :item="player.armor" compact />
-              </div>
-              <StatusBadges :statuses="player.statuses" />
+                <img
+                  :src="skillIconUrl(key)"
+                  :alt="key"
+                  class="w-4 h-4 object-contain"
+                  @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+                />
+                <span>{{ SKILLS[key]?.name ?? key }}</span>
+                <span
+                  v-if="SKILLS[key]?.kind === 'physical_atk' || SKILLS[key]?.kind === 'magic_atk'"
+                  class="text-stat-util"
+                >{{ procPct }}%</span>
+              </button>
             </div>
           </div>
+        </div>
 
-          <div class="w-full h-2 bg-slate-800/70 rounded overflow-hidden">
-            <div class="h-full bg-log-skill transition-all" :style="{ width: playerGauge + '%' }" />
-          </div>
-
-          <div v-if="skillKeys.length > 0" class="flex flex-wrap items-center gap-2 text-xs">
-            <span class="text-gray-300">자동:</span>
-            <span
-              v-for="key in skillKeys"
-              :key="key"
-              class="px-2 py-0.5 rounded bg-slate-800/80 text-log-skill flex items-center gap-1"
-            >
-              <img :src="skillIconUrl(key)" :alt="key" class="w-4 h-4 object-contain" @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')" />
-              {{ SKILLS[key]?.name ?? key }}
-              <span v-if="SKILLS[key]?.kind === 'physical_atk' || SKILLS[key]?.kind === 'magic_atk'"
-                    class="text-stat-util ml-1">{{ procPct }}%</span>
+        <!-- ====================================================== -->
+        <!-- 전투 로그 — 접기/펼치기 (도전모드는 숨김)                 -->
+        <!-- ====================================================== -->
+        <div
+          v-if="!isRealBoss"
+          class="rounded-lg overflow-hidden border border-slate-700/60 bg-black/55 backdrop-blur-sm"
+        >
+          <button
+            class="w-full px-3 py-1.5 flex items-center justify-between bg-slate-900/40 hover:bg-slate-800/50 transition-colors"
+            @click="logExpanded = !logExpanded"
+          >
+            <span class="text-xs font-bold text-slate-300">📜 전투 로그</span>
+            <span class="text-xs text-slate-400">
+              {{ logExpanded ? '접기 ▴' : '펼치기 ▾' }}
             </span>
-            <span class="text-gray-300 ml-auto text-[10px]">MP {{ player.mp }}/{{ player.maxMp }}</span>
+          </button>
+
+          <!-- 접힘: 최근 3줄 미리보기 -->
+          <div v-if="!logExpanded" class="font-mono px-3 py-2 text-xs leading-relaxed">
+            <div
+              v-for="(l, i) in recentLogs"
+              :key="'recent-' + i"
+              :class="['truncate', logColorClass[l.kind]]"
+            >
+              <span class="mr-1 opacity-80">{{ logPrefix[l.kind] }}</span>{{ l.text }}
+            </div>
           </div>
-        </div>
 
-        <!-- 자동 전투 컨트롤 -->
-        <div v-if="!combat.ended" class="panel-glass p-2 flex items-center gap-2">
-          <span class="text-xs text-gray-300">속도</span>
-          <button
-            v-for="s in [1, 2, 4]"
-            :key="s"
-            class="px-3 py-1 rounded text-sm transition-all"
-            :class="game.combatSpeed === s
-              ? 'bg-log-skill text-black font-bold ring-2 ring-cyan-200 shadow-[0_0_10px_rgba(34,211,238,0.7)] scale-105'
-              : 'bg-slate-800 text-gray-200 hover:bg-slate-700'"
-            @click="setSpeed(s)"
-          >
-            {{ s }}x
-          </button>
-          <span class="flex-1" />
-          <button
-            class="px-3 py-1 rounded text-sm transition-all"
-            :class="game.autoEnter
-              ? 'bg-log-reward text-black font-bold ring-2 ring-amber-200 shadow-[0_0_10px_rgba(251,191,36,0.7)] scale-105'
-              : 'bg-slate-800 text-gray-200 hover:bg-slate-700'"
-            :title="game.autoEnter ? '자동 진입 ON' : '자동 진입 OFF'"
-            @click="toggleAuto"
-          >
-            {{ game.autoEnter ? '자동 ✓' : '자동' }}
-          </button>
-        </div>
-
-        <!-- 종료 화면 -->
-        <div v-else class="panel-glass p-3 space-y-3 text-center">
-          <div v-if="combat.victory" class="text-log-reward text-xl font-bold">승리!</div>
-          <div v-else class="text-log-enemy text-xl font-bold">패배...</div>
-          <button v-if="combat.victory" class="btn-primary w-full" @click="closeAndAdvance">다음 층으로</button>
-        </div>
-
-        <!-- 전투 로그 (도전 모드는 숨김) -->
-        <div v-if="!isRealBoss" class="panel-glass p-0 overflow-hidden">
+          <!-- 펼침: 스크롤 영역 -->
           <div
-            class="overflow-y-auto font-mono p-2 text-[10px] leading-snug bg-black/55"
+            v-else
+            class="overflow-y-auto font-mono px-3 py-2 text-xs leading-relaxed"
             ref="logEl"
-            style="height: 140px"
+            style="height: 200px"
           >
             <div v-for="(l, i) in log" :key="i" :class="['log-line', logColorClass[l.kind]]">
-              <span class="text-gray-500 text-[9px] mr-1">[{{ l.tick }}t]</span>
+              <span class="text-gray-500 text-[10px] mr-1">[{{ l.tick }}t]</span>
               <span class="mr-1 opacity-80">{{ logPrefix[l.kind] }}</span>
               {{ l.text }}
             </div>
@@ -447,5 +469,79 @@ watch(
         </div>
       </div>
     </div>
+
+    <!-- ====================================================== -->
+    <!-- 스킬 상세 모달                                            -->
+    <!-- ====================================================== -->
+    <div
+      v-if="selectedSkillDef"
+      class="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm animate-fadein"
+      @click.self="selectedSkill = null"
+    >
+      <div class="w-full max-w-xs rounded-xl border-2 border-cyan-400/60 bg-bg-secondary/95 shadow-[0_0_30px_rgba(34,211,238,0.35)] overflow-hidden">
+        <!-- 헤더 -->
+        <div class="px-4 py-3 bg-cyan-950/40 border-b border-cyan-500/30 flex items-center gap-3">
+          <img
+            :src="skillIconUrl(selectedSkill!)"
+            :alt="selectedSkillDef.name"
+            class="w-10 h-10 object-contain drop-shadow"
+            @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+          />
+          <div class="flex-1 min-w-0">
+            <div class="text-base font-bold text-cyan-200 truncate">{{ selectedSkillDef.name }}</div>
+            <div class="text-[11px] flex items-center gap-1.5 flex-wrap">
+              <span :class="skillKindColor[selectedSkillDef.kind]">{{ skillKindLabel[selectedSkillDef.kind] }}</span>
+              <span v-if="selectedSkillDef.element" class="text-gray-400">· {{ selectedSkillDef.element }}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="w-7 h-7 flex items-center justify-center rounded text-base text-gray-300 hover:bg-slate-700"
+            @click="selectedSkill = null"
+            aria-label="닫기"
+          >✕</button>
+        </div>
+
+        <!-- 본문 -->
+        <div class="px-4 py-3 pb-4 space-y-2 text-sm">
+          <p class="text-gray-200 leading-relaxed">{{ selectedSkillDef.description }}</p>
+          <div class="flex items-center justify-between pt-2 border-t border-slate-700/60 text-xs">
+            <span class="text-stat-mp">소모 MP <span class="font-bold">{{ selectedSkillDef.mp }}</span></span>
+            <span v-if="isAttackSkill" class="text-stat-util">발동률 <span class="font-bold">{{ procPct }}%</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================== -->
+    <!-- 승리 모달 (fixed overlay)                                -->
+    <!-- - 패배는 GameOver 화면으로 자동 전환되므로 모달 없음       -->
+    <!-- ====================================================== -->
+    <div
+      v-if="combat.ended && combat.victory"
+      class="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm animate-fadein"
+      @click.self="closeAndAdvance"
+    >
+      <div
+        class="w-full max-w-sm rounded-xl border-2 border-amber-400/70 bg-bg-secondary/95 shadow-[0_0_40px_rgba(251,191,36,0.45)] p-6 space-y-4 text-center"
+      >
+        <div class="text-4xl">🏆</div>
+        <div class="text-log-reward text-3xl font-bold tracking-wide">승리!</div>
+        <button
+          class="btn-primary w-full min-h-12 text-base font-bold"
+          @click="closeAndAdvance"
+        >다음 층으로</button>
+      </div>
+    </div>
   </section>
 </template>
+
+<style scoped>
+@keyframes fadein {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-fadein {
+  animation: fadein 180ms ease-out;
+}
+</style>

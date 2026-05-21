@@ -13,16 +13,17 @@ defineProps<{
     <span
       v-for="s in statuses"
       :key="s.kind"
-      :class="['px-1.5 py-0.5 rounded text-[10px] font-bold border flex items-center gap-1', statusBgClass[s.kind]]"
+      :class="['px-1.5 py-0.5 rounded-md text-xs font-bold border flex items-center gap-1 leading-tight', statusBgClass[s.kind]]"
     >
       <img
         v-if="statusIconUrl(s.kind)"
         :src="statusIconUrl(s.kind)!"
         :alt="s.kind"
-        class="w-3 h-3 object-contain"
+        class="w-3.5 h-3.5 object-contain"
       />
-      {{ s.kind }} ×{{ s.stacks }}
-      <span class="opacity-70">{{ s.duration }}t</span>
+      <span>{{ s.kind }}</span>
+      <span class="opacity-80">×{{ s.stacks }}</span>
+      <span class="opacity-60 text-[10px]">{{ s.duration }}t</span>
     </span>
   </div>
 </template>

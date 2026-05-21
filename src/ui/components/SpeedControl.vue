@@ -189,6 +189,44 @@ const summaryIcon = computed(() => {
   return '🔊'
 })
 
+// 접힘 상태에서 스피커 탭 — 전체 사운드(sfx + bgm) 일괄 토글
+function toggleAllSound(e: Event) {
+  e.stopPropagation()  // 부모 expand 버튼 클릭 방지
+  const anyOn = sfxOn.value || bgmOn.value
+  if (anyOn) {
+    // 모두 OFF — 마지막 양수 볼륨 보관 (이미 lastXxxVol 유지 중)
+    if (sfxOn.value) {
+      if (sfxVol.value > 0) lastSfxVol.value = sfxVol.value
+      sfxOn.value = false
+      setSoundEnabled(false)
+      sfxVol.value = 0
+      setSoundVolume(0)
+    }
+    if (bgmOn.value) {
+      if (bgmVol.value > 0) lastBgmVol.value = bgmVol.value
+      bgmOn.value = false
+      setBgmEnabled(false)
+      bgmVol.value = 0
+      setBgmVolume(0)
+    }
+  } else {
+    // 모두 ON — 마지막 볼륨으로 복원
+    const sfxRestore = lastSfxVol.value > 0 ? lastSfxVol.value : 0.3
+    sfxVol.value = sfxRestore
+    setSoundVolume(sfxRestore)
+    sfxOn.value = true
+    setSoundEnabled(true)
+    sfx.click()
+
+    const bgmRestore = lastBgmVol.value > 0 ? lastBgmVol.value : 0.4
+    bgmVol.value = bgmRestore
+    setBgmVolume(bgmRestore)
+    bgmOn.value = true
+    setBgmEnabled(true)
+  }
+  bumpActivity()
+}
+
 // 모달 떠 있을 때는 패널 자체를 더 흐리게 — 가림 최소화
 const dimmed = computed(() =>
   !!(game.dialog || game.inputDialog || game.listDialog || game.pendingPickup || game.introVisible),
@@ -203,25 +241,34 @@ watch(
 
 <template>
   <div
-    class="fixed top-1 right-1 z-40 rounded-md select-none text-gray-200 transition-opacity duration-200"
+    class="fixed top-1 left-1 z-40 rounded-md select-none text-gray-200 transition-opacity duration-200"
     :class="[
       dimmed && !expanded ? 'opacity-25' : (expanded ? 'opacity-95' : 'opacity-60 hover:opacity-95'),
       expanded ? 'bg-black/65 backdrop-blur-sm' : 'bg-black/45 backdrop-blur-[2px]',
     ]"
     @mouseenter="bumpActivity"
   >
-    <!-- 접힘 상태: 매우 작은 햄버거 버튼 + 현재 속도/자동/사운드 1줄 표시 -->
-    <button
-      v-if="!expanded"
-      class="flex items-center gap-1 px-2 py-1 text-[10px] hover:bg-slate-800/60 rounded-md"
-      title="설정 패널 펼치기"
-      @click="expand"
-    >
-      <span class="text-sm leading-none">⚙</span>
-      <span class="font-mono text-gray-300">{{ game.combatSpeed }}x</span>
-      <span v-if="game.autoEnter" class="text-log-reward font-bold">자</span>
-      <span class="text-xs leading-none">{{ summaryIcon }}</span>
-    </button>
+    <!-- 접힘 상태: 햄버거(설정 펼침) + 속도/자동 표시 + 스피커(전체 사운드 토글, 별도 버튼) -->
+    <div v-if="!expanded" class="flex items-center text-[10px] rounded-md overflow-hidden">
+      <button
+        type="button"
+        class="flex items-center gap-1 pl-2 pr-1.5 py-1 hover:bg-slate-800/60"
+        title="설정 패널 펼치기"
+        @click="expand"
+      >
+        <span class="text-sm leading-none">⚙</span>
+        <span class="font-mono text-gray-300">{{ game.combatSpeed }}x</span>
+        <span v-if="game.autoEnter" class="text-log-reward font-bold">자</span>
+      </button>
+      <button
+        type="button"
+        class="px-1.5 py-1 hover:bg-slate-800/60 border-l border-slate-600/40 min-w-7 flex items-center justify-center"
+        :title="(sfxOn || bgmOn) ? '전체 사운드 끄기' : '전체 사운드 켜기'"
+        @click="toggleAllSound"
+      >
+        <span class="text-xs leading-none">{{ summaryIcon }}</span>
+      </button>
+    </div>
 
     <template v-else>
       <!-- 헤더 행: 닫기 + 속도 + 자동 + 사운드 요약 -->

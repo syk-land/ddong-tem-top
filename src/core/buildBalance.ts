@@ -51,14 +51,14 @@ export function lookupWeaponProc(baseKey: string): number {
 // 등급 / 특성 등급 보정 (똥템 보상)
 // ============================================================
 
-const GRADE_PROC_MOD: Record<Grade, number> = {
+export const GRADE_PROC_MOD: Record<Grade, number> = {
   노말: +0.10,
   레어: +0.05,
   스페셜: 0.0,
   레전드: -0.05,
 }
 
-const TRAIT_TIER_PROC_MOD: Record<TraitTier, number> = {
+export const TRAIT_TIER_PROC_MOD: Record<TraitTier, number> = {
   하급: +0.05,
   보통: 0.0,
   희귀: -0.03,
