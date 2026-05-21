@@ -91,7 +91,7 @@ export function computeEffectiveStats(c: Character): EffectiveStats {
   const baseAtk = wbase?.baseAtk ?? 0
   const weaponCoef = weapon?.coef ?? 0
   const atkMultBase = baseAtk * weaponCoef * (1 + atkPct)
-  const magicSynergy = (abase?.key === '로브' && wbase?.isMagic) ? 1.5 : 1.0
+  const magicSynergy = (abase?.key === '로브' && wbase?.isMagic) ? 1.7 : 1.0
   const finalAtk = s.힘 * atkMultBase * ATK_K_PHYS
   const finalMagicAtk = wbase?.isMagic ? s.마력 * atkMultBase * ATK_K_MAGIC * magicSynergy : 0
 

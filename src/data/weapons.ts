@@ -90,7 +90,7 @@ export const WEAPONS: Record<string, WeaponBase> = {
 
   // ── 마법 (속성/스킬은 랜덤 부여 — 추후 시스템) ──
   완드: {
-    key: '완드', category: 'magic', baseAtk: 0.7, speedCoef: 1.429, // 7틱
+    key: '완드', category: 'magic', baseAtk: 0.8, speedCoef: 1.429, // 7틱
     accBonus: 3, evaBonus: 3, mpBonus: -3, magicPenBonus: 0, penBonus: 0, isMagic: true,
     autoSkill: '화염구',
   },

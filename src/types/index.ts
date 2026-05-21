@@ -43,7 +43,7 @@ export const GRADE_COEF_RANGE: Record<Grade, [number, number]> = {
 export const GRADE_COEF: Record<Grade, number> = {
   노말: 1.5,
   레어: 2,
-  스페셜: 3.5,
+  스페셜: 3.0,
   레전드: 4.3,
 }
 
