@@ -34,9 +34,14 @@ import {
 import { computeMaxHp, computeMaxMp } from '../character'
 import { CHAPTER_THEMES, ALL_THEME_KEYS } from '@/data/chapters'
 import { CHALLENGES } from '@/data/challenges'
+import { WEAPONS } from '@/data/weapons'
 import type {
   Character, Stats, StatKey, ChapterTheme, MonsterTemplate, MonsterInstance, ItemInstance,
 } from '@/types'
+
+function isMagicWeapon(c: Character): boolean {
+  return c.weapon ? !!WEAPONS[c.weapon.baseKey]?.isMagic : false
+}
 
 // ── 캐릭터/챌린지 ──
 function generateDice(): Stats {
@@ -159,18 +164,34 @@ function doSmith(c: Character) {
   if (maxBet > 0) applySmithUpgrade(c, maxBet)
 }
 
-// 보물상자: 같은 슬롯의 더 좋은 아이템(tier 높음)이면 장착, 아니면 무시
+// 마법 빌드 갑옷 교체 규칙: 로브 > 다른 갑옷 (tier 낮아도 OK)
+//   - 마법무기 + 로브 미장착 → 로브 발견 시 무조건 교체
+//   - 마법무기 + 로브 장착 → 더 높은 tier 로브만 교체 (다른 갑옷 skip)
+//   - 일반 빌드 → tier 우선
+function shouldEquipArmor(c: Character, it: ItemInstance): boolean {
+  const cur = c.armor
+  if (!cur) return true   // 슬롯 비었으면 일단 장착
+  const magic = isMagicWeapon(c)
+  if (magic) {
+    // 마법 빌드
+    if (cur.baseKey !== '로브' && it.baseKey === '로브') return true   // 로브 발견 → 무조건
+    if (cur.baseKey === '로브' && it.baseKey !== '로브') return false  // 이미 로브 → 다른 갑옷 skip
+    return it.tier > cur.tier   // 같은 종류면 tier 비교
+  }
+  return it.tier > cur.tier
+}
+
 function takeTreasure(c: Character, chapter: number) {
   const kind = Math.random() < 0.5 ? 'weapon' : 'armor'
   const it = rollItem({ kind, chapter, source: 'treasure' })
-  const cur = kind === 'weapon' ? c.weapon : c.armor
-  if (!cur || it.tier > cur.tier) {
-    if (kind === 'weapon') c.weapon = it
-    else c.armor = it
+  if (kind === 'weapon') {
+    const cur = c.weapon
+    if (!cur || it.tier > cur.tier) c.weapon = it
+  } else {
+    if (shouldEquipArmor(c, it)) c.armor = it
   }
 }
 
-// 상점: 현재 슬롯보다 좋은 등급 아이템 구매 (gold 닿는 한)
 function autoShop(c: Character, chapter: number) {
   const slots = Math.min(3 + Math.floor((chapter - 1) / 3), 6)
   const inventory: ItemInstance[] = []
@@ -178,15 +199,26 @@ function autoShop(c: Character, chapter: number) {
     const k = Math.random() < 0.5 ? 'weapon' : 'armor'
     inventory.push(rollItem({ kind: k, chapter, source: 'shop' }))
   }
-  // tier 내림차순
-  inventory.sort((a, b) => b.tier - a.tier)
+  const magic = isMagicWeapon(c)
+  // 우선순위 점수: 마법빌드 + 로브 = 큰 가산점, 그 외 tier 기준
+  inventory.sort((a, b) => {
+    const aBonus = (magic && a.kind === 'armor' && a.baseKey === '로브') ? 100 : 0
+    const bBonus = (magic && b.kind === 'armor' && b.baseKey === '로브') ? 100 : 0
+    return (b.tier + bBonus) - (a.tier + aBonus)
+  })
   for (const it of inventory) {
     if (c.gold < it.buyPrice) continue
-    const cur = it.kind === 'weapon' ? c.weapon : c.armor
-    if (!cur || it.tier > cur.tier) {
-      c.gold -= it.buyPrice
-      if (it.kind === 'weapon') c.weapon = it
-      else c.armor = it
+    if (it.kind === 'weapon') {
+      const cur = c.weapon
+      if (!cur || it.tier > cur.tier) {
+        c.gold -= it.buyPrice
+        c.weapon = it
+      }
+    } else {
+      if (shouldEquipArmor(c, it)) {
+        c.gold -= it.buyPrice
+        c.armor = it
+      }
     }
   }
 }
