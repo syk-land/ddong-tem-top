@@ -43,7 +43,7 @@ const THEMES: ChapterTheme[] = [
 ]
 const GRADES: Grade[] = ['노말', '레어', '스페셜', '레전드']
 const GRADE_CHAPTER: Record<Grade, number> = { '노말': 3, '레어': 6, '스페셜': 9, '레전드': 10 }
-const TICKS = 1000
+const TICKS = 10000
 
 function clampN(v: number, lo: number, hi: number): number { return Math.max(lo, Math.min(hi, v)) }
 
