@@ -132,11 +132,30 @@ export function canEquipItem(item: ItemInstance, ctx: ChallengeContext): { ok: b
     if (flags.onlySpeedCoef1 && wbase && wbase.speedCoef !== 1.0) {
       return { ok: false, reason: '속도계수 1.0 무기만 (강박증)' }
     }
+    // v9: 무기 ticks 최소값 (굼벵이 전술)
+    if (flags.weaponTicksMin !== undefined && wbase) {
+      const ticks = Math.round(10 / wbase.speedCoef)
+      if (ticks < flags.weaponTicksMin) {
+        return { ok: false, reason: `무기 ticks ${flags.weaponTicksMin}+ 만 (굼벵이 전술)` }
+      }
+    }
+    // v9: 마법 빌드 강제 (로브의 길) — 마법 무기만
+    if (flags.forceMagicLobeBuild && wbase && !wbase.isMagic) {
+      return { ok: false, reason: '마법 무기만 (로브의 길)' }
+    }
   }
   if (item.kind === 'armor') {
     const akey = item.baseKey
     if (flags.forbidPlateHeavy && (akey === '판금' || akey === '중갑')) {
       return { ok: false, reason: '판금/중갑 금지 (연약한 피부)' }
+    }
+    // v9: 마법 빌드 강제 (로브의 길) — 로브만
+    if (flags.forceMagicLobeBuild && akey !== '로브') {
+      return { ok: false, reason: '로브만 (로브의 길)' }
+    }
+    // v9: 판금 강제 (강철 요새)
+    if (flags.forceHeavyArmor && akey !== '판금') {
+      return { ok: false, reason: '판금만 (강철 요새)' }
     }
   }
   return { ok: true }
@@ -349,6 +368,19 @@ export function onTick(ctx: ChallengeContext, character: Character) {
       } else if (ac.counters.speedAlways6OrBelow === undefined) {
         ac.counters.speedAlways6OrBelow = true
       }
+    }
+    // v9 신규 stat track
+    if (f.trackAgilityBelow !== undefined && character.stats.민첩 > f.trackAgilityBelow) {
+      ac.failed = true
+    }
+    if (f.trackAgilityAtLeast !== undefined && character.stats.민첩 < f.trackAgilityAtLeast) {
+      ac.failed = true
+    }
+    if (f.trackLuckAtLeast !== undefined && character.stats.행운 < f.trackLuckAtLeast) {
+      ac.failed = true
+    }
+    if (f.trackStrengthAtLeast !== undefined && character.stats.힘 < f.trackStrengthAtLeast) {
+      ac.failed = true
     }
   })
 }

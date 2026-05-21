@@ -30,8 +30,9 @@ export interface ChallengeFlags {
   forbidLargeWeapon?: boolean
   forbidMagicWeapon?: boolean
   onlySpeedCoef1?: boolean
-  maxAtk?: number
-  speedFixed?: number
+  maxAtk?: number                    // v9 곱셈 스케일에 맞춰 의미 변경 (예: 200)
+  speedFixed?: number                // (deprecated) v9 의미 없음
+  weaponTicksMin?: number            // v9: 무기 ticks 최소값 (14+ = 한방형만)
   mpCapFixed?: number
   goldZero?: boolean
   goldMax500Death?: boolean
@@ -48,6 +49,15 @@ export interface ChallengeFlags {
   blindExtra?: number
   bleedBadLuckPct?: number
   healEffMult?: number
+  // v9 신규: 빌드 강제 flag
+  forceMagicLobeBuild?: boolean      // 마법무기 + 로브 강제 (그 외 장착 시 실패)
+  forceHeavyArmor?: boolean          // 판금 강제 (그 외 갑옷 실패)
+  // v9 신규: track stat 조건
+  trackAgilityBelow?: number         // 민첩 N 이하 유지
+  trackAgilityAtLeast?: number       // 민첩 N 이상
+  trackLuckAtLeast?: number          // 행운 N 이상
+  trackStrengthAtLeast?: number      // 힘 N 이상
+  // 기존 track
   trackNoLegendaryEver?: boolean
   trackOnlyTier1?: boolean
   trackNoShopBuy?: boolean
@@ -71,7 +81,7 @@ export interface ChallengeFlags {
   trackLowHp500Tick?: boolean
   trackCursedNeverRemove?: boolean
   trackNoRefreshEver?: boolean   // 상점 새로고침 1회라도 사용 시 실패
-  trackSpeedBelow6?: boolean
+  trackSpeedBelow6?: boolean     // (deprecated) v9에서 trackAgilityBelow 6 으로 동작
   trackAvgTier3OrLower?: boolean
 }
 
@@ -83,9 +93,9 @@ export const CHALLENGES: ChallengeDef[] = [
     key: '과유불급', category: 'instant', group: '공격력 제약', name: '과유불급',
     description: '튼튼함을 얻는 대가로 화력을 봉인한다.',
     reward: '시작 체력 +10',
-    penalty: '최종 공격력이 40 초과 시 즉사 (똥템 무기 강제)',
+    penalty: '최종 공격력이 200 초과 시 즉사 (똥템 무기 강제)',
     instantBonus: { 체력: 10 },
-    flags: { maxAtk: 40 },
+    flags: { maxAtk: 200 },
   },
   {
     key: '녹슨칼날의맹세', category: 'instant', group: '공격력 제약', name: '녹슨 칼날의 맹세',
@@ -202,9 +212,9 @@ export const CHALLENGES: ChallengeDef[] = [
     key: '굼벵이전술', category: 'instant', group: '속도 제약', name: '굼벵이 전술',
     description: '느릿느릿하지만 강하게.',
     reward: '시작 체력 +15',
-    penalty: '최종 속도 5 고정 (속도 보정 무시)',
+    penalty: '무기 ticks 14 이상 (한방형만) 장착 가능',
     instantBonus: { 체력: 15 },
-    flags: { speedFixed: 5 },
+    flags: { weaponTicksMin: 14 },
   },
   {
     key: '조급증', category: 'instant', group: '속도 제약', name: '조급증',
@@ -467,11 +477,11 @@ export const CHALLENGES: ChallengeDef[] = [
   },
   {
     key: '만성피로', category: 'risk', group: '가혹', name: '만성 피로',
-    description: '최종 속도 6 이하 유지 + 50층.',
+    description: '민첩 10 이하 유지 + 50층.',
     reward: '50층 돌파 시 보너스 +7pt',
-    penalty: '최종 속도 7 이상 시 실패',
+    penalty: '민첩 11 이상 시 실패',
     metaBonus: 7,
-    flags: { trackSpeedBelow6: true },
+    flags: { trackAgilityBelow: 10 },
   },
   {
     key: '가난이체질', category: 'risk', group: '가혹', name: '가난이 체질',
@@ -480,6 +490,56 @@ export const CHALLENGES: ChallengeDef[] = [
     penalty: '평균 티어 3 초과 시 실패',
     metaBonus: 10,
     flags: { trackAvgTier3OrLower: true },
+  },
+
+  // ===== v9 신규 (곱셈 모델·게이지·크리·로브시너지 활용) =====
+  {
+    key: '크리광인', category: 'instant', group: 'v9 신규', name: '크리 광인',
+    description: '오직 크리만이 진리.',
+    reward: '시작 민첩 +10, 행운 +6',
+    penalty: '민첩 25 미만 시 즉사 (장비/소모 후 매 틱 체크)',
+    instantBonus: { 민첩: 10, 행운: 6 },
+    flags: { trackAgilityAtLeast: 25 },
+  },
+  {
+    key: '로브의길', category: 'instant', group: 'v9 신규', name: '로브의 길',
+    description: '마법무기 + 로브만이 진정한 마법사.',
+    reward: '시작 마력 +14',
+    penalty: '마법무기 + 로브 조합만 장착 가능 (그 외 즉시 실패)',
+    instantBonus: { 마력: 14 },
+    flags: { forceMagicLobeBuild: true },
+  },
+  {
+    key: '강철요새', category: 'instant', group: 'v9 신규', name: '강철 요새',
+    description: '판금 외엔 안 입는다.',
+    reward: '시작 체력 +12, 힘 +4',
+    penalty: '판금 외 갑옷 장착 시 실패',
+    instantBonus: { 체력: 12, 힘: 4 },
+    flags: { forceHeavyArmor: true },
+  },
+  {
+    key: '둔감', category: 'risk', group: 'v9 신규', name: '둔감',
+    description: '민첩 5 이하로 50층.',
+    reward: '50층 돌파 시 보너스 +9pt',
+    penalty: '민첩 6 이상 시 실패',
+    metaBonus: 9,
+    flags: { trackAgilityBelow: 5 },
+  },
+  {
+    key: '독재자의일격', category: 'risk', group: 'v9 신규', name: '독재자의 일격',
+    description: '힘 25 이상 유지 + 100층.',
+    reward: '보너스 +10pt',
+    penalty: '힘 24 이하 시 실패',
+    metaBonus: 10,
+    flags: { trackStrengthAtLeast: 25 },
+  },
+  {
+    key: '운명의주사위', category: 'risk', group: 'v9 신규', name: '운명의 주사위',
+    description: '행운 25 이상 유지 (크리 데미지 +25%).',
+    reward: '100층 돌파 시 보너스 +8pt',
+    penalty: '행운 24 이하 시 실패',
+    metaBonus: 8,
+    flags: { trackLuckAtLeast: 25 },
   },
 ]
 
