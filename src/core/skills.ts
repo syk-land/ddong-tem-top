@@ -363,27 +363,7 @@ export function pickAutoAction(ctx: CombatContext, options: {
   const eff = computeEffectiveStats(ctx.player)
   const player = ctx.player
 
-  // 1) 갑옷 방어/회피 스킬 (조건부 트리거)
-  const armorKey = getArmorSkillKey(player)
-  if (armorKey) {
-    const skill = SKILLS[armorKey]
-    if (skill) {
-      const mpCost = skill.mp
-      const sameBuffActive = ctx.buffs.has(armorBuffKey(armorKey))
-      if (player.mp >= mpCost && !sameBuffActive) {
-        // 가장 게이지 높은 적 기준으로 위협도 판단
-        const threat = currentTarget(ctx) ?? { actionGauge: 0, isBoss: false, isMimic: false }
-        const armorChance = computeArmorAutoProc({
-          player,
-          monster: threat,
-          luck: eff.행운,
-        })
-        if (armorChance > 0 && Math.random() < armorChance) {
-          return { kind: 'skill', key: armorKey }
-        }
-      }
-    }
-  }
+  // 갑옷 자동 발동은 monsterAttack 내부의 피격 반응으로 이동 (combat.ts)
 
   // 2) 무기 스킬 (액티브 공격) — 챌린지 forbidActiveSkills면 스킵
   const weaponKey = getWeaponSkillKey(player)

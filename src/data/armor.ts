@@ -16,7 +16,7 @@ export const ARMORS: Record<string, ArmorBase> = {
   중갑: {
     key: '중갑',
     baseDef: 7,
-    speedMult: 0.95,
+    speedMult: 1.00,
     evasion: 0,
     mpBonus: 0,
   },
@@ -24,7 +24,7 @@ export const ARMORS: Record<string, ArmorBase> = {
     key: '가죽갑',
     baseDef: 4,
     speedMult: 1.10,
-    evasion: 5,
+    evasion: 0,
     mpBonus: 0,
     autoSkill: '회피',
   },

@@ -305,7 +305,34 @@ export function monsterAttack(ctx: CombatContext, attacker: MonsterInstance) {
     effDefPct *= 0.5
   }
   // v9: 방어는 % 단위 — 받는 데미지 = atk × (1 - def%/100), 최소 1
-  const finalDmg = Math.max(1, Math.round(attacker.atk * (1 - Math.max(0, effDefPct) / 100)))
+  let finalDmg = Math.max(1, Math.round(attacker.atk * (1 - Math.max(0, effDefPct) / 100)))
+
+  // 갑옷 자동 반응 (피격 시 확률 발동: 가죽갑 회피 / 로브 방어 / 판금 철벽)
+  //   발동률 = 0.10 + 행운 × 0.005
+  //   가죽갑: 데미지 0 무효
+  //   로브:   데미지 50% 차감 + 차감량만큼 MP 소모 (MP 부족 시 가능한 만큼만)
+  //   판금:   데미지 그대로 받되 평타 atk × 0.5 카운터 (방어 무시)
+  const armorKey = ctx.player.armor?.baseKey
+  const armorReactChance = 0.10 + eff.행운 * 0.005
+  if (armorKey && Math.random() < armorReactChance) {
+    if (armorKey === '가죽갑') {
+      pushLog(ctx, `${attacker.template.name}의 공격! 가죽갑 회피 발동 — 완전 회피`, 'miss')
+      attacker._attacksMade = (attacker._attacksMade ?? 0) + 1
+      return
+    } else if (armorKey === '로브') {
+      const target = Math.round(finalDmg * 0.5)
+      const actual = Math.min(ctx.player.mp, target)
+      ctx.player.mp -= actual
+      finalDmg = Math.max(1, finalDmg - actual)
+      if (actual > 0) {
+        pushLog(ctx, `로브 방어 발동! MP -${actual}, 피해 ${actual} 차감`, 'heal')
+      }
+    } else if (armorKey === '판금') {
+      const counter = Math.max(1, Math.round(eff.공격력 * 0.5))
+      attacker.hp = Math.max(0, attacker.hp - counter)
+      pushLog(ctx, `판금 철벽 발동! ${attacker.template.name}에게 카운터 ${counter} 피해`, 'damage')
+    }
+  }
 
   // 갑옷 데미지 흡혈 (피격 시 HP 회복)
   if (eff.damageTakenHealPct > 0) {
