@@ -20,6 +20,11 @@ async function buy(itemId: string) {
   const item = shop.value.inventory.find((i: ItemInstance) => i.id === itemId)
   if (!item) return
   if (player.value.gold < item.buyPrice) return
+  const ok = await game.confirmModal(
+    `${item.trait} ${item.grade} ${item.baseKey}\n\n${item.buyPrice}G에 구매?`,
+    { title: '장비 구매', okLabel: '구매' }
+  )
+  if (!ok) return
   await game.buyItemAndEquip(item)
 }
 function refreshShop() {

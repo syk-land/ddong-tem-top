@@ -1,7 +1,7 @@
 import type { Character, ItemInstance, Stats, StatKey } from '@/types'
 import { rollItem } from './items'
 import { pickOne, randInt, clamp } from './rng'
-import { WEAPON_TRAITS } from '@/data/traits'
+import { WEAPON_TRAITS, ARMOR_TRAITS } from '@/data/traits'
 
 // 9.14 + 신규 6종 특별 이벤트
 export type SpecialEventKey =
@@ -54,51 +54,65 @@ export function resolveCrisisAdventurer(): 'ally' | 'villain' {
 }
 
 // 9.14.3: 떠돌이 대장장이
-export function smithSuccessChance(bet: number, weaponSell: number): number {
-  return clamp(bet / (Math.max(1, weaponSell) * 2), 0, 0.90)
+export function smithSuccessChance(bet: number, sellPrice: number): number {
+  return clamp(bet / (Math.max(1, sellPrice) * 2), 0, 0.90)
 }
 
-export function applySmithUpgrade(character: Character, bet: number): { success: boolean; newItem?: ItemInstance } {
-  if (!character.weapon) return { success: false }
+// 60/40 슬롯 추첨 — 보유한 슬롯이 한쪽 뿐이면 자동으로 그 쪽
+export function pickSmithSlot(character: Character): 'weapon' | 'armor' | null {
+  const hasW = !!character.weapon
+  const hasA = !!character.armor
+  if (!hasW && !hasA) return null
+  if (!hasW) return 'armor'
+  if (!hasA) return 'weapon'
+  return Math.random() < 0.60 ? 'weapon' : 'armor'
+}
+
+export function applySmithUpgrade(
+  character: Character,
+  bet: number,
+  slot: 'weapon' | 'armor' = 'weapon',
+): { success: boolean; newItem?: ItemInstance } {
+  const cur = slot === 'weapon' ? character.weapon : character.armor
+  if (!cur) return { success: false }
   if (character.gold < bet) return { success: false }
   character.gold -= bet
 
-  const chance = smithSuccessChance(bet, character.weapon.sellPrice)
+  const chance = smithSuccessChance(bet, cur.sellPrice)
   const success = Math.random() < chance
   if (!success) return { success: false }
 
   // 등급 +1, 레전드는 특성 한 단계↑
   const grades = ['노말', '레어', '스페셜', '레전드'] as const
   const traitTiers = ['하급', '보통', '희귀', '특별'] as const
-  const curGradeIdx = grades.indexOf(character.weapon.grade)
-
-  // 현재 무기의 특성 티어 (forceTraitTier 명시 필요 — items.ts 가 forceTraitTier && forceGrade 둘 다 있어야 tier 강제)
-  const curTraitTier = WEAPON_TRAITS[character.weapon.trait]?.tier ?? '보통'
+  const curGradeIdx = grades.indexOf(cur.grade)
+  const traitDefMap = slot === 'weapon' ? WEAPON_TRAITS : ARMOR_TRAITS
+  const curTraitTier = traitDefMap[cur.trait]?.tier ?? '보통'
 
   if (curGradeIdx < 3) {
-    // 등급 +1 — 특성/베이스 그대로
     const newGrade = grades[curGradeIdx + 1]
     const newItem = rollItem({
-      kind: 'weapon',
-      forceBaseKey: character.weapon.baseKey,
-      forceTraitName: character.weapon.trait,
+      kind: slot,
+      forceBaseKey: cur.baseKey,
+      forceTraitName: cur.trait,
       forceTraitTier: curTraitTier,
       forceGrade: newGrade,
     })
-    character.weapon = newItem
+    if (slot === 'weapon') character.weapon = newItem
+    else character.armor = newItem
     return { success: true, newItem }
   } else {
-    // 레전드 → 특성 한 단계↑ (특성 이름은 새로 — pool 에서 무작위)
     const curTierIdx = traitTiers.indexOf(curTraitTier)
     if (curTierIdx >= 3) return { success: false }
     const newTier = traitTiers[curTierIdx + 1]
     const newItem = rollItem({
-      kind: 'weapon',
-      forceBaseKey: character.weapon.baseKey,
+      kind: slot,
+      forceBaseKey: cur.baseKey,
       forceTraitTier: newTier,
       forceGrade: '레전드',
     })
-    character.weapon = newItem
+    if (slot === 'weapon') character.weapon = newItem
+    else character.armor = newItem
     return { success: true, newItem }
   }
 }

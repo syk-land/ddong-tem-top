@@ -9,6 +9,7 @@ const bgUrl = defaultBgUrl()
 
 // 사망 시점의 전투 로그 (resetGame 호출 전까지 game.combat 유지)
 const battleLog = computed(() => game.combat?.log ?? [])
+const pendingRank = computed(() => game.pendingClear)
 const logEl = ref<HTMLElement | null>(null)
 
 onMounted(async () => {
@@ -32,6 +33,19 @@ function backToMenu() {
       <h1 class="text-3xl font-bold text-log-enemy">사망</h1>
       <p class="text-gray-300">탑을 오르다 쓰러졌습니다.</p>
       <p class="text-sm text-gray-500">캐릭터, 골드, 장비가 모두 소멸했습니다.</p>
+
+      <!-- v10: 도달 챕터 기반 보상 (F/E) -->
+      <div
+        v-if="pendingRank && pendingRank.bonus > 0"
+        class="rounded-lg border-2 border-grade-special/40 bg-grade-special/10 px-3 py-2"
+      >
+        <div class="text-xs text-gray-400">등급 보상</div>
+        <div class="flex items-baseline justify-center gap-3 mt-1">
+          <span class="text-3xl font-bold text-grade-special">{{ pendingRank.rank }}</span>
+          <span class="text-sm text-log-reward">+{{ pendingRank.bonus }}pt</span>
+        </div>
+        <div class="text-[11px] text-gray-500 mt-1">보너스 스탯이 메타 풀에 적립되었습니다.</div>
+      </div>
 
       <!-- 마지막 전투 로그 -->
       <div

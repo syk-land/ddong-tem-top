@@ -22,7 +22,7 @@ import { pickOne, weightedChoice } from '@/core/rng'
 import { computeClearScore, getClearRank } from '@/core/character'
 import {
   SPECIAL_EVENTS, SPECIAL_EVENT_INFO, type SpecialEventKey,
-  resolveCrisisAdventurer, applySmithUpgrade, spinRoulette, applyRouletteResult,
+  resolveCrisisAdventurer, applySmithUpgrade, pickSmithSlot, spinRoulette, applyRouletteResult,
   exchangeStat, blackMarketPrice, buyStatPoint, greedyCollectorTake,
 } from '@/core/events'
 import { applyRefreshBoost } from '@/core/shop'
@@ -1041,16 +1041,18 @@ export const useGameStore = defineStore('game', {
     async eventWanderingSmith() {
       if (!this.run) return
       const c = this.run.character
-      const w = c.weapon
-      if (!w) {
-        await this.alertModal('대장장이가 강화할 무기가 없다며 떠났다.', '🔨 대장장이')
+      // 60% 무기 / 40% 방어구 — 한쪽만 보유 시 그쪽으로 자동 폴백
+      const slot = pickSmithSlot(c)
+      if (!slot) {
+        await this.alertModal('대장장이가 강화할 장비가 없다며 떠났다.', '🔨 대장장이')
         return
       }
-      const maxBet = Math.min(c.gold, w.sellPrice * 2)
-      // 1) 우선 베팅 방식 선택 (직접 입력 vs 최대 베팅)
+      const target = slot === 'weapon' ? c.weapon! : c.armor!
+      const slotLabel = slot === 'weapon' ? '무기' : '방어구'
+      const maxBet = Math.min(c.gold, target.sellPrice * 2)
       const choice = await this.showDialog({
         title: '🔨 떠돌이 대장장이',
-        message: `무기: ${w.trait} ${w.grade} ${w.baseKey} (판매가 ${w.sellPrice}G)\n` +
+        message: `${slotLabel}: ${target.trait} ${target.grade} ${target.baseKey} (판매가 ${target.sellPrice}G)\n` +
           `보유 ${c.gold}G — 베팅 ${0}~${maxBet}G\n` +
           `베팅이 많을수록 성공률 ↑ (최대 90%)`,
         buttons: [
@@ -1078,16 +1080,16 @@ export const useGameStore = defineStore('game', {
         await this.alertModal('베팅이 0이라 대장장이가 떠났다.', '취소')
         return
       }
-      const result = applySmithUpgrade(c, bet)
+      const result = applySmithUpgrade(c, bet, slot)
       if (this.challengeContext) {
         onSmithBet(this.challengeContext, bet, c.gold + bet, result.success)
       }
       if (result.success && result.newItem) {
         await this.alertModal(
           `${result.newItem.trait} ${result.newItem.grade} ${result.newItem.baseKey}`,
-          '🔥 강화 성공!'
+          `🔥 ${slotLabel} 강화 성공!`
         )
-        if (this.challengeContext) onEquipItem(this.challengeContext, result.newItem, w)
+        if (this.challengeContext) onEquipItem(this.challengeContext, result.newItem, target)
       } else {
         await this.alertModal(`베팅 ${bet}G 소실`, '💔 강화 실패')
       }
@@ -1257,6 +1259,16 @@ export const useGameStore = defineStore('game', {
       if (!this.combat.victory) {
         // 사망 → 게임 오버. (도전 모드 카운터는 클리어만 증가하므로 여기선 카운트 X)
         sfx.death()
+        // v10: 도달 챕터 기반 보상 (4~6=F=+1pt / 7~9=E=+2pt / 1~3=없음)
+        const reachedChapter = currentChapter(this.run).chapter
+        const pending = computePendingBonus(this.run.character, { cleared: false, reachedChapter })
+        if (pending.bonus > 0) {
+          this.pendingClear = pending
+          // 메타 풀에 적립 + 히스토리 기록 (클리어 보상과 동일 흐름의 미니 버전)
+          const lastCh = this.run.chapters[Math.max(0, this.run.currentChapterIndex)]
+          pushCharacterHistory(this.meta, this.run.character, pending.score, pending.rank, this.runAvatar, lastCh?.theme ?? '고블린')
+          commitClearBonus(this.meta, {}, pending.bonus)
+        }
         clearRun()
         this.savedRunExists = false
         this.screen = 'gameover'

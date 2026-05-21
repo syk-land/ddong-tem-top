@@ -93,21 +93,40 @@ export function createCharacter(
   }
 }
 
-// v6: 클리어 등급 — 아이템 티어 합계 기반 (점수 낮을수록 등급 ↑)
-//   EX (0~5), SSS (6~8), SS (9~11), S (12~14), A (15~17),
-//   B (18~20), C (21~23), D (24~26), E (27~29), F (30+)
-// 3티어 증가할 때마다 1등급 하락.
-export function getClearRank(score: number): { rank: string; bonus: number } {
-  if (score <= 5)  return { rank: 'EX',  bonus: 10 }
-  if (score <= 8)  return { rank: 'SSS', bonus: 9 }
-  if (score <= 11) return { rank: 'SS',  bonus: 8 }
-  if (score <= 14) return { rank: 'S',   bonus: 7 }
-  if (score <= 17) return { rank: 'A',   bonus: 6 }
-  if (score <= 20) return { rank: 'B',   bonus: 5 }
-  if (score <= 23) return { rank: 'C',   bonus: 4 }
-  if (score <= 26) return { rank: 'D',   bonus: 3 }
-  if (score <= 29) return { rank: 'E',   bonus: 2 }
-  return { rank: 'F', bonus: 1 }
+// v10: 클리어 등급 — 도달 챕터 + 티어 총합 기반
+//   미클리어(중간 사망):
+//     도달 챕터 4~6     → F (1pt)
+//     도달 챕터 7~9     → E (2pt)
+//     도달 챕터 1~3     → 등급 없음
+//   클리어 (10챕터 100층 돌파) — 티어 총합 (무기+갑옷, 2~32 범위) 백분위:
+//     상위 10% (30~32)  → D   (3pt)   ← "고티어 장비로 클리어"
+//     10~20% (27~29)    → C   (4pt)
+//     20~30% (24~26)    → B   (5pt)
+//     30~40% (21~23)    → A   (6pt)
+//     40~50% (18~20)    → S   (7pt)
+//     50~60% (15~17)    → SS  (8pt)
+//     60~70% (12~14)    → SSS (9pt)
+//     70%+  (~11 이하)  → EX  (10pt)  ← "똥템 클리어"
+export function getClearRank(
+  score: number,
+  opts: { reachedChapter?: number; cleared?: boolean } = {},
+): { rank: string; bonus: number } {
+  const cleared = opts.cleared ?? true   // 기본: 클리어 가정 (ItemDetail/projected 용)
+  const reached = opts.reachedChapter ?? 10
+  if (!cleared) {
+    if (reached >= 7) return { rank: 'E', bonus: 2 }
+    if (reached >= 4) return { rank: 'F', bonus: 1 }
+    return { rank: '-', bonus: 0 }
+  }
+  // 클리어 — 티어 총합 백분위 (낮을수록 = 똥템 = 좋은 등급)
+  if (score >= 30) return { rank: 'D',   bonus: 3 }
+  if (score >= 27) return { rank: 'C',   bonus: 4 }
+  if (score >= 24) return { rank: 'B',   bonus: 5 }
+  if (score >= 21) return { rank: 'A',   bonus: 6 }
+  if (score >= 18) return { rank: 'S',   bonus: 7 }
+  if (score >= 15) return { rank: 'SS',  bonus: 8 }
+  if (score >= 12) return { rank: 'SSS', bonus: 9 }
+  return { rank: 'EX', bonus: 10 }
 }
 
 // v6: 점수 = 무기 티어 + 갑옷 티어 (장비 없으면 1로 카운트). 낮을수록 좋음 (역설).

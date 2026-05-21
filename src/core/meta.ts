@@ -159,9 +159,12 @@ export interface PendingClearBonus {
   score: number
 }
 
-export function computePendingBonus(character: Character): PendingClearBonus {
+export function computePendingBonus(
+  character: Character,
+  opts: { reachedChapter?: number; cleared?: boolean } = {},
+): PendingClearBonus {
   const score = computeClearScore(character, 10)
-  const { rank, bonus } = getClearRank(score)
+  const { rank, bonus } = getClearRank(score, opts)
   return { rank, bonus, score }
 }
 
