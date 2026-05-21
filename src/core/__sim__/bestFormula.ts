@@ -224,10 +224,10 @@ function randomStats(): Stats {
   while (r > 0) { s[pick(keys)]++; r-- }
   return s
 }
-function randomChar(): Character {
+function randomChar(forcedStats?: Stats): Character {
   const G: Grade[] = ['노말', '레어', '스페셜', '레전드']
   const T: TraitTier[] = ['하급', '보통', '희귀', '특별']
-  const stats = randomStats()
+  const stats = forcedStats ? { ...forcedStats } : randomStats()
   const weapon = rollItem({ kind: 'weapon', forceBaseKey: pick(WEAPON_KEYS), forceGrade: pick(G), forceTraitTier: pick(T) })
   const armor = rollItem({ kind: 'armor', forceBaseKey: pick(ARMOR_KEYS), forceGrade: pick(G), forceTraitTier: pick(T) })
   return {
@@ -236,6 +236,19 @@ function randomChar(): Character {
     weapon, armor, gold: 0, statuses: [], actionGauge: 0,
   }
 }
+
+// 스탯 빌드별 (60pt 분배 고정)
+const STAT_BUILDS: Array<{ name: string; stats: Stats }> = [
+  { name: '균등',     stats: { 힘: 12, 민첩: 12, 체력: 12, 마력: 12, 행운: 12 } },
+  { name: '힘몰빵',   stats: { 힘: 40, 민첩: 5,  체력: 5,  마력: 5,  행운: 5  } },
+  { name: '민첩몰빵', stats: { 힘: 5,  민첩: 40, 체력: 5,  마력: 5,  행운: 5  } },
+  { name: '체력몰빵', stats: { 힘: 5,  민첩: 5,  체력: 40, 마력: 5,  행운: 5  } },
+  { name: '마력몰빵', stats: { 힘: 5,  민첩: 5,  체력: 5,  마력: 40, 행운: 5  } },
+  { name: '행운몰빵', stats: { 힘: 5,  민첩: 5,  체력: 5,  마력: 5,  행운: 40 } },
+  { name: '힘+민첩',  stats: { 힘: 20, 민첩: 20, 체력: 6,  마력: 7,  행운: 7  } },
+  { name: '마력+행운', stats: { 힘: 5,  민첩: 8,  체력: 7,  마력: 20, 행운: 20 } },
+  { name: '체력+힘',  stats: { 힘: 20, 민첩: 7,  체력: 20, 마력: 6,  행운: 7  } },
+]
 
 // ============================================================
 // 통계 / 회귀
@@ -413,6 +426,68 @@ export function runBestFormula() {
   console.log(`  playerDmgHit = max(1, 공격력 × (1 − max(0, REF_DEF − 관통)/100)) × hit`)
   console.log(`  heal/MonsterAtk = playerAtks/MonsterAtk × playerDmgHit × lifesteal`)
   console.log(`  netDmgPerAtk = dmgPerAtk − heal/MonsterAtk`)
+
+  // ── 스탯 빌드별 적합도 검증 ──
+  console.log(`\n============================================================`)
+  console.log(`■ 스탯 빌드별 적합도 (각 빌드 1000개, 장비 무작위)`)
+  console.log(`============================================================`)
+  console.log(`스탯이 식에 잘 반영되었는지 확인 — 빌드 무관 R² 유지되면 OK\n`)
+  console.log('빌드        | 공격(R²)  | 공격 MAPE  | 방어(R²)  | 방어 MAPE  | n')
+  console.log('------------+-----------+------------+-----------+------------+-----')
+
+  type BuildResult = { name: string; atkR2: number; atkMape: number; defR2: number; defMape: number; n: number }
+  const buildResults: BuildResult[] = []
+  const BUILD_N = Number(process.env.BUILD_N ?? 1000)
+
+  for (const build of STAT_BUILDS) {
+    const chars: Character[] = []
+    const dpsA: number[] = []
+    const eHpA: number[] = []
+    for (let i = 0; i < BUILD_N; i++) {
+      const c = randomChar(build.stats)
+      chars.push(c)
+      dpsA.push(measureDps(c, TICKS))
+      eHpA.push(measureEffectiveHp(c, ATTACKS))
+    }
+    const predAtk = chars.map(predictAtkRaw)
+    const predDef = chars.map(predictDefRaw)
+
+    function evalFit(predicted: number[], actual: number[], K: number) {
+      const n = predicted.length
+      const mean = actual.reduce((s, v) => s + v, 0) / n
+      let ssRes = 0, ssTot = 0, mape = 0
+      for (let i = 0; i < n; i++) {
+        const err = actual[i] - K * predicted[i]
+        ssRes += err * err
+        ssTot += (actual[i] - mean) * (actual[i] - mean)
+        if (actual[i] > 0.01) mape += Math.abs(err / actual[i])
+      }
+      return { r2: ssTot > 0 ? 1 - ssRes / ssTot : 0, mape: (mape / n) * 100 }
+    }
+    const atkE = evalFit(predAtk, dpsA, atkFit.K)
+    const defE = evalFit(predDef, eHpA, defFit.K)
+    buildResults.push({ name: build.name, atkR2: atkE.r2, atkMape: atkE.mape, defR2: defE.r2, defMape: defE.mape, n: BUILD_N })
+
+    console.log(
+      `${build.name.padEnd(11)} | ${atkE.r2.toFixed(3).padStart(9)} | ${atkE.mape.toFixed(1).padStart(9)}% | ${defE.r2.toFixed(3).padStart(9)} | ${defE.mape.toFixed(1).padStart(9)}% | ${BUILD_N}`,
+    )
+  }
+
+  // 빌드별 평균 + 분산
+  const atkR2s = buildResults.map((r) => r.atkR2)
+  const defR2s = buildResults.map((r) => r.defR2)
+  const atkR2Mean = atkR2s.reduce((s, v) => s + v, 0) / atkR2s.length
+  const defR2Mean = defR2s.reduce((s, v) => s + v, 0) / defR2s.length
+  const atkR2Min = Math.min(...atkR2s), atkR2Max = Math.max(...atkR2s)
+  const defR2Min = Math.min(...defR2s), defR2Max = Math.max(...defR2s)
+  console.log(`\n빌드 무관성 (R² 변동):`)
+  console.log(`  공격: 평균 ${atkR2Mean.toFixed(3)} (min ${atkR2Min.toFixed(3)} ~ max ${atkR2Max.toFixed(3)}, 폭 ${(atkR2Max - atkR2Min).toFixed(3)})`)
+  console.log(`  방어: 평균 ${defR2Mean.toFixed(3)} (min ${defR2Min.toFixed(3)} ~ max ${defR2Max.toFixed(3)}, 폭 ${(defR2Max - defR2Min).toFixed(3)})`)
+  if (atkR2Max - atkR2Min < 0.10 && defR2Max - defR2Min < 0.10) {
+    console.log(`  ★ 빌드 무관 — 식이 스탯을 잘 반영함 (R² 변동 폭 < 0.10)`)
+  } else {
+    console.log(`  ⚠ 빌드별 R² 격차 큼 — 특정 스탯에 추가 보정 필요할 수 있음`)
+  }
 
   // ── 최악 케이스 ──
   console.log(`\n============================================================`)
