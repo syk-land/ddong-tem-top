@@ -1,7 +1,8 @@
 import type { Character, ItemInstance, Stats, StatKey } from '@/types'
 import type { ChallengeDef, ChallengeFlags } from '@/data/challenges'
 import { CHALLENGES_MAP } from '@/data/challenges'
-import { WEAPONS } from '@/data/weapons'
+import { WEAPONS, WEAPON_KEYS } from '@/data/weapons'
+import { rollItem } from './items'
 import { computeEffectiveStats } from './stats'
 
 export interface ActiveChallenge {
@@ -90,6 +91,51 @@ export function applyInstantRewards(character: Character, ctx: ChallengeContext)
       character.mp = character.maxMp
     }
   }
+
+  // 시작 무기를 챌린지 조건에 맞게 재추첨
+  //   해당하는 챌린지: 굼벵이전술(한방형), 마법혐오증, 체중감량, 강박증, 로브의길, 명사수
+  rerollStartingWeaponForChallenge(character, ctx)
+
+  // 로브의 길: 시작 갑옷도 로브 강제
+  const flagsAfter = mergedFlags(ctx)
+  if (flagsAfter.forceMagicLobeBuild) {
+    character.armor = rollItem({
+      kind: 'armor',
+      forceBaseKey: '로브',
+      forceTraitTier: '하급',
+      forceGrade: '노말',
+    })
+  }
+}
+
+function rerollStartingWeaponForChallenge(character: Character, ctx: ChallengeContext) {
+  if (!character.weapon) return
+  const flags = mergedFlags(ctx)
+  const validKeys = WEAPON_KEYS.filter((k) => {
+    const wb = WEAPONS[k]
+    if (!wb) return false
+    if (flags.weaponTicksMin !== undefined) {
+      const ticks = Math.round(10 / wb.speedCoef)
+      if (ticks < flags.weaponTicksMin) return false
+    }
+    if (flags.forceMagicLobeBuild && !wb.isMagic) return false
+    if (flags.forbidMagicWeapon && wb.isMagic) return false
+    if (flags.forbidLargeWeapon && wb.speedCoef <= 0.8) return false
+    if (flags.onlySpeedCoef1 && wb.speedCoef !== 1.0) return false
+    if (flags.forceRangedWeapon && wb.category !== 'ranged') return false
+    return true
+  })
+  if (validKeys.length === 0) return
+  // 현재 무기가 이미 조건을 만족하면 그대로 둠
+  const cur = WEAPONS[character.weapon.baseKey]
+  if (cur && validKeys.includes(character.weapon.baseKey)) return
+  const baseKey = validKeys[Math.floor(Math.random() * validKeys.length)]
+  character.weapon = rollItem({
+    kind: 'weapon',
+    forceBaseKey: baseKey,
+    forceTraitTier: '하급',
+    forceGrade: '노말',
+  })
 }
 
 // 활성 챌린지 플래그 통합
@@ -130,6 +176,9 @@ export function canEquipItem(item: ItemInstance, ctx: ChallengeContext): { ok: b
     }
     if (flags.onlySpeedCoef1 && wbase && wbase.speedCoef !== 1.0) {
       return { ok: false, reason: '속도계수 1.0 무기만 (강박증)' }
+    }
+    if (flags.forceRangedWeapon && wbase && wbase.category !== 'ranged') {
+      return { ok: false, reason: '활(원거리) 무기만 (명사수)' }
     }
     // v9: 무기 ticks 최소값 (굼벵이 전술)
     if (flags.weaponTicksMin !== undefined && wbase) {

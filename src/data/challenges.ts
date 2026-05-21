@@ -29,6 +29,7 @@ export interface ChallengeFlags {
   forbidPlateHeavy?: boolean
   forbidLargeWeapon?: boolean
   forbidMagicWeapon?: boolean
+  forceRangedWeapon?: boolean        // 활(ranged) 무기만
   onlySpeedCoef1?: boolean
   maxAtk?: number                    // v9 곱셈 스케일에 맞춰 의미 변경 (예: 200)
   speedFixed?: number                // (deprecated) v9 의미 없음
@@ -127,6 +128,14 @@ export const CHALLENGES: ChallengeDef[] = [
     penalty: '마법 무기 장착 불가',
     instantBonus: { 체력: 6 },
     flags: { forbidMagicWeapon: true },
+  },
+  {
+    key: '명사수', category: 'instant', group: '공격력 제약', name: '명사수',
+    description: '활만이 진정한 무기.',
+    reward: '시작 민첩 +8',
+    penalty: '활(원거리) 무기만 장착 가능',
+    instantBonus: { 민첩: 8 },
+    flags: { forceRangedWeapon: true },
   },
   {
     key: '진정한무소유', category: 'instant', group: '재화 제약', name: '진정한 무소유',
