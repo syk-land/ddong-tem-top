@@ -3,20 +3,18 @@ import { RANDOM_STAT_KEYS } from '@/types'
 import { randInt, pickOne, randFloat } from './rng'
 import { rollItem } from './items'
 
-// v6: 5스탯 (힘/민첩/체력/마력/행운) 무작위 분배
-// 총 50pt: min 3 × 5 = 15 + 35pt 자유 분배 (각 최대 20)
+// v9.x: 5스탯 (힘/민첩/체력/마력/행운) 무작위 분배
+// 총 60pt: 각 stat 최소 0, 최대 cap 없음
 export function generateRandomStats(): Stats {
   const stats: Stats = {
-    힘: 3, 민첩: 3, 체력: 3, 마력: 3, 행운: 3,
+    힘: 0, 민첩: 0, 체력: 0, 마력: 0, 행운: 0,
   }
 
-  let remaining = 35
+  let remaining = 60
   while (remaining > 0) {
     const key = pickOne(RANDOM_STAT_KEYS)
-    if (stats[key] < 20) {
-      stats[key] += 1
-      remaining -= 1
-    }
+    stats[key] += 1
+    remaining -= 1
   }
   return stats
 }
@@ -46,10 +44,10 @@ function rollItemForce(opts: { kind: 'weapon' | 'armor'; trait_tier: '하급' | 
   })
 }
 
-// v6: 시작 균등 스탯 — 5스탯 각 10pt (총 50pt)
+// v9.x: 시작 균등 스탯 — 5스탯 각 12pt (총 60pt)
 export function uniformStartingStats(): Stats {
   return {
-    힘: 10, 민첩: 10, 체력: 10, 마력: 10, 행운: 10,
+    힘: 12, 민첩: 12, 체력: 12, 마력: 12, 행운: 12,
   }
 }
 

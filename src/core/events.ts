@@ -135,8 +135,8 @@ export function spinRoulette(luck: number): RouletteResult {
 
 export function applyRouletteResult(character: Character, stat: StatKey, delta: number) {
   const cur = character.stats[stat] ?? 0
-  // v6: 5스탯 모두 최소 3 유지
-  const newVal = Math.max(3, cur + delta)
+  // v9.x: 최소 0
+  const newVal = Math.max(0, cur + delta)
   character.stats[stat] = newVal
   // 체력/마력 변경 시 max 갱신
   if (stat === '체력') {
@@ -152,7 +152,7 @@ export function applyRouletteResult(character: Character, stat: StatKey, delta: 
 // 9.14.5: 등가교환 제단 (스탯 -3 → 다른 스탯 +2)
 export function exchangeStat(character: Character, from: StatKey, to: StatKey): boolean {
   if (from === to) return false
-  if ((character.stats[from] ?? 0) < 6) return false  // 최소 3 유지
+  if ((character.stats[from] ?? 0) < 3) return false  // v9.x: -3 가능하려면 from ≥ 3
   applyRouletteResult(character, from, -3)
   applyRouletteResult(character, to, +2)
   return true

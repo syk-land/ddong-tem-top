@@ -136,7 +136,7 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
       <div class="flex items-baseline justify-between">
         <div class="text-sm">
           <span class="text-grade-legend font-bold">🎲 주사위 — 능력치 굴림</span>
-          <div class="text-xs text-gray-500 mt-0.5">시작은 모두 동일. 주사위를 굴려 5스탯에 50pt 랜덤 분배 (각 최소 3, 최대 20).</div>
+          <div class="text-xs text-gray-500 mt-0.5">시작은 모두 동일. 주사위를 굴려 5스탯에 60pt 랜덤 분배 (각 최소 0, 최대 무제한).</div>
         </div>
         <div class="text-xs text-gray-400">남은 굴림 <span class="text-grade-legend font-mono font-bold">{{ game.rollsLeft }}</span> / 3</div>
       </div>
