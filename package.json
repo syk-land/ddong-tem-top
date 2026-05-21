@@ -14,7 +14,8 @@
     "sim": "npx tsx src/core/__sim__/runChapter.ts",
     "sim:dummy": "npx tsx src/core/__sim__/dummyValue.ts",
     "sim:pvp": "npx tsx src/core/__sim__/pvpFormula.ts",
-    "sim:corr": "npx tsx src/core/__sim__/statCorrelation.ts"
+    "sim:corr": "npx tsx src/core/__sim__/statCorrelation.ts",
+    "sim:formula": "npx tsx src/core/__sim__/bestFormula.ts"
   },
   "dependencies": {
     "@capacitor/app": "^6.0.3",
