@@ -1,7 +1,9 @@
 // 아이템 전투력(공) / 전투력(방) — v9 곱셈 모델 + 게이지 시스템
 //
 // 전투력(공) [무기]: 평균 DPS 추정치
-//   atk = 힘 × baseAtk × coef × (1+trait_pct) × 3.0                # 마법: 마력 × ... × 1.5 × magicSynergy
+//   atk = physStat × baseAtk × coef × (1+trait_pct) × 3.0          # 마법: 마력 × ... × 1.5 × magicSynergy
+//     physStat = 힘 (대부분) / 힘 + 민첩×0.3 (ranged)
+//     magicSynergy = 1.5 (로브+마법무기) / 1.0 (그 외)
 //   acc = 60 + 무기 + 트레잇 + 민첩×0.5 + 행운×0.1
 //   enemyEva = 5 + 챕터×1
 //   hitRate = clamp((acc - enemyEva)/100, 0, 1)
@@ -92,14 +94,15 @@ function computeWeaponValue(
   const enemyDef = 3 + chapter * 1.0   // ch1=4%, ch5=8%, ch10=13%
   const enemyEva = 5 + chapter * 1     // ch1=6, ch5=10, ch10=15
 
-  // ── 공격력 (v9 곱셈) ──
+  // ── 공격력 (v9.x 곱셈) ──
   const atkPct = (td.effects.공격력_pct ?? 0) + (td.effects.전스탯_pct ?? 0)
   const atkMultBase = base.baseAtk * w.coef * (1 + atkPct)
   const isLobe = character?.armor?.baseKey === '로브'
-  const magicSynergy = isLobe && base.isMagic ? 1.7 : 1.0
+  const magicSynergy = isLobe && base.isMagic ? 1.5 : 1.0
+  const physStat = base.category === 'ranged' ? stats.힘 + stats.민첩 * 0.3 : stats.힘
   const totalAtk = base.isMagic
     ? stats.마력 * atkMultBase * 1.5 * magicSynergy
-    : stats.힘 * atkMultBase * 3.0
+    : physStat * atkMultBase * 3.0
 
   // ── 명중률 (v9) ──
   const acc = 60 + (base.accBonus ?? 0) + (w.effects.명중 ?? 0)
@@ -134,12 +137,16 @@ function computeWeaponValue(
   const critMult = 1.3 + stats.행운 / 100
   const critBoost = 1 + critChance * (critMult - 1)
 
-  // ── 공격 빈도 (게이지 / ticks) ──
+  // ── 공격 빈도 (게이지 / ticks) — stats.ts 와 동일 식 ──
   const ticks = Math.round(10 / base.speedCoef)
-  const armorSpeed = character?.armor
-    ? (ARMORS[character.armor.baseKey as keyof typeof ARMORS]?.speedMult ?? 1)
-    : 1
-  const gaugePerTick = (1 + stats.민첩 / 100) * armorSpeed
+  const armorBaseInfo = character?.armor
+    ? ARMORS[character.armor.baseKey as keyof typeof ARMORS]
+    : null
+  let armorSpeed = armorBaseInfo?.speedMult ?? 1
+  if (armorBaseInfo?.key === '로브' && base.isMagic) armorSpeed *= 1.15
+  const wSpeedPct = (w.effects.속도_pct ?? 0)
+  const aSpeedPct = (character?.armor?.effects.속도_pct ?? 0)
+  const gaugePerTick = (1 + stats.민첩 / 100) * (1 + wSpeedPct + aSpeedPct) * armorSpeed
   const attacksPerTick = gaugePerTick / ticks
 
   // ── DPS ──
@@ -148,7 +155,7 @@ function computeWeaponValue(
   atkParts.push({
     label: `예상 DPS (적 def ${enemyDef.toFixed(0)}% / eva ${enemyEva}, ch${chapter})`,
     value: dps,
-    note: `atk ${totalAtk.toFixed(0)} × hit ${(hitRate * 100).toFixed(0)}% × ${attacksPerTick.toFixed(3)}/틱${magicSynergy !== 1 ? ' × 로브시너지 1.7' : ''}`,
+    note: `atk ${totalAtk.toFixed(0)} × hit ${(hitRate * 100).toFixed(0)}% × ${attacksPerTick.toFixed(3)}/틱${magicSynergy !== 1 ? ' × 로브시너지 1.5' : ''}${base.category === 'ranged' ? ' (활: 힘+민첩×0.3)' : ''}`,
   })
   if (skillInfo) {
     atkParts.push({
@@ -214,15 +221,15 @@ function computeArmorValue(
 
   const stats = character?.stats ?? DEFAULT_STATS
 
-  // ── 방어% (v9) ──
+  // ── 방어% (v9.x) ──
   const defPct = (td.effects.방어력_pct ?? 0) + (td.effects.전스탯_pct ?? 0)
   const armorDef = base.baseDef * a.coef * (1 + defPct)
   const hpDef = stats.체력 * 0.3 * a.coef
   const totalDef = armorDef + hpDef
-  // 피해 감소 점수 = 적 평타 dmg에 비례 (간단히 totalDef × 2)
+  // 피해 감소 점수 = totalDef × 2 (체력 기여 포함)
   defParts.push({
     label: `방어 ${totalDef.toFixed(1)}%`,
-    value: armorDef * 2.0,
+    value: totalDef * 2.0,
     note: `${base.baseDef} × ${a.coef.toFixed(2)} × (1+${defPct.toFixed(2)})${stats.체력 ? ` + 체력 ${stats.체력} × 0.3 × ${a.coef.toFixed(2)} = ${hpDef.toFixed(1)}%` : ''}`,
   })
 
@@ -262,18 +269,43 @@ function computeArmorValue(
     })
   }
 
-  // ── 로브 + 마법무기 시너지 (×1.7) ──
+  // ── 로브 + 마법무기 시너지 (×1.5, v9.x) ──
   if (base.key === '로브' && character?.weapon) {
     const wb = WEAPONS[character.weapon.baseKey]
     if (wb?.isMagic) {
-      // 시너지 +70% atk
+      // 시너지 +50% atk
       const charDps = estimateCharDps(character)
       atkParts.push({
         label: '로브 + 마법무기 시너지',
-        value: charDps * 0.7,
-        note: '마법 atk × 1.7',
+        value: charDps * 0.5,
+        note: '마법 atk × 1.5',
       })
     }
+  }
+
+  // ── 갑옷 자동 반응 점수 (피격 시 발동, v9.x) ──
+  const procChance = 0.10 + stats.행운 * 0.005
+  const estEnemyDmg = 15  // 챕터 평균 적 평타 추정
+  if (base.key === '가죽갑') {
+    defParts.push({
+      label: '자동 회피 (피격 시)',
+      value: estEnemyDmg * procChance * 2.0,
+      note: `발동 ${(procChance * 100).toFixed(0)}% → 데미지 무효`,
+    })
+  } else if (base.key === '로브') {
+    defParts.push({
+      label: '자동 방어 (피격 시, MP 흡수)',
+      value: estEnemyDmg * 0.5 * procChance * 2.0,
+      note: `발동 ${(procChance * 100).toFixed(0)}% → 데미지 −50% (MP 소모)`,
+    })
+  } else if (base.key === '판금') {
+    const charDps = estimateCharDps(character)
+    // 카운터: 피격당 평타×0.5 (방어 무시). 평균 가치 = charDps × 0.5 × proc
+    atkParts.push({
+      label: '철벽 카운터 (피격 시)',
+      value: charDps * 0.5 * procChance,
+      note: `발동 ${(procChance * 100).toFixed(0)}% → 평타×0.5 반격`,
+    })
   }
 
   // 갑옷 trait — 피격회복/반사/저항
@@ -299,8 +331,16 @@ function computeArmorValue(
     if (v) defParts.push({ label, value: v * 5 })
   }
 
-  if (a.effects.명중) atkParts.push({ label: '명중 (갑옷 특성)', value: a.effects.명중 * 0.4 })
-  if (a.effects.행운) atkParts.push({ label: '행운 (갑옷 특성)', value: a.effects.행운 * 0.5 })
+  // 명중 1pt ≈ 명중률 +1%p → 평균 dps +1%. charDps 기반 추정 (이전 × 0.4 가중치 너무 컸음)
+  if (a.effects.명중) {
+    const charDps = estimateCharDps(character)
+    atkParts.push({ label: '명중 (갑옷 특성)', value: charDps * (a.effects.명중 / 100), note: `+${a.effects.명중.toFixed(0)} (dps ${charDps.toFixed(0)} × ${a.effects.명중.toFixed(0)}%)` })
+  }
+  // 행운 1pt → 크리 배수 +1%/pt. dps 영향은 크리 확률에 비례 (대략 dps × 0.5%)
+  if (a.effects.행운) {
+    const charDps = estimateCharDps(character)
+    atkParts.push({ label: '행운 (갑옷 특성)', value: charDps * a.effects.행운 * 0.005, note: `+${a.effects.행운.toFixed(0)}` })
+  }
 
   const atkValue = atkParts.reduce((s, p) => s + p.value, 0)
   const defValue = defParts.reduce((s, p) => s + p.value, 0)
@@ -316,8 +356,13 @@ function estimateCharDps(character?: Character | null): number {
   if (!base || !td) return 30
   const atkPct = (td.effects.공격력_pct ?? 0) + (td.effects.전스탯_pct ?? 0)
   const atkMultBase = base.baseAtk * w.coef * (1 + atkPct)
-  const stat = base.isMagic ? character.stats.마력 : character.stats.힘
-  const k = base.isMagic ? 1.5 : 3.0
+  const physStat = base.category === 'ranged'
+    ? character.stats.힘 + character.stats.민첩 * 0.3
+    : character.stats.힘
+  const isLobe = character.armor?.baseKey === '로브'
+  const magicSynergy = isLobe && base.isMagic ? 1.5 : 1.0
+  const stat = base.isMagic ? character.stats.마력 : physStat
+  const k = base.isMagic ? 1.5 * magicSynergy : 3.0
   const atk = stat * atkMultBase * k
   const ticks = Math.round(10 / base.speedCoef)
   return atk / ticks
