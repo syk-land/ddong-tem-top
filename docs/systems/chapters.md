@@ -68,15 +68,19 @@
 
 `makeMonster(template, chapter, kind)`:
 ```ts
-baseline = chapter별 HP/ATK/DEF baseline (normal / boss / mimic 셋)
+baseline = chapter별 HP/ATK/DEF/ACC/EVA/TICKS (normal / boss / mimic 셋)
 hp  = round(baseline.hp  × template.hpMod)
 atk = baseline.atk × template.atkMod
-def = baseline.def × template.defMod
-speed = template.speedOverride ?? baseline.speed
+def = baseline.def × template.defMod      # v9: % 단위 방어율 (LOL → %)
+speed = template.speedOverride ?? baseline.speed  # deprecated
+ticks = baseline.ticks                    # v9: 게이지 임계값 (일반 10 / 보스 8 / 미믹 12)
+acc = baseline.acc                        # v9: 30 + 챕터×3
+eva = baseline.eva                        # v9: 5 + 챕터×1
 ```
 
-`MonsterInstance` 필드:
-- `template`, `hp`, `maxHp`, `atk`, `def`, `speed`
+`MonsterInstance` 필드 (v9):
+- `template`, `hp`, `maxHp`, `atk`, `def` (% 단위), `speed` (deprecated)
+- `ticks` (게이지 임계값), `acc` (명중), `eva` (회피) — v9 신규
 - `isBoss`, `isMimic`
 - `statuses[]`, `actionGauge`
 - 각종 `_*` 내부 카운터 (피격 횟수, HP 임계 dispatch 여부 등)

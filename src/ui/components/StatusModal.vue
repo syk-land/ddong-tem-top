@@ -48,77 +48,86 @@ function formatValue(v: number): string {
   return Math.abs(v) < 1 ? (v * 100).toFixed(1) + '%' : v.toFixed(1)
 }
 
-// ===== Breakdown =====
+// ===== v9 Breakdown =====
+// 공격력 = 힘 × baseAtk × coef × (1 + atk_pct) × 3.0
 function breakdownAtk(): Breakdown[] {
   const s = c.value.stats
   const w = c.value.weapon
   const wb = w ? WEAPONS[w.baseKey] : null
-  const out: Breakdown[] = [
-    { from: '힘 스탯', value: s.힘 * 2.5, note: `힘 ${s.힘} × 2.5` },
+  if (!w || !wb) return [{ from: '맨손', value: 0, note: '무기 없음' }]
+  const t = WEAPON_TRAITS[w.trait]?.effects ?? {}
+  const pct = (t.공격력_pct ?? 0) + (t.전스탯_pct ?? 0)
+  const total = s.힘 * wb.baseAtk * w.coef * (1 + pct) * 3.0
+  return [
+    {
+      from: '곱셈 모델',
+      value: total,
+      note: `힘 ${s.힘} × baseAtk ${wb.baseAtk} × 등급 ${w.coef} × (1+${pct.toFixed(2)}) × 3.0`,
+    },
   ]
-  if (w && wb) {
-    const t = WEAPON_TRAITS[w.trait]?.effects ?? {}
-    const pct = (t.공격력_pct ?? 0) + (t.전스탯_pct ?? 0)
-    const weaponPart = wb.baseAtk * (w.coef + pct)
-    out.push({
-      from: `무기 (${w.baseKey})`,
-      value: weaponPart,
-      note: `${wb.baseAtk} × (등급 ${w.coef} + 특성 ${pct.toFixed(2)})`,
-    })
-  }
-  return out
 }
+// 마법공격력 = 마력 × baseAtk × coef × (1 + atk_pct) × 1.5 × magicSynergy
+function breakdownMagicAtk(): Breakdown[] {
+  const s = c.value.stats
+  const w = c.value.weapon
+  const a = c.value.armor
+  const wb = w ? WEAPONS[w.baseKey] : null
+  if (!w || !wb || !wb.isMagic) return [{ from: '마법 무기 아님', value: 0 }]
+  const t = WEAPON_TRAITS[w.trait]?.effects ?? {}
+  const pct = (t.공격력_pct ?? 0) + (t.전스탯_pct ?? 0)
+  const synergy = a?.baseKey === '로브' ? 1.7 : 1.0
+  const total = s.마력 * wb.baseAtk * w.coef * (1 + pct) * 1.5 * synergy
+  return [
+    {
+      from: '곱셈 모델',
+      value: total,
+      note: `마력 ${s.마력} × baseAtk ${wb.baseAtk} × 등급 ${w.coef} × (1+${pct.toFixed(2)}) × 1.5${synergy !== 1 ? ` × 로브시너지 ${synergy}` : ''}`,
+    },
+  ]
+}
+// 방어% = baseDef × coef × (1 + def_pct) + 체력 × 0.3
 function breakdownDef(): Breakdown[] {
   const s = c.value.stats
   const a = c.value.armor
   const ab = a ? ARMORS[a.baseKey as keyof typeof ARMORS] : null
   const out: Breakdown[] = [
-    { from: '체력 스탯', value: s.체력 * 2.5, note: `체력 ${s.체력} × 2.5` },
+    { from: '체력 × 0.3', value: s.체력 * 0.3, note: `체력 ${s.체력}` },
   ]
   if (a && ab) {
     const t = ARMOR_TRAITS[a.trait]?.effects ?? {}
     const pct = (t.방어력_pct ?? 0) + (t.전스탯_pct ?? 0)
-    const armorPart = ab.baseDef * 2.0 * (a.coef + pct)
+    const armorPart = ab.baseDef * a.coef * (1 + pct)
     out.push({
       from: `갑옷 (${a.baseKey})`,
       value: armorPart,
-      note: `${ab.baseDef} × 2 × (등급 ${a.coef} + 특성 ${pct.toFixed(2)})`,
+      note: `${ab.baseDef} × 등급 ${a.coef} × (1+${pct.toFixed(2)})`,
     })
   }
   return out
 }
+// 게이지 가속 = 1 + 민첩/100, armorSpeedMult 별도
 function breakdownSpeed(): Breakdown[] {
   const s = c.value.stats
-  const w = c.value.weapon
   const a = c.value.armor
-  const wt = w ? (WEAPON_TRAITS[w.trait]?.effects.속도_pct ?? 0) : 0
-  const at = a ? (ARMOR_TRAITS[a.trait]?.effects.속도_pct ?? 0) : 0
-  const armorMult = a ? ARMORS[a.baseKey as keyof typeof ARMORS]?.speedMult ?? 1 : 1
-  const weaponCoef = w ? WEAPONS[w.baseKey]?.speedCoef ?? 1 : 1
-  const baseSpeed = s.민첩
+  const ab = a ? ARMORS[a.baseKey as keyof typeof ARMORS] : null
   const out: Breakdown[] = [
-    { from: '민첩 스탯', value: baseSpeed, note: `민첩 ${s.민첩}` },
+    { from: '베이스', value: 1.0, note: '매 틱 +1 누적' },
+    { from: `민첩 × 1%`, value: s.민첩 / 100, note: `민첩 ${s.민첩} → +${s.민첩}%` },
   ]
-  if (wt + at !== 0) {
-    out.push({ from: '특성 속도%', value: baseSpeed * (wt + at), note: `+${((wt + at) * 100).toFixed(0)}%` })
-  }
-  const afterTrait = baseSpeed * (1 + wt + at)
-  if (armorMult !== 1) {
-    out.push({ from: `갑옷 배율 (${a?.baseKey})`, value: afterTrait * (armorMult - 1), note: `×${armorMult.toFixed(2)}` })
-  }
-  const afterArmor = afterTrait * armorMult
-  if (Math.abs(weaponCoef - 1) > 0.001) {
-    out.push({ from: `무기 공속 (${w?.baseKey})`, value: afterArmor * (weaponCoef - 1), note: `×${weaponCoef.toFixed(2)}` })
+  if (ab && ab.speedMult !== 1) {
+    out.push({ from: `갑옷 배율 (${a!.baseKey})`, value: 0, note: `× ${ab.speedMult.toFixed(2)}` })
   }
   return out
 }
+// 명중 = 60 + 무기 + 트레잇 + 민첩×0.5 + 행운×0.1
 function breakdownAcc(): Breakdown[] {
   const s = c.value.stats
   const w = c.value.weapon
   const a = c.value.armor
   const out: Breakdown[] = [
+    { from: '베이스', value: 60 },
     { from: '민첩 × 0.5', value: s.민첩 * 0.5 },
-    { from: '행운 × 0.3', value: s.행운 * 0.3 },
+    { from: '행운 × 0.1', value: s.행운 * 0.1 },
   ]
   if (w?.effects.명중) out.push({ from: `무기 특성`, value: w.effects.명중 })
   if (a?.effects.명중) out.push({ from: `갑옷 특성`, value: a.effects.명중 })
@@ -126,31 +135,33 @@ function breakdownAcc(): Breakdown[] {
   if (wb?.accBonus) out.push({ from: `무기 베이스 (${w!.baseKey})`, value: wb.accBonus })
   return out
 }
+// 회피 = 5 + 무기 + 트레잇 + 갑옷 evasion + 민첩×0.5 + 행운×0.1
 function breakdownEva(): Breakdown[] {
   const s = c.value.stats
   const w = c.value.weapon
   const a = c.value.armor
   const out: Breakdown[] = [
+    { from: '베이스', value: 5 },
     { from: '민첩 × 0.5', value: s.민첩 * 0.5 },
-    { from: '행운 × 0.3', value: s.행운 * 0.3 },
+    { from: '행운 × 0.1', value: s.행운 * 0.1 },
   ]
   if (w?.effects.회피) out.push({ from: `무기 특성`, value: w.effects.회피 })
   if (a?.effects.회피) out.push({ from: `갑옷 특성`, value: a.effects.회피 })
+  const wb = w ? WEAPONS[w.baseKey] : null
+  if (wb?.evaBonus) out.push({ from: `무기 베이스 (${w!.baseKey})`, value: wb.evaBonus })
   const ab = a ? ARMORS[a.baseKey as keyof typeof ARMORS] : null
   if (ab?.evasion) out.push({ from: `갑옷 베이스 (${a!.baseKey})`, value: ab.evasion })
   return out
 }
+// 관통% = 무기 penBonus + magicPenBonus + 트레잇 (스탯 영향 없음)
 function breakdownPen(): Breakdown[] {
-  const s = c.value.stats
   const w = c.value.weapon
-  const out: Breakdown[] = [
-    { from: '힘 × 0.5', value: s.힘 * 0.5 },
-    { from: '행운 × 0.3', value: s.행운 * 0.3 },
-  ]
+  const out: Breakdown[] = []
   if (w?.effects.관통) out.push({ from: `무기 특성`, value: w.effects.관통 })
   const wb = w ? WEAPONS[w.baseKey] : null
   if (wb?.penBonus) out.push({ from: `무기 베이스 관통 (${w!.baseKey})`, value: wb.penBonus })
   if (wb?.magicPenBonus) out.push({ from: `마법 관통`, value: wb.magicPenBonus })
+  if (out.length === 0) out.push({ from: '없음', value: 0 })
   return out
 }
 function breakdownResist(): Breakdown[] {
@@ -166,17 +177,19 @@ function breakdownResist(): Breakdown[] {
   if (a?.effects.상태저항) out.push({ from: `갑옷 특성`, value: a.effects.상태저항 })
   return out
 }
-function breakdownMagicCoef(): Breakdown[] {
+// v9 크리
+function breakdownCritChance(): Breakdown[] {
   const s = c.value.stats
-  const a = c.value.armor
-  const w = c.value.weapon
-  const ab = a ? ARMORS[a.baseKey as keyof typeof ARMORS] : null
-  const out: Breakdown[] = [
-    { from: '마력 스탯', value: s.마력, note: `기준치 15, 1pt당 ±0.05 (cap 1.8)` },
+  return [
+    { from: '민첩 × 0.3%', value: s.민첩 * 0.003, note: `민첩 ${s.민첩} → ${(s.민첩 * 0.3).toFixed(1)}%` },
   ]
-  const mpBonus = (a?.effects.마력 ?? 0) + (w?.effects.마력 ?? 0) + (ab?.mpBonus ?? 0)
-  if (mpBonus) out.push({ from: `장비 마력 보너스`, value: mpBonus })
-  return out
+}
+function breakdownCritMult(): Breakdown[] {
+  const s = c.value.stats
+  return [
+    { from: '베이스', value: 1.3 },
+    { from: '행운 × 1%', value: s.행운 / 100, note: `행운 ${s.행운}` },
+  ]
 }
 
 function openDetail(name: string, total: number, entries: Breakdown[]) {
@@ -237,7 +250,7 @@ function openDetail(name: string, total: number, entries: Breakdown[]) {
           <div :class="statColorClass.행운"><span class="text-gray-500">행운</span> {{ c.stats.행운 }}</div>
         </div>
         <div class="text-[10px] text-gray-500 mt-2 leading-snug">
-          힘 → 공격력·관통 / 민첩 → 속도·명중·회피 / 체력 → 방어·HP / 마력 → MP·마법계수 / 행운 → 크리·발동률·명중·회피·관통·저항
+          힘 → 공격력 / 민첩 → 게이지가속·명중·회피·크리확률 / 체력 → 방어·HP / 마력 → MP·마법공격력 / 행운 → 크리데미지·명중·회피·저항
         </div>
       </div>
 
@@ -250,32 +263,39 @@ function openDetail(name: string, total: number, entries: Breakdown[]) {
             <span class="text-stat-phys_atk">공격력</span> <span class="font-bold">{{ effective.공격력.toFixed(1) }}</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('방어력', effective.방어력_effective, breakdownDef())">
-            <span class="text-stat-phys_def">방어력</span> <span class="font-bold">{{ effective.방어력_effective.toFixed(1) }}</span>
+                  @click="openDetail('방어 %', effective.방어력_effective, breakdownDef())">
+            <span class="text-stat-phys_def">방어</span> <span class="font-bold">{{ effective.방어력_effective.toFixed(1) }}%</span>
           </button>
-          <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('마법공격력', effective.마법공격력, [{from:'공격력 × 마력계수', value: effective.마법공격력, note: `${effective.공격력.toFixed(1)} × ${effective.마력계수.toFixed(2)}`}])">
+          <button v-if="effective.isMagicWeapon" class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
+                  @click="openDetail('마법공격력', effective.마법공격력, breakdownMagicAtk())">
             <span class="text-stat-mp">마법공격</span> <span class="font-bold">{{ effective.마법공격력.toFixed(1) }}</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('마력계수', effective.마력계수, breakdownMagicCoef())">
-            <span class="text-stat-mp">마법×</span> <span class="font-bold">×{{ effective.마력계수.toFixed(2) }}</span>
+                  @click="openDetail('게이지 가속', effective.게이지가속, breakdownSpeed())">
+            <span class="text-stat-speed">게이지</span> <span class="font-bold">×{{ effective.게이지가속.toFixed(2) }}</span>
           </button>
+          <div class="bg-slate-800/60 rounded px-2 py-1">
+            <span class="text-stat-speed">공격주기</span> <span class="font-bold">{{ effective.무기ticks }}틱</span>
+          </div>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('속도', effective.속도, breakdownSpeed())">
-            <span class="text-stat-speed">속도</span> <span class="font-bold">{{ effective.속도.toFixed(1) }}</span>
-          </button>
-          <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('명중률', effective.명중률, breakdownAcc())">
+                  @click="openDetail('명중', effective.명중률, breakdownAcc())">
             <span class="text-stat-util">명중</span> <span class="font-bold">{{ effective.명중률.toFixed(1) }}</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('회피율', effective.회피율, breakdownEva())">
+                  @click="openDetail('회피', effective.회피율, breakdownEva())">
             <span class="text-stat-util">회피</span> <span class="font-bold">{{ effective.회피율.toFixed(1) }}</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('관통', effective.관통, breakdownPen())">
+                  @click="openDetail('관통 %', effective.관통, breakdownPen())">
             <span class="text-stat-util">관통</span> <span class="font-bold">{{ effective.관통.toFixed(1) }}%</span>
+          </button>
+          <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
+                  @click="openDetail('크리 확률', effective.크리확률, breakdownCritChance())">
+            <span class="text-stat-luck">크리%</span> <span class="font-bold">{{ (effective.크리확률 * 100).toFixed(1) }}%</span>
+          </button>
+          <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
+                  @click="openDetail('크리 배수', effective.크리배수, breakdownCritMult())">
+            <span class="text-stat-luck">크리×</span> <span class="font-bold">×{{ effective.크리배수.toFixed(2) }}</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
                   @click="openDetail('상태저항', effective.상태저항, breakdownResist())">

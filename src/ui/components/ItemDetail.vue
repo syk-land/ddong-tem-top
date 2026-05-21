@@ -62,32 +62,27 @@ const currentEquipped = computed(() => {
 const coef = computed(() => props.item.coef)
 const effects = computed(() => props.item.effects)
 
-// 기본 능력치 분해 — v4 가산식 모델
-// 공식 (stats.ts):
-//   무기: 종합 공격계수 = baseAtk × (등급보너스 + 특성보너스)
-//   갑옷: 종합 방어계수 = baseDef × 2 × (등급보너스 + 특성보너스)
-// 등급보너스 = coef (등급 굴림 결과)
-// 특성보너스 = trait%_base (unscaled)
-// ( ) 안은 두 보너스의 단일 합계로 출력
+// 기본 능력치 분해 — v9 곱셈 모델
+// 공식:
+//   무기 atk = 힘 × baseAtk × coef × (1 + trait_pct) × 3.0
+//   갑옷 def% = baseDef × coef × (1 + trait_pct)  (+ 체력 × 0.3, stats.ts에서)
 const baseSpecLines = computed(() => {
   const lines: string[] = []
-  const fmt = (n: number) => (n >= 0 ? '+' : '') + n.toFixed(2)
+  const fmt = (n: number) => (n >= 0 ? '+' : '') + (n * 100).toFixed(0) + '%'
   if (weaponBase.value) {
     const base = weaponBase.value.baseAtk
     const traitPctBase = (traitBase.value.공격력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
-    const sumBonus = coef.value + traitPctBase
-    const final = base * sumBonus
+    const mult = base * coef.value * (1 + traitPctBase)
     lines.push(
-      `공격력 ${base.toFixed(2)} × (${coef.value.toFixed(2)} ${fmt(traitPctBase)}) = ${base.toFixed(2)} × ${sumBonus.toFixed(2)} = ${final.toFixed(2)}`,
+      `atk 계수 ${base.toFixed(2)} × ${coef.value.toFixed(2)} × (1${fmt(traitPctBase)}) = ${mult.toFixed(2)} (× 힘 × 3.0)`,
     )
   }
   if (armorBase.value) {
     const baseD = armorBase.value.baseDef
     const defPctBase = (traitBase.value.방어력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
-    const sumBonus = coef.value + defPctBase
-    const dF = baseD * 2.0 * sumBonus
+    const dF = baseD * coef.value * (1 + defPctBase)
     lines.push(
-      `방어력 ${baseD.toFixed(2)} × 2 × (${coef.value.toFixed(2)} ${fmt(defPctBase)}) = ${baseD.toFixed(2)} × 2 × ${sumBonus.toFixed(2)} = ${dF.toFixed(2)}`,
+      `방어 ${baseD} × ${coef.value.toFixed(2)} × (1${fmt(defPctBase)}) = ${dF.toFixed(2)}%  (+ 체력 × 0.3)`,
     )
   }
   return lines
@@ -109,7 +104,7 @@ const skillLine = computed(() => {
   return `${skill.value.name} (마나 ${skill.value.mp}${procStr}) — ${skill.value.description}`
 })
 
-// 명중/회피/속도 한 줄
+// 명중/회피/공격주기 한 줄 — v9
 const acc = computed(() => {
   let t = 0
   if (weaponBase.value) t += weaponBase.value.accBonus
@@ -118,24 +113,30 @@ const acc = computed(() => {
 })
 const eva = computed(() => {
   let t = 0
+  if (weaponBase.value) t += weaponBase.value.evaBonus
   if (armorBase.value) t += armorBase.value.evasion
   if (effects.value.회피) t += effects.value.회피
   return t
 })
-const speedMult = computed(() => {
-  if (weaponBase.value) return weaponBase.value.speedCoef
-  if (armorBase.value) return armorBase.value.speedMult
-  return 1
-})
 const speedPctTrait = computed(() => effects.value.속도_pct ?? 0)
-// 속도 최종 배율 = 베이스 배율 × (1 + 특성 %)
-const speedFinal = computed(() => speedMult.value * (1 + speedPctTrait.value))
+// 무기 ticks (게이지 임계값) 또는 갑옷 speedMult
+const weaponTicks = computed(() => {
+  if (!weaponBase.value) return 0
+  return Math.round(10 / weaponBase.value.speedCoef)
+})
+const armorSpeedMult = computed(() => armorBase.value?.speedMult ?? 1)
 
 const moveLine = computed(() => {
   const parts: string[] = []
-  parts.push(`명중 ${acc.value >= 0 ? '+' : ''}${acc.value.toFixed(2)}`)
-  parts.push(`회피 ${eva.value >= 0 ? '+' : ''}${eva.value.toFixed(2)}`)
-  parts.push(`속도 ×${speedFinal.value.toFixed(2)}`)
+  if (acc.value !== 0) parts.push(`명중 ${acc.value >= 0 ? '+' : ''}${acc.value.toFixed(0)}`)
+  if (eva.value !== 0) parts.push(`회피 ${eva.value >= 0 ? '+' : ''}${eva.value.toFixed(0)}`)
+  if (weaponBase.value) parts.push(`공격주기 ${weaponTicks.value}틱`)
+  if (armorBase.value && armorSpeedMult.value !== 1) {
+    parts.push(`갑옷 게이지 ×${armorSpeedMult.value.toFixed(2)}`)
+  }
+  if (speedPctTrait.value !== 0) {
+    parts.push(`게이지 ${speedPctTrait.value >= 0 ? '+' : ''}${(speedPctTrait.value * 100).toFixed(0)}%`)
+  }
   return parts.join(' / ')
 })
 
@@ -177,53 +178,11 @@ const specialLine = computed(() => {
   return parts.join(', ')
 })
 
-// 장비 계수 — 공격력 / 방어력 두 가지로 분리
-// 각 효과는 곱셈 기반 (% 값으로 환산). 명중 -10 → ×0.875 같은 식
-const itemCoef = computed(() => {
-  const e = effects.value
-
-  // 베이스 곱셈 인자 (가산값 → 곱셈 환산)
-  const accMult = Math.max(0.3, 1 + acc.value / 80)              // 명중 +30 → ×1.375, -10 → ×0.875
-  const evaMult = Math.max(0.3, 1 + eva.value / 80)              // 회피 +12 → ×1.15
-  const penMult = 1 + (e.관통 ?? 0) / 20                          // 관통 +8 → ×1.4
-  const luckMult = 1 + (e.행운 ?? 0) * 0.02                       // 행운 +5 → ×1.10
-  const stResMult = 1 + (e.상태저항 ?? 0) / 30
-  const lifestealMult = 1 + (e.lifesteal ?? 0) * 0.6              // 흡혈 25% → ×1.15
-  const dmgHealMult = 1 + (e.damage_taken_heal_pct ?? 0) * 5
-  // 속도 — 무기 coef 또는 갑옷 배율, 특성 속도% 적용
-  const speedFin = (weaponBase.value?.speedCoef ?? armorBase.value?.speedMult ?? 1) * (1 + speedPctTrait.value)
-  // 상태이상 발동 평균 (DPS 보너스)
-  const statusSum = (e.burn_chance ?? 0) + (e.bleed_chance ?? 0) + (e.poison_chance ?? 0) +
-                    (e.slow_chance ?? 0) + (e.blind_chance ?? 0) + (e.shock_chance ?? 0)
-  const statusMult = 1 + statusSum * 0.5
-  // 마력 보너스 (갑옷 mpBonus + 특성 마력)
-  const mpBonus = (armorBase.value?.mpBonus ?? 0) + (e.마력 ?? 0)
-  const mpMult = 1 + mpBonus / 50
-  // 저주(자해)는 양쪽 페널티
-  const selfDotPenalty = 1 - (e.self_dot_pct ?? 0) * 4
-
-  // === 공격력 계수 ===
-  // v4 가산식 모델: 무기만 공격력 계수에 기여. 갑옷은 0.
-  //   종합 공격계수 = baseAtk × (coef + trait%_base)
-  let atk = 0
-  if (weaponBase.value) {
-    const traitPctBase = (traitBase.value.공격력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
-    const finalAtk = weaponBase.value.baseAtk * (coef.value + traitPctBase)
-    atk = finalAtk * accMult * penMult * speedFin * luckMult * lifestealMult * statusMult * selfDotPenalty
-  }
-
-  // === 방어력 계수 ===
-  // v4 가산식 모델: 갑옷만 방어력 계수에 기여. 무기는 0.
-  //   종합 방어계수 = baseDef × 2 × (coef + trait%_base)
-  let def = 0
-  if (armorBase.value) {
-    const defPctBase = (traitBase.value.방어력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
-    const finalDef = armorBase.value.baseDef * 2.0 * (coef.value + defPctBase)
-    def = finalDef * evaMult * stResMult * mpMult * dmgHealMult * selfDotPenalty
-  }
-
-  return { atk, def }
-})
+// 장비 계수 (v9) — itemValue 의 atkValue/defValue 그대로 사용
+const itemCoef = computed(() => ({
+  atk: itemValue.value.atkValue,
+  def: itemValue.value.defValue,
+}))
 
 const totalScore = computed(() => itemCoef.value.atk + itemCoef.value.def)
 
@@ -243,147 +202,52 @@ export interface EquipDelta {
   note?: string
 }
 
+// v9 장착 변화 — atkValue / defValue 합 비교 (itemValue 기반)
 const equipChanges = computed<EquipDelta[]>(() => {
   if (!props.character) return []
-  const c = props.character
-  // v6: 총공격력 = 힘 × 1.5 + 무기 종합, 총방어력 = 체력 × 2 + 갑옷 종합
-  const charAtk = c.stats.힘 * 1.5
-  const charDef = c.stats.체력 * 2.0
-  const curWeapon = c.weapon
-  const curArmor = c.armor
-  function weaponContribution(item: ItemInstance | null): number {
-    if (!item) return 0
-    const wb = WEAPONS[item.baseKey]
-    if (!wb) return 0
-    const t = WEAPON_TRAITS[item.trait]?.effects ?? {}
-    const pct = (t.공격력_pct ?? 0) + (t.전스탯_pct ?? 0)
-    return wb.baseAtk * (item.coef + pct)
-  }
-  function armorContribution(item: ItemInstance | null): number {
-    if (!item) return 0
-    const ab = ARMORS[item.baseKey as keyof typeof ARMORS]
-    if (!ab) return 0
-    const t = ARMOR_TRAITS[item.trait]?.effects ?? {}
-    const pct = (t.방어력_pct ?? 0) + (t.전스탯_pct ?? 0)
-    return ab.baseDef * 2.0 * (item.coef + pct)
-  }
-  // 현재 캐릭터의 마력계수 (마법 무기 마법공격력 항목 표시용)
-  const playerMagicCoef = Math.max(0.1, Math.min(3.0, 1 + (c.stats.마력 - 15) * 0.07))
   const out: EquipDelta[] = []
+  const newAtk = itemValue.value.atkValue
+  const newDef = itemValue.value.defValue
+  const curAtk = currentValue.value.atkValue
+  const curDef = currentValue.value.defValue
 
-  if (weaponBase.value) {
-    // 같은 슬롯 비교: 새 무기 vs 현재 무기 (없으면 0)
-    // 새 무기를 이 슬롯에 끼웠을 때의 "총공격력 변화" 기준 %.
-    const traitAtkPct = (traitBase.value.공격력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
-    const newWeaponAtk = weaponBase.value.baseAtk * (coef.value + traitAtkPct)
-    const curWeaponAtk = weaponContribution(curWeapon)
-    const curTotal = charAtk + curWeaponAtk
-    const newTotal = charAtk + newWeaponAtk
-    const delta = newTotal - curTotal
-    const pct = curTotal > 0 ? (delta / curTotal) * 100 : 0
-    out.push({
-      label: '공격력',
-      amount: delta,
-      pct,
-      kind: 'atk',
-      note: `${curTotal.toFixed(2)} → ${newTotal.toFixed(2)}`,
-    })
-    // 마법 무기는 마력계수 적용된 마법공격력 변화도 별도 라인 (참고용)
-    if (weaponBase.value.isMagic) {
-      const newMagic = newWeaponAtk * playerMagicCoef
-      const curMagic = curWeaponAtk * (curWeapon?.baseKey && WEAPONS[curWeapon.baseKey]?.isMagic ? playerMagicCoef : 0)
-      const curMagicTotal = charAtk * playerMagicCoef + curMagic
-      const newMagicTotal = charAtk * playerMagicCoef + newMagic
-      const mDelta = newMagicTotal - curMagicTotal
+  if (weaponBase.value || armorBase.value) {
+    const dAtk = newAtk - curAtk
+    if (Math.abs(dAtk) > 0.05) {
       out.push({
-        label: `마법공격력 (×${playerMagicCoef.toFixed(2)})`,
-        amount: mDelta,
-        pct: curMagicTotal > 0 ? (mDelta / curMagicTotal) * 100 : 0,
+        label: '전투력(공)',
+        amount: dAtk,
+        pct: curAtk > 0 ? (dAtk / curAtk) * 100 : 0,
         kind: 'atk',
+        note: `${curAtk.toFixed(1)} → ${newAtk.toFixed(1)}`,
+      })
+    }
+    const dDef = newDef - curDef
+    if (Math.abs(dDef) > 0.05) {
+      out.push({
+        label: '전투력(방)',
+        amount: dDef,
+        pct: curDef > 0 ? (dDef / curDef) * 100 : 0,
+        kind: 'def',
+        note: `${curDef.toFixed(1)} → ${newDef.toFixed(1)}`,
       })
     }
   }
 
-  if (armorBase.value) {
-    // 같은 슬롯 비교: 새 갑옷 vs 현재 갑옷 (없으면 0)
-    const traitDefPct = (traitBase.value.방어력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
-    const newArmorDef = armorBase.value.baseDef * 2.0 * (coef.value + traitDefPct)
-    const curArmorDef = armorContribution(curArmor)
-    const curTotalDef = charDef + curArmorDef
-    const newTotalDef = charDef + newArmorDef
-    const dDef = newTotalDef - curTotalDef
-    out.push({
-      label: '방어력',
-      amount: dDef,
-      pct: curTotalDef > 0 ? (dDef / curTotalDef) * 100 : 0,
-      kind: 'def',
-      note: `${curTotalDef.toFixed(2)} → ${newTotalDef.toFixed(2)}`,
-    })
-
-    // 2) 공속배율 → 공격력에 곱셈 영향 (가죽갑 ×1.2, 판금 ×0.65)
-    const armorSpeedFin = armorBase.value.speedMult * (1 + speedPctTrait.value)
-    if (Math.abs(armorSpeedFin - 1) > 0.001) {
-      const pctDelta = (armorSpeedFin - 1) * 100
-      out.push({
-        label: '공격력 (공속)',
-        mult: armorSpeedFin,
-        pct: pctDelta,
-        kind: 'atk',
-        note: `총공격력 × ${armorSpeedFin.toFixed(2)}`,
-      })
-    }
-
-    // 3) 마력 보너스 — 마력계수(magic coefficient)에 영향
-    //    마법공격력 = (s.공격력 + weaponAtkCoef) × magicCoef
-    //    magicCoef = clamp(1 + (총마력 - 15) × 0.07, 0.1, 3.0)
-    //    아이템 장착 시 새 magicCoef 계산 후 마법공격력 차이를 표시
-    const mpBonus = armorBase.value.mpBonus + (effects.value.마력 ?? 0)
-    if (mpBonus !== 0) {
-      const calcMagicCoef = (mp: number) => Math.max(0.1, Math.min(3.0, 1 + (mp - 15) * 0.07))
-      const currMp = c.stats.마력
-      const newMp = currMp + mpBonus
-      const currCoef = calcMagicCoef(currMp)
-      const newCoef = calcMagicCoef(newMp)
-      // v6: 마법공격력 기준 베이스 (캐릭터 힘 × 1.5)
-      const magicBaselineAtk = c.stats.힘 * 1.5
-      const currMagic = magicBaselineAtk * currCoef
-      const newMagic = magicBaselineAtk * newCoef
-      const delta = newMagic - currMagic
-      const pct = magicBaselineAtk > 0 ? (delta / magicBaselineAtk) * 100 : 0
-      out.push({
-        label: `마법공격력 (마력계수 ×${newCoef.toFixed(2)})`,
-        amount: delta,
-        pct,
-        kind: 'atk',
-        note: `${currCoef.toFixed(2)} → ${newCoef.toFixed(2)}`,
-      })
-    }
-  }
-
-  // 4) 명중 modifier (특성 scaled + 무기 accBonus)
+  // 명중/회피 (단순 표시)
   const accBonus = (effects.value.명중 ?? 0) + (weaponBase.value?.accBonus ?? 0)
   if (Math.abs(accBonus) > 0.001) {
-    out.push({
-      label: '명중',
-      amount: accBonus,
-      kind: 'neutral',
-    })
+    out.push({ label: '명중', amount: accBonus, kind: 'neutral' })
   }
-
-  // 5) 회피 modifier (갑옷 base + 특성 scaled)
-  const evaBonus = (effects.value.회피 ?? 0) + (armorBase.value?.evasion ?? 0)
+  const evaBonus = (effects.value.회피 ?? 0)
+    + (armorBase.value?.evasion ?? 0)
+    + (weaponBase.value?.evaBonus ?? 0)
   if (Math.abs(evaBonus) > 0.001) {
-    out.push({
-      label: '회피',
-      amount: evaBonus,
-      kind: 'def',
-    })
+    out.push({ label: '회피', amount: evaBonus, kind: 'def' })
   }
 
-  // 방어구/무기 구분 없이 공격력 → 방어력 → 명중 등 순으로 정렬
   const order: Record<EquipDeltaKind, number> = { atk: 0, def: 1, neutral: 2 }
   out.sort((a, b) => order[a.kind] - order[b.kind])
-
   return out
 })
 
@@ -396,105 +260,9 @@ interface CompareDelta {
 }
 
 const compareChanges = computed<CompareDelta[]>(() => {
-  if (!props.character || !currentEquipped.value) return []
-  const cur = currentEquipped.value
-  const out: CompareDelta[] = []
-
-  // 무기 비교
-  if (weaponBase.value) {
-    const curBase = WEAPONS[cur.baseKey]
-    const curTrait = WEAPON_TRAITS[cur.trait]?.effects ?? {}
-    if (!curBase) return out
-
-    // 신규 무기 공격력
-    const newAtkPct = (traitBase.value.공격력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
-    const newAtk = weaponBase.value.baseAtk * (coef.value + newAtkPct)
-    // 현재 무기 공격력
-    const curAtkPct = (curTrait.공격력_pct ?? 0) + (curTrait.전스탯_pct ?? 0)
-    const curAtk = curBase.baseAtk * (cur.coef + curAtkPct)
-
-    const dAtk = newAtk - curAtk
-    if (Math.abs(dAtk) > 0.01) {
-      // v6: 총공격력 기준 변화율 (힘×1.5 + 현재 무기 공격력)
-      const curTotalAtk = props.character.stats.힘 * 1.5 + curAtk
-      out.push({
-        label: '공격력',
-        delta: dAtk,
-        pctDelta: curTotalAtk > 0 ? (dAtk / curTotalAtk) * 100 : 0,
-        kind: 'atk',
-      })
-    }
-
-    // 속도 비교
-    const newSpeed = weaponBase.value.speedCoef * (1 + (traitBase.value.속도_pct ?? 0))
-    const curSpeed = curBase.speedCoef * (1 + (curTrait.속도_pct ?? 0))
-    const dSpeed = newSpeed - curSpeed
-    if (Math.abs(dSpeed) > 0.01) {
-      out.push({
-        label: '공속',
-        delta: dSpeed,
-        pctDelta: curSpeed > 0 ? (dSpeed / curSpeed) * 100 : 0,
-        kind: 'atk',
-      })
-    }
-  }
-
-  // 갑옷 비교
-  if (armorBase.value) {
-    const curBase = ARMORS[cur.baseKey as keyof typeof ARMORS]
-    const curTrait = ARMOR_TRAITS[cur.trait]?.effects ?? {}
-    if (!curBase) return out
-
-    // 신규 갑옷 방어력
-    const newDefPct = (traitBase.value.방어력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
-    const newDef = armorBase.value.baseDef * 2.0 * (coef.value + newDefPct)
-    // 현재 갑옷 방어력
-    const curDefPct = (curTrait.방어력_pct ?? 0) + (curTrait.전스탯_pct ?? 0)
-    const curDef = curBase.baseDef * 2.0 * (cur.coef + curDefPct)
-
-    const dDef = newDef - curDef
-    if (Math.abs(dDef) > 0.01) {
-      // v6: 총방어력 기준 변화율 (체력×2 + 현재 갑옷 방어력)
-      const curTotalDef = props.character.stats.체력 * 2.0 + curDef
-      out.push({
-        label: '방어력',
-        delta: dDef,
-        pctDelta: curTotalDef > 0 ? (dDef / curTotalDef) * 100 : 0,
-        kind: 'def',
-      })
-    }
-
-    // 공속배율 비교
-    const newSpeedMult = armorBase.value.speedMult * (1 + (traitBase.value.속도_pct ?? 0))
-    const curSpeedMult = curBase.speedMult * (1 + (curTrait.속도_pct ?? 0))
-    const dSpeedMult = newSpeedMult - curSpeedMult
-    if (Math.abs(dSpeedMult) > 0.01) {
-      out.push({
-        label: '공속배율',
-        delta: dSpeedMult,
-        pctDelta: curSpeedMult > 0 ? (dSpeedMult / curSpeedMult) * 100 : 0,
-        kind: 'atk',
-      })
-    }
-
-    // 마력 (마법공격력 영향)
-    const newMp = armorBase.value.mpBonus + (effects.value.마력 ?? 0)
-    const curMp = curBase.mpBonus + (cur.effects.마력 ?? 0)
-    const dMp = newMp - curMp
-    if (dMp !== 0) {
-      out.push({ label: '마력', delta: dMp, kind: 'atk' })
-    }
-
-    // 회피
-    const newEva = armorBase.value.evasion + (effects.value.회피 ?? 0)
-    const curEva = curBase.evasion + (cur.effects.회피 ?? 0)
-    const dEva = newEva - curEva
-    if (Math.abs(dEva) > 0.01) {
-      out.push({ label: '회피', delta: dEva, kind: 'def' })
-    }
-  }
-
-  return out
+  // v9: equipChanges 가 이미 itemValue 기반 단순 비교로 처리
+  // 별도 비교 라인 불필요 (중복 제거)
+  return []
 })
 
 // v6 등급 변화 한 줄: 점수 = 무기 티어 + 갑옷 티어

@@ -2,7 +2,7 @@
 // 힘    → 공격력, 관통
 // 민첩  → 속도, 명중, 회피
 // 체력  → 방어력, HP, 상태저항(절반)
-// 마력  → MP, 마력계수, 상태저항(절반)
+// 마력  → MP, 마법공격력 (마법 무기), 상태저항(절반)
 // 행운  → 크리티컬, 스킬 발동률, 보상, 이벤트 성공률 + 명중/회피/관통/저항 가산
 //
 // 장비는 스탯 직접 변동 X. 파생 효과(공격력/방어력/속도/명중/회피/관통/저항/마력 등)에만 가산.
@@ -37,11 +37,14 @@ export const GRADE_COEF_RANGE: Record<Grade, [number, number]> = {
 //   설계: 노말 1 / 레어 2 / 스페셜 4 / 레전드 6
 //   특성 단계와 결합되어 다음 등급으로 도약하는 격차 형성
 //   (특성 특별 ≈ 다음 등급 하급)
+// v9: 곱셈 모델 격차 (1/2/4/6 → 1/2/3/4.3)
+//   노말·레어 = 클리어 못 함 (의도), 스페셜 best ~10%, 레전드 best ~50%
+//   coef는 무기 atk·갑옷 def 동시 적용
 export const GRADE_COEF: Record<Grade, number> = {
   노말: 1,
   레어: 2,
-  스페셜: 4,
-  레전드: 6,
+  스페셜: 3.0,
+  레전드: 4.3,
 }
 
 export const GRADE_PRICE_MULT: Record<Grade, number> = {
@@ -111,7 +114,8 @@ export interface WeaponBase {
   category: WeaponCategory
   baseAtk: number
   speedCoef: number   // 매 틱 누적 = 속도 × speedCoef (10/ticks 기준, 검=1.0 → 10틱)
-  accBonus: number    // 명중 보정 (속도형 +, 중량형 -)
+  accBonus: number    // 명중 보정 (속도형 +, 한방형 -)
+  evaBonus: number    // 회피 보정 (속도형 +, 한방형 -)
   mpBonus: number     // 마법 무기 MP 소모 보정 (완드 -3, 마도서 +3)
   magicPenBonus: number  // 마법 관통 % (스태프/마도서) — 관통과 동일하게 % 방어 무시
   penBonus?: number   // 물리 관통 % (0~100) — 적 방어를 비율로 무시
@@ -212,8 +216,11 @@ export interface MonsterInstance {
   hp: number
   maxHp: number
   atk: number
-  def: number
-  speed: number
+  def: number      // v9: % 단위 방어율 (0~100)
+  speed: number    // (deprecated) v9에서 ticks 로 대체
+  ticks: number    // v9: 게이지 임계값 (작을수록 빠름)
+  acc: number      // v9: 명중 (%p)
+  eva: number      // v9: 회피 (%p)
   isBoss: boolean
   isMimic: boolean
   statuses: StatusInstance[]

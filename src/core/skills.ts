@@ -47,7 +47,8 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       attackSkill(ctx, 1.0, { penBoost: 2.0 })
       break
     case '연속공격': {
-      const hits = 1 + Math.floor(eff.속도 / 20)
+      // v9: 속도 → 민첩 (스탯) 직접 사용. 민첩 20 = +1 hit
+      const hits = 1 + Math.floor(eff.민첩 / 20)
       for (let i = 0; i < hits; i++) {
         const t = currentTarget(ctx)
         if (!t || t.hp <= 0) break
@@ -71,10 +72,11 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       pushLog(ctx, '회피 자세 (10틱)', 'skill')
       break
     case '패링':
+      // v9: 속도 → 민첩 직접 사용. defMult = 1 + (민첩×1.0 + 공격력×0.5) / 100
       ctx.buffs.set('parry', {
         duration: 10,
         effect: {
-          defMult: 1 + (eff.속도 * 0.3 + eff.공격력 * 0.5) / 100,
+          defMult: 1 + (eff.민첩 * 1.0 + eff.공격력 * 0.5) / 100,
           reflect: 0.5,
         },
       })
@@ -106,11 +108,11 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       // 메인 100% + 스플래시 40%(나머지 적)
       const main = currentTarget(ctx)
       if (!main) break
-      magicAttackOnTarget(ctx, main, 2.6, '점화', 0.25)
+      magicAttackOnTarget(ctx, main, 6.5, '점화', 0.25)
       const splash = aliveMonsters(ctx).filter((m) => m !== main)
       if (splash.length > 0) {
         pushLog(ctx, `화염구 스플래시: ${splash.length}마리에 화상 비산`, 'skill')
-        magicAttackMulti(ctx, splash, 2.6 * 0.4, undefined, 0, { accBonus: 20 })
+        magicAttackMulti(ctx, splash, 6.5 * 0.4, undefined, 0, { accBonus: 20 })
       }
       break
     }
@@ -127,10 +129,10 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       // 전체 70% 데미지, 둔화는 메인에만
       const main = currentTarget(ctx)
       if (!main) break
-      magicAttackOnTarget(ctx, main, 2.3, '둔화', 0.40)
+      magicAttackOnTarget(ctx, main, 4.8, '둔화', 0.40)
       const rest = aliveMonsters(ctx).filter((m) => m !== main)
       if (rest.length > 0) {
-        magicAttackMulti(ctx, rest, 2.3 * 0.7, undefined, 0)
+        magicAttackMulti(ctx, rest, 4.8 * 0.7, undefined, 0)
         pushLog(ctx, `바위 충격: 광역 진동`, 'skill')
       }
       break
@@ -139,17 +141,17 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       // 메인 + 연쇄 2 (확률 60% / 30%), 메인 게이지 -10
       const main = currentTarget(ctx)
       if (!main) break
-      magicAttackOnTarget(ctx, main, 2.9, '감전', 0.15)
+      magicAttackOnTarget(ctx, main, 5.5, '감전', 0.15)
       main.actionGauge = Math.max(0, main.actionGauge - 10)
       const remaining = aliveMonsters(ctx).filter((m) => m !== main)
       if (remaining.length > 0 && Math.random() < 0.6) {
         const chain1 = remaining[0]
-        magicAttackOnTarget(ctx, chain1, 2.9 * 0.5, '감전', 0.10)
+        magicAttackOnTarget(ctx, chain1, 5.5 * 0.5, '감전', 0.10)
         pushLog(ctx, `번개 연쇄 1단: ${chain1.template.name}`, 'skill')
         const remaining2 = remaining.filter((m) => m !== chain1 && m.hp > 0)
         if (remaining2.length > 0 && Math.random() < 0.3) {
           const chain2 = remaining2[0]
-          magicAttackOnTarget(ctx, chain2, 2.9 * 0.25, '감전', 0.05)
+          magicAttackOnTarget(ctx, chain2, 5.5 * 0.25, '감전', 0.05)
           pushLog(ctx, `번개 연쇄 2단: ${chain2.template.name}`, 'skill')
         }
       }
@@ -196,12 +198,12 @@ function attackSkill(
   const target = currentTarget(ctx)
   if (!target) return
   const eff = computeEffectiveStats(ctx.player)
-  if (!rollHit(eff.명중률 + (opts.accBonus ?? 0), 0)) {
+  if (!rollHit(eff.명중률 + (opts.accBonus ?? 0), target.eva)) {
     pushLog(ctx, '공격이 빗나갔다.', 'miss')
     return
   }
   const { dmg, isCrit } = computeDamage(
-    { 공격력: eff.공격력, 행운: eff.행운, 관통: eff.관통 },
+    { 공격력: eff.공격력, 민첩: eff.민첩, 행운: eff.행운, 관통: eff.관통 },
     { 방어: target.def },
     { multiplier, penBoost: opts.penBoost ?? 1.0 }
   )
@@ -258,12 +260,12 @@ function magicAttackOnTarget(
 ) {
   if (target.hp <= 0) return
   const eff = computeEffectiveStats(ctx.player)
-  if (!rollHit(eff.명중률 + (opts.accBonus ?? 0), 0)) {
+  if (!rollHit(eff.명중률 + (opts.accBonus ?? 0), target.eva)) {
     if (!opts.silent) pushLog(ctx, '마법이 빗나갔다.', 'miss')
     return
   }
   const { dmg, isCrit } = computeDamage(
-    { 공격력: eff.마법공격력, 행운: eff.행운, 관통: eff.관통 },
+    { 공격력: eff.마법공격력, 민첩: eff.민첩, 행운: eff.행운, 관통: eff.관통 },
     { 방어: target.def },
     { multiplier }
   )

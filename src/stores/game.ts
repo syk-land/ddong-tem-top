@@ -807,7 +807,8 @@ export const useGameStore = defineStore('game', {
       }
 
       // 각 살아있는 몬스터의 행동
-      const ready = checkActionReady(this.combat)
+      const playerEff = computeEffectiveStats(this.combat.player)
+      const ready = checkActionReady(this.combat, playerEff.무기ticks)
       const themeName = this.run ? currentChapter(this.run).theme : null
       for (const m of ready.readyMonsters) {
         if (this.combat.ended) break
@@ -818,12 +819,12 @@ export const useGameStore = defineStore('game', {
           if (this.combat.isPvp) onPvpHit(this.challengeContext, damageTaken)
           onPlayerHitByTheme(this.challengeContext, themeName, damageTaken)
         }
-        consumeAction(m)
+        consumeAction(m, m.ticks)
       }
 
       // 플레이어 자동 행동
-      if (!this.combat.ended && this.combat.player.actionGauge >= 100) {
-        this.playerAutoAct()
+      if (!this.combat.ended && this.combat.player.actionGauge >= playerEff.무기ticks) {
+        this.playerAutoAct(playerEff.무기ticks)
       }
 
       if (this.combat.ended) {
@@ -831,8 +832,8 @@ export const useGameStore = defineStore('game', {
       }
     },
 
-    // 게이지 100 도달 시 자동 액션 (확률 기반 스킬/평타)
-    playerAutoAct() {
+    // 게이지 임계값(무기 ticks) 도달 시 자동 액션 (확률 기반 스킬/평타)
+    playerAutoAct(threshold: number) {
       if (!this.combat) return
       const combat = this.combat
       const action = pickAutoAction(combat, {
@@ -862,7 +863,7 @@ export const useGameStore = defineStore('game', {
         playerBasicAttack(combat)
         if (this.challengeContext) recordBasicAttackUse(this.challengeContext)
       }
-      consumeAction(combat.player)
+      consumeAction(combat.player, threshold)
     },
 
     setCombatSpeed(speed: number) {
