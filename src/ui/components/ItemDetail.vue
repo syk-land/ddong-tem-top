@@ -65,7 +65,7 @@ const effects = computed(() => props.item.effects)
 // 기본 능력치 분해 — v9 곱셈 모델
 // 공식:
 //   무기 atk = 힘 × baseAtk × coef × (1 + trait_pct) × 3.0
-//   갑옷 def% = baseDef × coef × (1 + trait_pct)  (+ 체력 × 0.3, stats.ts에서)
+//   갑옷 def% = baseDef × coef × (1 + trait_pct)  (+ 체력 × 0.3 × coef, stats.ts에서)
 const baseSpecLines = computed(() => {
   const lines: string[] = []
   const fmt = (n: number) => (n >= 0 ? '+' : '') + (n * 100).toFixed(0) + '%'
@@ -82,7 +82,7 @@ const baseSpecLines = computed(() => {
     const defPctBase = (traitBase.value.방어력_pct ?? 0) + (traitBase.value.전스탯_pct ?? 0)
     const dF = baseD * coef.value * (1 + defPctBase)
     lines.push(
-      `방어 ${baseD} × ${coef.value.toFixed(2)} × (1${fmt(defPctBase)}) = ${dF.toFixed(2)}%  (+ 체력 × 0.3)`,
+      `방어 ${baseD} × ${coef.value.toFixed(2)} × (1${fmt(defPctBase)}) = ${dF.toFixed(2)}%  (+ 체력 × 0.3 × ${coef.value.toFixed(2)})`,
     )
   }
   return lines

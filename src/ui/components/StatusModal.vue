@@ -85,13 +85,14 @@ function breakdownMagicAtk(): Breakdown[] {
     },
   ]
 }
-// 방어% = baseDef × coef × (1 + def_pct) + 체력 × 0.3
+// 방어% = baseDef × coef × (1 + def_pct) + 체력 × 0.3 × coef
 function breakdownDef(): Breakdown[] {
   const s = c.value.stats
   const a = c.value.armor
   const ab = a ? ARMORS[a.baseKey as keyof typeof ARMORS] : null
+  const coef = a?.coef ?? 0
   const out: Breakdown[] = [
-    { from: '체력 × 0.3', value: s.체력 * 0.3, note: `체력 ${s.체력}` },
+    { from: `체력 × 0.3 × 등급 ${coef.toFixed(2)}`, value: s.체력 * 0.3 * coef, note: `체력 ${s.체력}` },
   ]
   if (a && ab) {
     const t = ARMOR_TRAITS[a.trait]?.effects ?? {}
@@ -108,12 +109,21 @@ function breakdownDef(): Breakdown[] {
 // 게이지 가속 = 1 + 민첩/100, armorSpeedMult 별도
 function breakdownSpeed(): Breakdown[] {
   const s = c.value.stats
+  const w = c.value.weapon
   const a = c.value.armor
   const ab = a ? ARMORS[a.baseKey as keyof typeof ARMORS] : null
   const out: Breakdown[] = [
     { from: '베이스', value: 1.0, note: '매 틱 +1 누적' },
     { from: `민첩 × 1%`, value: s.민첩 / 100, note: `민첩 ${s.민첩} → +${s.민첩}%` },
   ]
+  if (w?.effects.속도_pct) {
+    const pct = w.effects.속도_pct
+    out.push({ from: '무기 특성', value: pct, note: `× (1${pct >= 0 ? '+' : ''}${(pct * 100).toFixed(0)}%)` })
+  }
+  if (a?.effects.속도_pct) {
+    const pct = a.effects.속도_pct
+    out.push({ from: '갑옷 특성', value: pct, note: `× (1${pct >= 0 ? '+' : ''}${(pct * 100).toFixed(0)}%)` })
+  }
   if (ab && ab.speedMult !== 1) {
     out.push({ from: `갑옷 배율 (${a!.baseKey})`, value: 0, note: `× ${ab.speedMult.toFixed(2)}` })
   }
