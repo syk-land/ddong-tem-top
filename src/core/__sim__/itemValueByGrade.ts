@@ -44,12 +44,11 @@ const THEMES: ChapterTheme[] = [
 
 const GRADES: Grade[] = ['노말', '레어', '스페셜', '레전드']
 
-// 다양한 스탯 분배: 총 30~80pt 무작위 (총합 자체도 변동), 각 스탯 1~30
+// 다양한 스탯 분배: 총 60~200pt 무작위 (총합 자체도 변동), 각 스탯 최소 1
 function randomStats(): Stats {
-  const totalBudget = 30 + Math.floor(Math.random() * 51)  // 30~80
+  const totalBudget = 60 + Math.floor(Math.random() * 141)  // 60~200
   const s: Stats = { 힘: 0, 민첩: 0, 체력: 0, 마력: 0, 행운: 0 }
   const keys: (keyof Stats)[] = ['힘', '민첩', '체력', '마력', '행운']
-  // 각 스탯 최소 1
   for (const k of keys) s[k] = 1
   let remaining = totalBudget - 5
   while (remaining > 0) {
@@ -154,7 +153,7 @@ function rollTraitTier(grade: Grade): TraitTier {
 
 function run() {
   const RUNS = 200
-  console.log(`\n=== 등급 × 챕터 클리어률 매트릭스 (각 ${RUNS} 런, 스탯 30~80pt 랜덤 분배) ===\n`)
+  console.log(`\n=== 등급 × 챕터 클리어률 매트릭스 (각 ${RUNS} 런, 스탯 60~200pt 랜덤 분배) ===\n`)
 
   // matrix[grade][chapter] = CellStat
   const matrix: Record<Grade, Record<number, CellStat>> = {} as any
