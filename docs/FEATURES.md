@@ -18,6 +18,8 @@
 | 8 | [빈 슬롯 자동 장착](./features/auto-equip.md) | 슬롯 비었고 인벤토리에 같은 종류 있으면 tier 가장 높은 것 자동 장착 |
 | 9 | [데이터 리셋](./features/data-reset.md) | 4개 키 비우고 새로고침 — 인트로 만화도 재표시 |
 | 10 | [이미지 워터마크 제거](./features/watermark-removal.md) | Pillow + clone stamp 인페인트, 노란 박스 마킹 검출 지원 |
+| 11 | [Firebase Google 로그인 + 클라우드 저장](./features/firebase-auth.md) | Firestore 진행도 동기화 + 리더보드. 웹 popup / 안드 네이티브 자동 분기 |
+| 12 | [모바일 UI 전체 정비](./features/ui-overhaul.md) | 색 액센트 톤 통일(rose/cyan/amber/emerald/pink/purple) + 카드 위계 + 탭 모달 + 전투력 % 비교 (캐릭터 총합 기준) |
 
 ---
 
@@ -34,6 +36,10 @@
 | 파일 | 역할 |
 | --- | --- |
 | `src/core/realboss.ts` | `isChallengeDue / pickWeakestRecord / makeRealBoss / computeStartBonusFromDrain` |
+| `src/lib/firebase.ts` | Firebase 앱/Auth/Firestore 초기화 |
+| `src/lib/auth.ts` | `signInWithGoogle / signOut / onAuthChange` — Capacitor 네이티브/웹 popup 자동 분기 |
+| `src/lib/cloudSync.ts` | Firestore CRUD — 프로필/메타/리더보드 |
+| `src/stores/auth.ts` | Pinia auth store — 로그인 시 자동 머지 + 동기화 + 리더보드 제출 |
 
 ## 스키마 변경 — `MetaBonuses`
 
@@ -55,6 +61,7 @@ interface MetaBonuses {
 
 ## 저장 키 일람
 
+### 로컬 `localStorage`
 | 키 | 내용 |
 | --- | --- |
 | `climetop:meta:v1` | `MetaBonuses` 전체 |
@@ -66,7 +73,15 @@ interface MetaBonuses {
 | `climetop:speedControl:expanded:v2` | 설정 패널 펼침 상태 |
 | (사운드 모듈 내부) | 효과음/배경음 ON·볼륨 |
 
-리셋 동작은 [data-reset](./features/data-reset.md) 문서 참조.
+### 클라우드 Firestore (로그인 시)
+| 컬렉션/문서 | 내용 |
+| --- | --- |
+| `users/{uid}` | 프로필 (displayName/photoURL/email/nickname) |
+| `meta/{uid}` | 게임 진행도 (clearCount/totalBonusStats/permanentStartBonus/realBoss\*/characterHistory) |
+| `leaderboard/{uid}` | 본인 최고 점수 + nickname + clearCount |
+
+자세한 동기화 정책은 [firebase-auth](./features/firebase-auth.md) 참조.
+리셋 동작은 [data-reset](./features/data-reset.md) 참조.
 
 ## 신규 화면 라우팅 값
 
@@ -80,12 +95,18 @@ interface MetaBonuses {
 
 ## 안드로이드 빌드 흐름 요약
 
-1. `npm run build`
-2. `npx cap sync android`
-3. (1회만) [release-signing](./features/release-signing.md) 셋업
-4. `keystore.properties`에서 `VERSION_CODE` +1
-5. Android Studio 또는 `gradlew.bat assembleRelease`
-6. `app-release.apk` 폰에 설치 (1회만 기존 디버그 빌드 제거)
+### CI 디버그 빌드 (현재 주력)
+1. main 브랜치에 push → GitHub Actions `Android APK Build` 자동 실행
+2. `android/app/debug.keystore` 로 안정 서명 (= Firebase 등록된 SHA-1 과 일치)
+3. Artifacts 에서 `climetop-debug-apk` 다운로드 → 폰에 설치
+4. 이전 빌드 위에 그냥 덮어쓰기 가능 (동일 keystore)
+
+### 릴리스 빌드 (Play Store 용)
+1. (1회만) [release-signing](./features/release-signing.md) 셋업
+2. `keystore.properties`에서 `VERSION_CODE` +1
+3. Android Studio 또는 `gradlew.bat assembleRelease`
+4. `app-release.apk` 폰에 설치 (디버그 빌드 제거 후 1회만)
+5. release SHA-1 도 Firebase 콘솔에 추가 등록 필요 (Google 로그인 동작용)
 
 ## 알려진 제약 / 향후 작업
 
@@ -93,3 +114,6 @@ interface MetaBonuses {
 - **사망 캐릭터 히스토리 미적재**: 도전 모드의 최약 캐릭터 풀에 사망 케이스를 포함할지는 추후 결정
 - **안드로이드 디폴트 종료 확인**: 게임 진행 중 뒤로가기 → 모달 없을 때 디폴트 종료 → "정말 종료할까요?" 확인 추가 여지
 - **인트로 만화 페이드 효과**: 컷 사이가 즉시 전환이라 페이드 추가 시 자연스러워질 수 있음
+- **리더보드 UI 미작성**: `cloudSync.fetchTopLeaderboard()` 는 구현됐지만 표시 화면 없음
+- **닉네임 편집 UI 미작성**: 현재 Google `displayName` 그대로 사용
+- **익명 로그인 미지원**: 게스트 클라우드 저장이 필요하면 `signInAnonymously` 추가

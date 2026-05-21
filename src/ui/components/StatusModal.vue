@@ -49,7 +49,7 @@ function formatValue(v: number): string {
 }
 
 // ===== v9 Breakdown =====
-// 공격력 = 힘 × baseAtk × coef × (1 + atk_pct) × 3.0
+// 공격력 = 힘 × 무기공격 × 등급 × (1 + 공격%) × 3.0
 function breakdownAtk(): Breakdown[] {
   const s = c.value.stats
   const w = c.value.weapon
@@ -62,11 +62,11 @@ function breakdownAtk(): Breakdown[] {
     {
       from: '곱셈 모델',
       value: total,
-      note: `힘 ${s.힘} × baseAtk ${wb.baseAtk} × 등급 ${w.coef} × (1+${pct.toFixed(2)}) × 3.0`,
+      note: `힘 ${s.힘} × 무기공격 ${wb.baseAtk} × 등급 ${w.coef.toFixed(2)} × (1${pct >= 0 ? '+' : ''}공격% ${(pct * 100).toFixed(0)}%) × 3.0`,
     },
   ]
 }
-// 마법공격력 = 마력 × baseAtk × coef × (1 + atk_pct) × 1.5 × magicSynergy
+// 마법공격력 = 마력 × 무기공격 × 등급 × (1 + 공격%) × 1.5 × 로브시너지
 function breakdownMagicAtk(): Breakdown[] {
   const s = c.value.stats
   const w = c.value.weapon
@@ -75,17 +75,17 @@ function breakdownMagicAtk(): Breakdown[] {
   if (!w || !wb || !wb.isMagic) return [{ from: '마법 무기 아님', value: 0 }]
   const t = WEAPON_TRAITS[w.trait]?.effects ?? {}
   const pct = (t.공격력_pct ?? 0) + (t.전스탯_pct ?? 0)
-  const synergy = a?.baseKey === '로브' ? 1.7 : 1.0
+  const synergy = a?.baseKey === '로브' ? 1.5 : 1.0
   const total = s.마력 * wb.baseAtk * w.coef * (1 + pct) * 1.5 * synergy
   return [
     {
       from: '곱셈 모델',
       value: total,
-      note: `마력 ${s.마력} × baseAtk ${wb.baseAtk} × 등급 ${w.coef} × (1+${pct.toFixed(2)}) × 1.5${synergy !== 1 ? ` × 로브시너지 ${synergy}` : ''}`,
+      note: `마력 ${s.마력} × 무기공격 ${wb.baseAtk} × 등급 ${w.coef.toFixed(2)} × (1${pct >= 0 ? '+' : ''}공격% ${(pct * 100).toFixed(0)}%) × 1.5${synergy !== 1 ? ` × 로브 시너지 1.5` : ''}`,
     },
   ]
 }
-// 방어% = baseDef × coef × (1 + def_pct) + 체력 × 0.3 × coef
+// 방어% = 갑옷방어 × 등급 × (1 + 방어%) + 체력 × 0.3 × 등급
 function breakdownDef(): Breakdown[] {
   const s = c.value.stats
   const a = c.value.armor
@@ -101,12 +101,12 @@ function breakdownDef(): Breakdown[] {
     out.push({
       from: `갑옷 (${a.baseKey})`,
       value: armorPart,
-      note: `${ab.baseDef} × 등급 ${a.coef} × (1+${pct.toFixed(2)})`,
+      note: `갑옷방어 ${ab.baseDef} × 등급 ${a.coef.toFixed(2)} × (1${pct >= 0 ? '+' : ''}방어% ${(pct * 100).toFixed(0)}%)`,
     })
   }
   return out
 }
-// 게이지 가속 = 1 + 민첩/100, armorSpeedMult 별도
+// 게이지 가속 = 1 + 민첩 × 1% + 속도%
 function breakdownSpeed(): Breakdown[] {
   const s = c.value.stats
   const w = c.value.weapon
@@ -118,18 +118,18 @@ function breakdownSpeed(): Breakdown[] {
   ]
   if (w?.effects.속도_pct) {
     const pct = w.effects.속도_pct
-    out.push({ from: '무기 특성', value: pct, note: `× (1${pct >= 0 ? '+' : ''}${(pct * 100).toFixed(0)}%)` })
+    out.push({ from: '무기 특성 (속도)', value: pct, note: `× (1${pct >= 0 ? '+' : ''}${(pct * 100).toFixed(0)}%)` })
   }
   if (a?.effects.속도_pct) {
     const pct = a.effects.속도_pct
-    out.push({ from: '갑옷 특성', value: pct, note: `× (1${pct >= 0 ? '+' : ''}${(pct * 100).toFixed(0)}%)` })
+    out.push({ from: '갑옷 특성 (속도)', value: pct, note: `× (1${pct >= 0 ? '+' : ''}${(pct * 100).toFixed(0)}%)` })
   }
   if (ab && ab.speedMult !== 1) {
-    out.push({ from: `갑옷 배율 (${a!.baseKey})`, value: 0, note: `× ${ab.speedMult.toFixed(2)}` })
+    out.push({ from: `갑옷 속도배율 (${a!.baseKey})`, value: 0, note: `× ${ab.speedMult.toFixed(2)}` })
   }
   return out
 }
-// 명중 = 60 + 무기 + 트레잇 + 민첩×0.5 + 행운×0.1
+// 명중 = 60 + 무기 + 특성 + 민첩×0.5 + 행운×0.1
 function breakdownAcc(): Breakdown[] {
   const s = c.value.stats
   const w = c.value.weapon
@@ -139,13 +139,13 @@ function breakdownAcc(): Breakdown[] {
     { from: '민첩 × 0.5', value: s.민첩 * 0.5 },
     { from: '행운 × 0.1', value: s.행운 * 0.1 },
   ]
-  if (w?.effects.명중) out.push({ from: `무기 특성`, value: w.effects.명중 })
-  if (a?.effects.명중) out.push({ from: `갑옷 특성`, value: a.effects.명중 })
+  if (w?.effects.명중) out.push({ from: `무기 특성 (명중)`, value: w.effects.명중 })
+  if (a?.effects.명중) out.push({ from: `갑옷 특성 (명중)`, value: a.effects.명중 })
   const wb = w ? WEAPONS[w.baseKey] : null
-  if (wb?.accBonus) out.push({ from: `무기 베이스 (${w!.baseKey})`, value: wb.accBonus })
+  if (wb?.accBonus) out.push({ from: `무기 기본 명중 (${w!.baseKey})`, value: wb.accBonus })
   return out
 }
-// 회피 = 5 + 무기 + 트레잇 + 갑옷 evasion + 민첩×0.5 + 행운×0.1
+// 회피 = 5 + 무기 + 특성 + 갑옷 회피 + 민첩×0.5 + 행운×0.1
 function breakdownEva(): Breakdown[] {
   const s = c.value.stats
   const w = c.value.weapon
@@ -155,22 +155,22 @@ function breakdownEva(): Breakdown[] {
     { from: '민첩 × 0.5', value: s.민첩 * 0.5 },
     { from: '행운 × 0.1', value: s.행운 * 0.1 },
   ]
-  if (w?.effects.회피) out.push({ from: `무기 특성`, value: w.effects.회피 })
-  if (a?.effects.회피) out.push({ from: `갑옷 특성`, value: a.effects.회피 })
+  if (w?.effects.회피) out.push({ from: `무기 특성 (회피)`, value: w.effects.회피 })
+  if (a?.effects.회피) out.push({ from: `갑옷 특성 (회피)`, value: a.effects.회피 })
   const wb = w ? WEAPONS[w.baseKey] : null
-  if (wb?.evaBonus) out.push({ from: `무기 베이스 (${w!.baseKey})`, value: wb.evaBonus })
+  if (wb?.evaBonus) out.push({ from: `무기 기본 회피 (${w!.baseKey})`, value: wb.evaBonus })
   const ab = a ? ARMORS[a.baseKey as keyof typeof ARMORS] : null
-  if (ab?.evasion) out.push({ from: `갑옷 베이스 (${a!.baseKey})`, value: ab.evasion })
+  if (ab?.evasion) out.push({ from: `갑옷 기본 회피 (${a!.baseKey})`, value: ab.evasion })
   return out
 }
-// 관통% = 무기 penBonus + magicPenBonus + 트레잇 (스탯 영향 없음)
+// 관통% — 무기 기본 관통 + 무기 특성 (스탯 영향 없음)
 function breakdownPen(): Breakdown[] {
   const w = c.value.weapon
   const out: Breakdown[] = []
-  if (w?.effects.관통) out.push({ from: `무기 특성`, value: w.effects.관통 })
+  if (w?.effects.관통) out.push({ from: `무기 특성 (관통)`, value: w.effects.관통 })
   const wb = w ? WEAPONS[w.baseKey] : null
-  if (wb?.penBonus) out.push({ from: `무기 베이스 관통 (${w!.baseKey})`, value: wb.penBonus })
-  if (wb?.magicPenBonus) out.push({ from: `마법 관통`, value: wb.magicPenBonus })
+  if (wb?.penBonus) out.push({ from: `무기 기본 관통 (${w!.baseKey})`, value: wb.penBonus })
+  if (wb?.magicPenBonus) out.push({ from: `무기 마법 관통`, value: wb.magicPenBonus })
   if (out.length === 0) out.push({ from: '없음', value: 0 })
   return out
 }
@@ -183,8 +183,8 @@ function breakdownResist(): Breakdown[] {
     { from: '마력 × 0.5', value: s.마력 * 0.5 },
     { from: '행운 × 0.3', value: s.행운 * 0.3 },
   ]
-  if (w?.effects.상태저항) out.push({ from: `무기 특성`, value: w.effects.상태저항 })
-  if (a?.effects.상태저항) out.push({ from: `갑옷 특성`, value: a.effects.상태저항 })
+  if (w?.effects.상태저항) out.push({ from: `무기 특성 (저항)`, value: w.effects.상태저항 })
+  if (a?.effects.상태저항) out.push({ from: `갑옷 특성 (저항)`, value: a.effects.상태저항 })
   return out
 }
 // v9 크리
@@ -206,7 +206,7 @@ function openDetail(name: string, total: number, entries: Breakdown[]) {
   detailModal.value = { name, total, entries }
 }
 
-// ===== 스탯별 기여 분해 (5스탯 클릭 시) =====
+// ===== 5스탯 클릭 시 — 해당 스탯이 직접 기여하는 능력치만 표시 =====
 function breakdownStat힘(): Breakdown[] {
   const s = c.value.stats
   const w = c.value.weapon
@@ -214,19 +214,20 @@ function breakdownStat힘(): Breakdown[] {
   if (w && wb) {
     const t = WEAPON_TRAITS[w.trait]?.effects ?? {}
     const pct = (t.공격력_pct ?? 0) + (t.전스탯_pct ?? 0)
+    // 활은 힘 + 민첩×0.3 인데, 여기는 "힘 기여"만 분리
     return [
       { from: '공격력', value: s.힘 * wb.baseAtk * w.coef * (1 + pct) * 3.0,
-        note: `힘 ${s.힘} × baseAtk ${wb.baseAtk} × 등급 ${w.coef} × (1+${pct.toFixed(2)}) × 3.0` },
+        note: `힘 ${s.힘} × 무기공격 ${wb.baseAtk} × 등급 ${w.coef.toFixed(2)} × (1${pct >= 0 ? '+' : ''}공격% ${(pct * 100).toFixed(0)}%) × 3.0` },
     ]
   }
-  return [{ from: '공격력', value: 0, note: '무기 없음 — 힘 기여 0' }]
+  return [{ from: '공격력', value: 0, note: '무기 없음 — 맨손' }]
 }
 function breakdownStat민첩(): Breakdown[] {
   const s = c.value.stats
   return [
-    { from: '게이지 가속', value: s.민첩 / 100, note: `+${s.민첩}% (1pt당 +1%)` },
-    { from: '명중 +', value: s.민첩 * 0.5, note: '민첩 × 0.5' },
-    { from: '회피 +', value: s.민첩 * 0.5, note: '민첩 × 0.5' },
+    { from: '게이지 가속', value: s.민첩 / 100, note: `민첩 × 1% = +${s.민첩}%` },
+    { from: '명중', value: s.민첩 * 0.5, note: '민첩 × 0.5' },
+    { from: '회피', value: s.민첩 * 0.5, note: '민첩 × 0.5' },
     { from: '크리 확률', value: s.민첩 * 0.003, note: `민첩 × 0.3% = ${(s.민첩 * 0.3).toFixed(1)}%` },
   ]
 }
@@ -234,12 +235,13 @@ function breakdownStat체력(): Breakdown[] {
   const s = c.value.stats
   const a = c.value.armor
   const coef = a?.coef ?? 0
-  return [
-    { from: '방어 %', value: s.체력 * 0.3 * coef,
-      note: a ? `체력 ${s.체력} × 0.3 × 갑옷등급 ${coef.toFixed(2)}` : '갑옷 없음 (등급계수 0)' },
+  const out: Breakdown[] = [
+    { from: '방어', value: s.체력 * 0.3 * coef,
+      note: a ? `체력 × 0.3 × 갑옷등급 ${coef.toFixed(2)} = +${(s.체력 * 0.3 * coef).toFixed(1)}%` : '갑옷 없음' },
     { from: '상태저항', value: s.체력 * 0.5, note: '체력 × 0.5' },
-    { from: '최대 HP', value: c.value.maxHp, note: 'computeMaxHp(체력)' },
+    { from: '최대 HP', value: c.value.maxHp, note: `체력 × 10 + 50 = ${c.value.maxHp}` },
   ]
+  return out
 }
 function breakdownStat마력(): Breakdown[] {
   const s = c.value.stats
@@ -250,26 +252,26 @@ function breakdownStat마력(): Breakdown[] {
   if (w && wb?.isMagic) {
     const t = WEAPON_TRAITS[w.trait]?.effects ?? {}
     const pct = (t.공격력_pct ?? 0) + (t.전스탯_pct ?? 0)
-    const synergy = a?.baseKey === '로브' ? 1.7 : 1.0
+    const synergy = a?.baseKey === '로브' ? 1.5 : 1.0
     out.push({
-      from: '마법공격력',
+      from: '마법 공격력',
       value: s.마력 * wb.baseAtk * w.coef * (1 + pct) * 1.5 * synergy,
-      note: `마력 ${s.마력} × baseAtk ${wb.baseAtk} × 등급 ${w.coef} × 1.5${synergy !== 1 ? ` × 로브 ${synergy}` : ''}`,
+      note: `마력 ${s.마력} × 무기공격 ${wb.baseAtk} × 등급 ${w.coef.toFixed(2)} × (1${pct >= 0 ? '+' : ''}공격% ${(pct * 100).toFixed(0)}%) × 1.5${synergy !== 1 ? ' × 로브 시너지 1.5' : ''}`,
     })
   }
   out.push({ from: '상태저항', value: s.마력 * 0.5, note: '마력 × 0.5' })
-  out.push({ from: '최대 MP', value: c.value.maxMp, note: 'computeMaxMp(마력)' })
+  out.push({ from: '최대 MP', value: c.value.maxMp, note: `마력 × 15 + 30 = ${c.value.maxMp}` })
   return out
 }
 function breakdownStat행운(): Breakdown[] {
   const s = c.value.stats
   return [
-    { from: '명중 +', value: s.행운 * 0.1, note: '행운 × 0.1' },
-    { from: '회피 +', value: s.행운 * 0.1, note: '행운 × 0.1' },
-    { from: '크리 배수 +', value: s.행운 / 100, note: `+${(s.행운 / 100).toFixed(2)}` },
-    { from: '상태저항 +', value: s.행운 * 0.3, note: '행운 × 0.3' },
+    { from: '명중', value: s.행운 * 0.1, note: '행운 × 0.1' },
+    { from: '회피', value: s.행운 * 0.1, note: '행운 × 0.1' },
+    { from: '크리 배수', value: s.행운 / 100, note: `행운 × 1% = +${(s.행운 / 100).toFixed(2)}` },
+    { from: '상태저항', value: s.행운 * 0.3, note: '행운 × 0.3' },
     { from: '스킬 발동률', value: s.행운 * 0.005,
-      note: `× (1 + 행운 × 0.005) = ×${(1 + s.행운 * 0.005).toFixed(3)}` },
+      note: `보정 × (1 + 행운 × 0.5%) = × ${(1 + s.행운 * 0.005).toFixed(3)}` },
   ]
 }
 

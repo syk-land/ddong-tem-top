@@ -37,8 +37,44 @@ const currentSlotItem = computed(() => {
   return props.item.kind === 'weapon' ? props.character.weapon : props.character.armor
 })
 const currentValue = computed(() => computeItemValue(currentSlotItem.value, props.character, { chapter: chapterForValue.value }))
-const atkDelta = computed(() => itemValue.value.atkValue - currentValue.value.atkValue)
-const defDelta = computed(() => itemValue.value.defValue - currentValue.value.defValue)
+// 자기 자신(현재 장착 중) 체크
+const isSameAsEquipped = computed(() => {
+  const cur = currentSlotItem.value
+  return !!cur && cur.id === props.item.id
+})
+
+// ── 캐릭터 총합 기준 비교 ──
+//   현재 캐릭터 = (현재 무기 + 현재 갑옷) atkValue/defValue 합
+//   새 캐릭터 = (이 아이템으로 슬롯 교체) 합
+//   pct = (새 - 현재) / 현재 × 100  (분모: 현재 캐릭터 총합)
+const otherSlotValue = computed(() => {
+  if (!props.character) return { atkValue: 0, defValue: 0 }
+  const other = isWeapon.value ? props.character.armor : props.character.weapon
+  return computeItemValue(other, props.character, { chapter: chapterForValue.value })
+})
+const totalCurrent = computed(() => {
+  const w = computeItemValue(props.character?.weapon ?? null, props.character, { chapter: chapterForValue.value })
+  const a = computeItemValue(props.character?.armor ?? null, props.character, { chapter: chapterForValue.value })
+  return { atk: w.atkValue + a.atkValue, def: w.defValue + a.defValue }
+})
+const totalNew = computed(() => ({
+  atk: itemValue.value.atkValue + otherSlotValue.value.atkValue,
+  def: itemValue.value.defValue + otherSlotValue.value.defValue,
+}))
+const atkDelta = computed(() => totalNew.value.atk - totalCurrent.value.atk)
+const defDelta = computed(() => totalNew.value.def - totalCurrent.value.def)
+const atkPct = computed<number | null>(() => {
+  if (isSameAsEquipped.value) return null
+  const cur = totalCurrent.value.atk
+  if (Math.abs(cur) < 0.05) return null
+  return Math.max(-100, (atkDelta.value / cur) * 100)
+})
+const defPct = computed<number | null>(() => {
+  if (isSameAsEquipped.value) return null
+  const cur = totalCurrent.value.def
+  if (Math.abs(cur) < 0.05) return null
+  return Math.max(-100, (defDelta.value / cur) * 100)
+})
 
 // 분해 모달
 const valueModal = ref<{ kind: 'atk' | 'def'; total: number; parts: ValuePart[] } | null>(null)
@@ -202,34 +238,34 @@ export interface EquipDelta {
   note?: string
 }
 
-// v9 장착 변화 — atkValue / defValue 합 비교 (itemValue 기반)
+// v9 장착 변화 — 캐릭터 총합 기준 (무기 + 갑옷 합산)
 const equipChanges = computed<EquipDelta[]>(() => {
   if (!props.character) return []
   const out: EquipDelta[] = []
-  const newAtk = itemValue.value.atkValue
-  const newDef = itemValue.value.defValue
-  const curAtk = currentValue.value.atkValue
-  const curDef = currentValue.value.defValue
+  const newTotalAtk = totalNew.value.atk
+  const newTotalDef = totalNew.value.def
+  const curTotalAtk = totalCurrent.value.atk
+  const curTotalDef = totalCurrent.value.def
 
   if (weaponBase.value || armorBase.value) {
-    const dAtk = newAtk - curAtk
+    const dAtk = newTotalAtk - curTotalAtk
     if (Math.abs(dAtk) > 0.05) {
       out.push({
         label: '전투력(공)',
         amount: dAtk,
-        pct: curAtk > 0 ? (dAtk / curAtk) * 100 : 0,
+        pct: Math.abs(curTotalAtk) > 0.05 ? Math.max(-100, (dAtk / curTotalAtk) * 100) : 0,
         kind: 'atk',
-        note: `${curAtk.toFixed(1)} → ${newAtk.toFixed(1)}`,
+        note: `${curTotalAtk.toFixed(1)} → ${newTotalAtk.toFixed(1)}`,
       })
     }
-    const dDef = newDef - curDef
+    const dDef = newTotalDef - curTotalDef
     if (Math.abs(dDef) > 0.05) {
       out.push({
         label: '전투력(방)',
         amount: dDef,
-        pct: curDef > 0 ? (dDef / curDef) * 100 : 0,
+        pct: Math.abs(curTotalDef) > 0.05 ? Math.max(-100, (dDef / curTotalDef) * 100) : 0,
         kind: 'def',
-        note: `${curDef.toFixed(1)} → ${newDef.toFixed(1)}`,
+        note: `${curTotalDef.toFixed(1)} → ${newTotalDef.toFixed(1)}`,
       })
     }
   }
@@ -306,31 +342,50 @@ const rankLine = computed(() => {
         <div class="text-gray-600 text-[10px]">
           티어 {{ item.tier }} · <span :class="gradeColorClass[item.grade]">{{ item.grade }}</span> · 등급계수 {{ item.coef.toFixed(2) }}
         </div>
-        <!-- 공격/방어 벨류 + 변화량 (클릭 가능, 분해 모달) -->
-        <div class="flex items-center gap-2 mt-0.5 text-[11px] font-bold">
+        <!-- 전투력 — 공방 모두 표시 (비교는 같은 슬롯 = 무기↔무기, 갑옷↔갑옷) -->
+        <div class="flex items-center gap-1.5 mt-0.5 text-[11px] font-bold flex-wrap">
+          <!-- 공 -->
           <button
             v-if="Math.abs(itemValue.atkValue) > 0.05"
-            class="bg-stat-phys_atk/15 hover:bg-stat-phys_atk/25 rounded px-1.5 py-0.5 transition-colors"
+            class="bg-stat-phys_atk/15 hover:bg-stat-phys_atk/25 rounded px-2 py-0.5 transition-colors flex items-center gap-1"
             @click.stop="openValueModal('atk')"
-            title="전투력(공) 상세 — 방어 10 상대에 틱당 예상 데미지 + 스킬 가중"
+            title="전투력(공) 상세"
           >
-            <span :class="itemValue.atkValue >= 0 ? 'text-stat-phys_atk' : 'text-status-burn'">전투력(공) {{ itemValue.atkValue.toFixed(1) }}</span>
-            <span
-              v-if="character && Math.abs(atkDelta) > 0.05"
-              :class="[atkDelta >= 0 ? 'text-log-reward' : 'text-status-burn', 'ml-1']"
-            >({{ atkDelta >= 0 ? '+' : '' }}{{ atkDelta.toFixed(1) }})</span>
+            <span class="text-stat-phys_atk text-[10px] opacity-80">공</span>
+            <template v-if="character && atkPct !== null">
+              <span :class="[atkPct >= 0 ? 'text-log-reward' : 'text-status-burn', 'text-sm']">
+                {{ atkPct >= 0 ? '+' : '' }}{{ Math.round(atkPct) }}%
+              </span>
+            </template>
+            <template v-else-if="character && isSameAsEquipped">
+              <span class="text-gray-400 text-[10px]">현재 장착</span>
+            </template>
+            <template v-else>
+              <span class="text-stat-phys_atk text-[10px]">신규</span>
+            </template>
+            <span class="text-gray-500 text-[10px] opacity-70 font-normal">({{ totalNew.atk.toFixed(1) }})</span>
           </button>
+
+          <!-- 방 -->
           <button
             v-if="Math.abs(itemValue.defValue) > 0.05"
-            class="bg-stat-phys_def/15 hover:bg-stat-phys_def/25 rounded px-1.5 py-0.5 transition-colors"
+            class="bg-stat-phys_def/15 hover:bg-stat-phys_def/25 rounded px-2 py-0.5 transition-colors flex items-center gap-1"
             @click.stop="openValueModal('def')"
             title="전투력(방) 상세"
           >
-            <span :class="itemValue.defValue >= 0 ? 'text-stat-phys_def' : 'text-status-burn'">전투력(방) {{ itemValue.defValue.toFixed(1) }}</span>
-            <span
-              v-if="character && Math.abs(defDelta) > 0.05"
-              :class="[defDelta >= 0 ? 'text-log-reward' : 'text-status-burn', 'ml-1']"
-            >({{ defDelta >= 0 ? '+' : '' }}{{ defDelta.toFixed(1) }})</span>
+            <span class="text-stat-phys_def text-[10px] opacity-80">방</span>
+            <template v-if="character && defPct !== null">
+              <span :class="[defPct >= 0 ? 'text-log-reward' : 'text-status-burn', 'text-sm']">
+                {{ defPct >= 0 ? '+' : '' }}{{ Math.round(defPct) }}%
+              </span>
+            </template>
+            <template v-else-if="character && isSameAsEquipped">
+              <span class="text-gray-400 text-[10px]">현재 장착</span>
+            </template>
+            <template v-else>
+              <span class="text-stat-phys_def text-[10px]">신규</span>
+            </template>
+            <span class="text-gray-500 text-[10px] opacity-70 font-normal">({{ totalNew.def.toFixed(1) }})</span>
           </button>
         </div>
         <div v-if="equipChanges.length" class="text-[10px] mt-0.5 leading-tight">
