@@ -32,18 +32,19 @@ const REF_DEF = 10
 const REF_ATK = 14
 const REF_ACC = 45
 
-// itemValue.ts 와 동기화
-const SKILL_INFO: Record<string, { mult: number; magic: boolean }> = {
+// itemValue.ts 와 동기화 — 단일 타겟 dummy 상대 실효 multiplier
+// (splash/연쇄/관통은 다중 대상 시뮬에서만 의미 — 단일 대상은 제외)
+const SKILL_INFO: Record<string, { mult: number; magic: boolean; luckBoost?: number }> = {
   스매쉬: { mult: 2.0, magic: false },
   피어스: { mult: 1.0, magic: false },
-  연속공격: { mult: 1.4, magic: false },
+  연속공격: { mult: 1.4, magic: false },           // (1 + 민첩/20) × 0.7 평균
   정밀타격: { mult: 1.5, magic: false },
-  급습: { mult: 1.65, magic: false },
+  급습: { mult: 1.5, magic: false, luckBoost: 0.03 },  // 1.5 × (1+행운×0.03)
   빙결의화살: { mult: 2.2, magic: true },
-  화염구: { mult: 6.5, magic: true },
-  폭풍칼날: { mult: 3.15, magic: true },
+  화염구: { mult: 6.5, magic: true },             // 광역 splash 대신 단일이므로 main만
+  폭풍칼날: { mult: 1.05, magic: true },          // 3히트 분산 → 단일 dummy = 0.7×1.5 ≈ 1.05
   바위충격: { mult: 4.8, magic: true },
-  번개창: { mult: 5.5, magic: true },
+  번개창: { mult: 5.5, magic: true },             // 연쇄 X (단일)
   그림자일격: { mult: 2.2, magic: true },
   정화의광선: { mult: 1.8, magic: true },
 }
@@ -98,7 +99,9 @@ export function predictAtkRaw(c: Character): number {
 
     // 스킬 atk_stat (마법 스킬은 마법공격력)
     const skillAtk = skill.magic ? (eff.마법공격력 > 0 ? eff.마법공격력 : eff.공격력) : eff.공격력
-    skillDmg = Math.max(1, skillAtk * skill.mult * (1 - effDef)) * hit
+    // 행운 보너스 (급습 등)
+    const effMult = skill.luckBoost ? skill.mult * (1 + eff.행운 * skill.luckBoost) : skill.mult
+    skillDmg = Math.max(1, skillAtk * effMult * (1 - effDef)) * hit
   }
 
   // 평균 hit
@@ -107,10 +110,39 @@ export function predictAtkRaw(c: Character): number {
   // 크리
   const critBoost = 1 + eff.크리확률 * (eff.크리배수 - 1)
 
-  // DPS
+  // 베이스 DPS
   let dps = avgHit * critBoost * attacksPerTick
 
-  // 흡혈 — atk 영향은 미미 (defValue 에서 큰 영향)
+  // ── 상태이상 DoT 기여 (점화/출혈/독 + 감전 boost) ──
+  // status 발동: chance × (1 + 행운×0.005) clamp 0~0.95
+  // 점화 (40tick 지속, 10tick interval, 0.15 intensity × stack 1.4)
+  // 출혈 (20tick 지속, 10tick interval, 0.20 intensity)
+  // 독   (30tick 지속, 10tick interval, 0.08 intensity)
+  const weffects = c.weapon?.effects ?? {}
+  const luckMult = 1 + eff.행운 * 0.005
+  const stackEst = 1.15  // 실제 평균 스택 (refresh 자주 발생 시 1에 가까움)
+
+  function dotDps(chanceKey: string, intensity: number, durTicks: number, dotInterval: number): number {
+    const raw = (weffects[chanceKey as keyof typeof weffects] as number | undefined) ?? 0
+    if (raw <= 0) return 0
+    const chance = clamp(raw * luckMult, 0, 0.95)
+    const uptime = clamp(chance * attacksPerTick * durTicks, 0, 1)
+    return uptime * eff.공격력 * intensity * stackEst / dotInterval
+  }
+  const burnDps = dotDps('burn_chance', 0.15, 40, 10)
+  const bleedDps = dotDps('bleed_chance', 0.20, 20, 10)
+  const poisonDps = dotDps('poison_chance', 0.08, 30, 10)
+  dps += burnDps + bleedDps + poisonDps
+
+  // 감전: 받는 dmg ×1.20 (스택 1.4 ≈ ×1.28 평균)
+  const shockRaw = (weffects.shock_chance as number | undefined) ?? 0
+  if (shockRaw > 0) {
+    const shockC = clamp(shockRaw * luckMult, 0, 0.95)
+    const shockUptime = clamp(shockC * attacksPerTick * 20, 0, 1)
+    dps *= 1 + shockUptime * 0.20 * stackEst
+  }
+
+  // 흡혈 — atk 영향은 작음
   if (eff.lifesteal > 0) dps *= (1 + eff.lifesteal * 0.05)
 
   return dps
@@ -125,10 +157,10 @@ export function predictDefRaw(c: Character): number {
 
   // 갑옷 자동 발동
   const armorKey = c.armor?.baseKey
-  const procChance = 0.10 + eff.행운 * 0.005
+  const procChance = clamp(0.10 + eff.행운 * 0.005, 0, 1)  // 클램프: 행운 460+ 시 항상 발동
   let armorProcMult = 1.0
-  if (armorKey === '가죽갑') armorProcMult = 1 - procChance * 1.0
-  else if (armorKey === '로브') armorProcMult = 1 - procChance * 0.5
+  if (armorKey === '가죽갑') armorProcMult = Math.max(0, 1 - procChance * 1.0)
+  else if (armorKey === '로브') armorProcMult = Math.max(0, 1 - procChance * 0.5)
 
   // 피해 흡수
   const dmgHeal = eff.damageTakenHealPct ?? 0
@@ -148,7 +180,35 @@ export function predictDefRaw(c: Character): number {
     netDmgPerAtk = dmgPerAtk - healPerMonsterAtk
   }
 
-  return c.maxHp / Math.max(0.5, netDmgPerAtk)
+  // ── 적 상태이상 디버프 영향 (둔화 = 적 속도 -40%, 암흑 = 적 명중 -25) ──
+  // 우리가 적에게 거는 상태이상이 적의 공격 빈도/명중을 떨어뜨림 → 우리가 덜 맞음
+  const weffects = c.weapon?.effects ?? {}
+  const luckMult = 1 + eff.행운 * 0.005
+  const stackEst = 1.15  // 실제 평균 스택 (refresh 자주 발생 시 1에 가까움)
+  const attacksPerTick = eff.게이지가속 * eff.armorSpeedMult / eff.무기ticks
+
+  // 둔화: 적 속도 -40% × stack — 적 공격 빈도 감소
+  const slowRaw = (weffects.slow_chance as number | undefined) ?? 0
+  let monsterFreqMult = 1.0
+  if (slowRaw > 0) {
+    const slowC = clamp(slowRaw * luckMult, 0, 0.95)
+    const slowUptime = clamp(slowC * attacksPerTick * 20, 0, 1)
+    monsterFreqMult *= 1 - slowUptime * 0.40 * stackEst * 0.5  // 0.5: 효과 절반만 (단순화)
+  }
+  // 암흑: 적 명중 -25 × stack — 적 hit rate 감소
+  const blindRaw = (weffects.blind_chance as number | undefined) ?? 0
+  let blindHitMult = 1.0
+  if (blindRaw > 0) {
+    const blindC = clamp(blindRaw * luckMult, 0, 0.95)
+    const blindUptime = clamp(blindC * attacksPerTick * 30, 0, 1)
+    const accReduce = blindUptime * 25 * stackEst
+    // 새 hitRecv = clamp((REF_ACC - accReduce - 회피율)/100, 0, 1)
+    const newHit = clamp((REF_ACC - accReduce - eff.회피율) / 100, 0, 1)
+    blindHitMult = hitReceived > 0 ? newHit / hitReceived : 1
+  }
+  const enemyEffectiveness = monsterFreqMult * blindHitMult
+
+  return c.maxHp / Math.max(0.5, netDmgPerAtk * enemyEffectiveness)
 }
 
 // ============================================================
@@ -217,17 +277,17 @@ function measureEffectiveHp(char: Character, attacks: number): number {
 // 캐릭터 생성
 // ============================================================
 function pick<T>(a: T[]): T { return a[Math.floor(Math.random() * a.length)] }
-function randomStats(): Stats {
+function randomStats(totalBudget: number = 60): Stats {
   const keys: Array<keyof Stats> = ['힘', '민첩', '체력', '마력', '행운']
   const s: Stats = { 힘: 0, 민첩: 0, 체력: 0, 마력: 0, 행운: 0 }
-  let r = 60
+  let r = totalBudget
   while (r > 0) { s[pick(keys)]++; r-- }
   return s
 }
-function randomChar(forcedStats?: Stats): Character {
+function randomChar(forcedStats?: Stats, totalBudget: number = 60): Character {
   const G: Grade[] = ['노말', '레어', '스페셜', '레전드']
   const T: TraitTier[] = ['하급', '보통', '희귀', '특별']
-  const stats = forcedStats ? { ...forcedStats } : randomStats()
+  const stats = forcedStats ? { ...forcedStats } : randomStats(totalBudget)
   const weapon = rollItem({ kind: 'weapon', forceBaseKey: pick(WEAPON_KEYS), forceGrade: pick(G), forceTraitTier: pick(T) })
   const armor = rollItem({ kind: 'armor', forceBaseKey: pick(ARMOR_KEYS), forceGrade: pick(G), forceTraitTier: pick(T) })
   return {
@@ -299,8 +359,8 @@ function fitNoIntercept(predicted: number[], actual: number[]): { K: number; r2:
 export function runBestFormula() {
   const N_TRAIN = Number(process.env.TRAIN_N ?? 3000)
   const N_TEST = Number(process.env.TEST_N ?? 1500)
-  const TICKS = 400
-  const ATTACKS = 80
+  const TICKS = Number(process.env.SIM_TICKS ?? 600)    // 측정 노이즈 감소 위해 길게
+  const ATTACKS = Number(process.env.SIM_ATTACKS ?? 150)
 
   console.log(`\n############################################################`)
   console.log(`# 최적 공격/방어 벨류 공식 도출 + 검증`)
@@ -426,6 +486,121 @@ export function runBestFormula() {
   console.log(`  playerDmgHit = max(1, 공격력 × (1 − max(0, REF_DEF − 관통)/100)) × hit`)
   console.log(`  heal/MonsterAtk = playerAtks/MonsterAtk × playerDmgHit × lifesteal`)
   console.log(`  netDmgPerAtk = dmgPerAtk − heal/MonsterAtk`)
+
+  // ── 총 스탯 예산별 (저~고) 적합도 검증 ──
+  console.log(`\n============================================================`)
+  console.log(`■ 총 스탯 예산별 적합도 (예산 30~500, 각 800개)`)
+  console.log(`============================================================`)
+  console.log(`낮은 스탯부터 매우 큰 스탯까지 비선형 saturation 영향 확인\n`)
+  console.log('예산  | 공격(R²)  | 공격 MAPE  | 방어(R²)  | 방어 MAPE  | 평균 DPS | 평균 eHp  | n')
+  console.log('------+-----------+------------+-----------+------------+----------+-----------+-----')
+
+  const BUDGET_N = Number(process.env.BUDGET_N ?? 800)
+  const BUDGETS = [30, 60, 100, 150, 200, 300, 400, 500]
+  type BudgetRow = { budget: number; atkR2: number; atkMape: number; defR2: number; defMape: number; avgDps: number; avgEHp: number }
+  const budgetResults: BudgetRow[] = []
+
+  for (const budget of BUDGETS) {
+    const chars: Character[] = []
+    const dpsA: number[] = []
+    const eHpA: number[] = []
+    for (let i = 0; i < BUDGET_N; i++) {
+      const c = randomChar(undefined, budget)
+      chars.push(c)
+      dpsA.push(measureDps(c, TICKS))
+      eHpA.push(measureEffectiveHp(c, ATTACKS))
+    }
+    const predAtk = chars.map(predictAtkRaw)
+    const predDef = chars.map(predictDefRaw)
+
+    function evalFit(predicted: number[], actual: number[], K: number) {
+      const n = predicted.length
+      const mean = actual.reduce((s, v) => s + v, 0) / n
+      let ssRes = 0, ssTot = 0, mape = 0
+      for (let i = 0; i < n; i++) {
+        const err = actual[i] - K * predicted[i]
+        ssRes += err * err
+        ssTot += (actual[i] - mean) * (actual[i] - mean)
+        if (actual[i] > 0.01) mape += Math.abs(err / actual[i])
+      }
+      return { r2: ssTot > 0 ? 1 - ssRes / ssTot : 0, mape: (mape / n) * 100 }
+    }
+
+    const atkE = evalFit(predAtk, dpsA, atkFit.K)
+    const defE = evalFit(predDef, eHpA, defFit.K)
+    const avgDps = dpsA.reduce((s, v) => s + v, 0) / dpsA.length
+    const avgEHp = eHpA.reduce((s, v) => s + v, 0) / eHpA.length
+    budgetResults.push({ budget, atkR2: atkE.r2, atkMape: atkE.mape, defR2: defE.r2, defMape: defE.mape, avgDps, avgEHp })
+
+    console.log(
+      `${String(budget).padStart(4)}  | ${atkE.r2.toFixed(3).padStart(9)} | ${atkE.mape.toFixed(1).padStart(9)}% | ${defE.r2.toFixed(3).padStart(9)} | ${defE.mape.toFixed(1).padStart(9)}% | ${avgDps.toFixed(1).padStart(8)} | ${avgEHp.toFixed(0).padStart(9)} | ${BUDGET_N}`,
+    )
+  }
+
+  // 예산별 변동 + saturation 영향 진단
+  const minBudgetR2 = Math.min(...budgetResults.map((r) => r.atkR2), ...budgetResults.map((r) => r.defR2))
+  const maxBudgetR2 = Math.max(...budgetResults.map((r) => r.atkR2), ...budgetResults.map((r) => r.defR2))
+  console.log(`\n예산별 R² 범위: ${minBudgetR2.toFixed(3)} ~ ${maxBudgetR2.toFixed(3)} (폭 ${(maxBudgetR2 - minBudgetR2).toFixed(3)})`)
+
+  // saturation 진단: 큰 스탯에서 R² 떨어지면 명중률/크리확률 cap 등 비선형 효과
+  const lowBudget = budgetResults.find((r) => r.budget === 30)!
+  const highBudget = budgetResults.find((r) => r.budget === 500)!
+  console.log(`  예산 30 → 500 변화:`)
+  console.log(`    공격 R²: ${lowBudget.atkR2.toFixed(3)} → ${highBudget.atkR2.toFixed(3)} (${(highBudget.atkR2 - lowBudget.atkR2 >= 0 ? '+' : '')}${(highBudget.atkR2 - lowBudget.atkR2).toFixed(3)})`)
+  console.log(`    방어 R²: ${lowBudget.defR2.toFixed(3)} → ${highBudget.defR2.toFixed(3)} (${(highBudget.defR2 - lowBudget.defR2 >= 0 ? '+' : '')}${(highBudget.defR2 - lowBudget.defR2).toFixed(3)})`)
+  console.log(`    평균 DPS:  ${lowBudget.avgDps.toFixed(1)} → ${highBudget.avgDps.toFixed(1)} (×${(highBudget.avgDps / lowBudget.avgDps).toFixed(1)})`)
+  console.log(`    평균 eHp:  ${lowBudget.avgEHp.toFixed(0)} → ${highBudget.avgEHp.toFixed(0)} (×${(highBudget.avgEHp / lowBudget.avgEHp).toFixed(1)})`)
+
+  // ── 큰 스탯에서 단일 스탯 극단 빌드 ──
+  console.log(`\n============================================================`)
+  console.log(`■ 큰 스탯 + 단일 스탯 극단 빌드 (예산 500, 각 500개)`)
+  console.log(`============================================================`)
+  console.log(`saturation 영향 확인 (크리/명중/회피 cap 등)\n`)
+  console.log('빌드            | 공격(R²)  | 공격 MAPE  | 방어(R²)  | 방어 MAPE  | n')
+  console.log('----------------+-----------+------------+-----------+------------+-----')
+
+  const EXTREME_N = Number(process.env.EXTREME_N ?? 500)
+  const EXTREME_BUILDS: Array<{ name: string; stats: Stats }> = [
+    { name: '500-균등 100',    stats: { 힘: 100, 민첩: 100, 체력: 100, 마력: 100, 행운: 100 } },
+    { name: '500-힘 460',     stats: { 힘: 460, 민첩: 10,  체력: 10,  마력: 10,  행운: 10  } },
+    { name: '500-민첩 460',   stats: { 힘: 10,  민첩: 460, 체력: 10,  마력: 10,  행운: 10  } },
+    { name: '500-체력 460',   stats: { 힘: 10,  민첩: 10,  체력: 460, 마력: 10,  행운: 10  } },
+    { name: '500-마력 460',   stats: { 힘: 10,  민첩: 10,  체력: 10,  마력: 460, 행운: 10  } },
+    { name: '500-행운 460',   stats: { 힘: 10,  민첩: 10,  체력: 10,  마력: 10,  행운: 460 } },
+    { name: '300-균등 60',    stats: { 힘: 60,  민첩: 60,  체력: 60,  마력: 60,  행운: 60  } },
+    { name: '300-힘 260',     stats: { 힘: 260, 민첩: 10,  체력: 10,  마력: 10,  행운: 10  } },
+  ]
+
+  for (const build of EXTREME_BUILDS) {
+    const chars: Character[] = []
+    const dpsA: number[] = []
+    const eHpA: number[] = []
+    for (let i = 0; i < EXTREME_N; i++) {
+      const c = randomChar(build.stats)
+      chars.push(c)
+      dpsA.push(measureDps(c, TICKS))
+      eHpA.push(measureEffectiveHp(c, ATTACKS))
+    }
+    const predAtk = chars.map(predictAtkRaw)
+    const predDef = chars.map(predictDefRaw)
+    function evalFit2(predicted: number[], actual: number[], K: number) {
+      const n = predicted.length
+      const mean = actual.reduce((s, v) => s + v, 0) / n
+      let ssRes = 0, ssTot = 0, mape = 0
+      for (let i = 0; i < n; i++) {
+        const err = actual[i] - K * predicted[i]
+        ssRes += err * err
+        ssTot += (actual[i] - mean) * (actual[i] - mean)
+        if (actual[i] > 0.01) mape += Math.abs(err / actual[i])
+      }
+      return { r2: ssTot > 0 ? 1 - ssRes / ssTot : 0, mape: (mape / n) * 100 }
+    }
+    const atkE = evalFit2(predAtk, dpsA, atkFit.K)
+    const defE = evalFit2(predDef, eHpA, defFit.K)
+    console.log(
+      `${build.name.padEnd(15)} | ${atkE.r2.toFixed(3).padStart(9)} | ${atkE.mape.toFixed(1).padStart(9)}% | ${defE.r2.toFixed(3).padStart(9)} | ${defE.mape.toFixed(1).padStart(9)}% | ${EXTREME_N}`,
+    )
+  }
 
   // ── 스탯 빌드별 적합도 검증 ──
   console.log(`\n============================================================`)
