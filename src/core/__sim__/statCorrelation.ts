@@ -299,7 +299,7 @@ function reportCorrelation(rows: FeatureRow[], target: 'dps' | 'dr', label: stri
 
 // ── 메인 ──
 export function runStatCorrelation() {
-  const N = 1500
+  const N = Number(process.env.CORR_N ?? 15000)
   const TICKS = 400        // DPS 측정용
   const ATTACKS = 80       // 피해 측정용
   const RUNS = 1           // 페어당 (안정화 평균은 N 자체로 흡수)
