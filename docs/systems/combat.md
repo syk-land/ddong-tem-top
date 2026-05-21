@@ -1,4 +1,4 @@
-# 전투 시스템
+# 전투 시스템 (v9)
 
 > 게이지 누적 자동 턴제. 1 ms = 1 tick.
 
@@ -23,55 +23,91 @@
    ├─ 게이지 누적 (플레이어 + 몬스터)
    ├─ 사망 체크
    ↓
-[Action Ready (게이지 ≥ 100)]
+[Action Ready (게이지 ≥ 무기 ticks)]
    ├─ 각 ready 몬스터 행동 (monsterAttack)
    ├─ 플레이어 자동 행동 (playerAutoAct)
-   │     └─ 무기 자동스킬 시도 → 실패 시 평타
    ↓
-[종료 (ended=true)]
-   ├─ 승리 (모든 적 사망) → handleCombatEnd
-   └─ 패배 (player.hp 0) → handleCombatEnd
+[종료]
 ```
 
 ---
 
-## 게이지 시스템
+## 게이지 시스템 (v9)
 
-매 틱:
-```ts
-player.actionGauge += speedEff × speedModifier(player)
-for m in 살아있는 몬스터:
-  m.actionGauge += m.speed × speedModifier(m)
+```
+player.actionGauge/tick = 1 × (1 + 민첩/100) × armorSpeedMult × speedModifier(player)
+monster.actionGauge/tick = 1 × speedModifier(monster)
+
+발동 임계값:
+- 플레이어 = 무기 ticks (검 10 / 건틀릿 7 / 할버드 15 / ...)
+- 몬스터 = m.ticks (일반 10 / 보스 8 / 미믹 12)
+
+consumeAction(actor, threshold) → 게이지 -threshold (오버플로 보존)
 ```
 
 `speedModifier` = 둔화/감전 상태이상 곱셈 (둔화 ×0.7 등).
 
-게이지 ≥ 100 → 행동. `consumeAction`으로 -100.
+---
+
+## 명중 (v9)
+
+```
+플레이어 acc = 60 + 무기 + 트레잇 + 민첩×0.5 + 행운×0.1
+플레이어 eva = 5  + 무기 + 트레잇 + 갑옷 evasion + 민첩×0.5 + 행운×0.1
+적 acc = 30 + 챕터×3
+적 eva = 5  + 챕터×1
+
+성공률 = clamp((acc − eva) / 100, 0, 1.0)
+```
+
+명중/회피는 성공률만 결정. 데미지에는 영향 없음.
 
 ---
 
-## 데미지 계산
+## 데미지 계산 (v9)
 
-`computeDamage(attacker_stats, target_stats, opts)`:
+`computeDamage({공격력, 민첩, 행운, 관통}, {방어%}, opts)`:
 
-```ts
-base = max(1, 공격력 × multiplier × penBoost - 방어 × max(0.3, 1 - 관통/100))
-isCrit = roll(crit_chance)
-dmg = isCrit ? base × 2 : base
+```
+실효방어% = max(0, 방어% − 관통%)   # 관통은 절대값 차감
+hit = max(1, atk × multiplier × (1 − 실효방어%/100))
+
+크리 굴림:
+  확률 = clamp(민첩 × 0.003, 0, 1.0)
+  배수 = 1.3 + 행운/100
+  발동 시 dmg = round(hit × 배수)
 ```
 
 옵션:
-- `multiplier` — 스킬 배율 (스매쉬 2.0, 피어스 1.0, ...)
+- `multiplier` — 스킬 배율 (스매쉬 2.0, 화염구 6.5, ...)
 - `penBoost` — 관통 배율 (피어스 ×2.0)
-- `critMultiplier` — 크리 배율 override (정밀타격 ×2 추가)
+- `ignoreCrit` — 크리 굴림 건너뜀
 
 ---
 
-## 마법 공격
+## 공격력 (v9 곱셈 모델)
 
-플레이어가 마법 스킬 사용 시:
-- 공격력으로 `eff.마법공격력` 사용 (= finalAtk × magicCoef)
-- 적이 마법 받으면 **방어력 절반만 적용** (`combat.ts:300` S1-Q1 결정)
+```
+물리 atk = 힘 × baseAtk × coef × (1 + trait_atk_pct) × 3.0
+마법 atk = 마력 × baseAtk × coef × (1 + trait_atk_pct) × 1.5 × magicSynergy
+
+magicSynergy:
+- 마법무기 + 로브 = 1.7
+- 그 외 = 1.0
+```
+
+마법 스킬 사용 시 `eff.마법공격력` 적용. 마법 공격자(적)는 플레이어 방어 절반만 적용.
+
+---
+
+## 방어% (v9)
+
+```
+방어% = baseDef × coef × (1 + trait_def_pct) + 체력 × 0.3
+받는 dmg = max(1, atk × (1 − 실효방어%/100))
+```
+
+상한 없음. 최소 데미지 1 보장.
 
 ---
 
@@ -79,29 +115,17 @@ dmg = isCrit ? base × 2 : base
 
 1. `pickAutoAction(ctx, opts)` 호출:
    - 무기/갑옷의 자동 스킬을 발동률에 따라 시도
-   - 챌린지 `noActiveSkills` (조급증/평화주의자)면 평타 강제
-   - 챌린지 `onlyActiveSkills` (스킬미학)면 스킬 강제
+   - 챌린지 `noActiveSkills` 면 평타 강제
+   - 챌린지 `onlyActiveSkills` 면 스킬 강제
 2. 스킬 발동 → `useSkill(ctx, key)`
 3. 실패 시 fallback → 평타 `playerBasicAttack`
-
----
-
-## 평타 (playerBasicAttack)
-
-```ts
-target = currentTarget(ctx)
-if (!rollHit(eff.명중률)) → "공격이 빗나갔다." 종료
-{ dmg, isCrit } = computeDamage(...)
-target.hp -= dmg
-흡혈, 자해, trait dispatch
-```
 
 ---
 
 ## 흡혈
 
 장비 특성 `lifesteal` (%) 보유 시:
-```ts
+```
 heal = applyHealing(ctx, round(dmg × lifesteal))
 player.hp += heal
 ```
@@ -118,22 +142,16 @@ player.hp += heal
 | `heal_pollution` (역병 쥐) | 회복 ×0.3 |
 | `heal_reverse` (보스) | 회복이 피해로 전환 (×-1) |
 
-여러 적이 동시에 가지면 곱셈 누적. `core/combat.ts:applyHealing`.
+여러 적이 동시에 가지면 곱셈 누적.
 
 ---
 
 ## 종료 처리
 
-`handleCombatEnd` (store/game.ts:1206):
+`handleCombatEnd`:
 1. 진짜 보스 모드 → `finishRealBossCombat` (결과 화면)
 2. 일반 사망 → 게임 오버
 3. 일반 승리 → 골드/드랍 → `advance()` (다음 층)
-
-골드 보상 (`computeChapterGoldTarget(chapter) / 7`) × 변동:
-- 보스: target × 2.5/7
-- 미믹: 200 × chapter
-- 일반: target × 0.85/7 × 몬스터수 × 0.85
-- ±20% 변동, 행운 × 5% 가산
 
 ---
 

@@ -1,4 +1,4 @@
-# 챌린지 시스템 (50종)
+# 챌린지 시스템 (56종, v9)
 
 > 캐릭터 생성 시 풀에서 3개(즉시 2 + 리스크 1) 랜덤 제시, 1개 선택. 선택 안 해도 시작 가능.
 
@@ -8,12 +8,12 @@
 
 ## 분류
 
-### 즉시 보상형 (instant) — 25개
+### 즉시 보상형 (instant) — 28개
 시작 시 스탯/골드 보너스 + 제약. 클리어 여부 무관.
 
 | 그룹 | 챌린지 | 보상 | 페널티 |
 |---|---|---|---|
-| 공격력 제약 | 과유불급 | 시작 체력 +10 | 최종 공격력 40 초과 시 즉사 |
+| 공격력 제약 | 과유불급 | 시작 체력 +10 | 최종 공격력 200 초과 시 즉사 |
 | 공격력 제약 | 녹슨칼날의맹세 | 시작 민첩 +5, 행운 +3 | 하급 특성 무기만 |
 | 공격력 제약 | 유리대포 | 시작 힘 +16 | 갑옷 장착 불가 |
 | 공격력 제약 | 체중감량 | 시작 민첩 +12 | 속도계수 0.8 이하 무기 불가 |
@@ -28,7 +28,7 @@
 | 상점 제약 | 불신주의자 | 시작 민첩 +10 | 모험가 구출 시 즉사 |
 | 상점 제약 | 리롤금지령 | 시작 체력 +3, 마력 +3 | 상점 새로고침 불가 |
 | 상점 제약 | 정가매입 | 시작 체력 +6 | 상점 할인 X |
-| 속도 제약 | 굼벵이전술 | 시작 체력 +15 | 최종 속도 5 고정 |
+| 속도 제약 | 굼벵이전술 | 시작 체력 +15 | 무기 ticks 14+ (한방형만) |
 | 속도 제약 | 조급증 | 시작 민첩 +5 | 공격 스킬 사용 불가 (평타만) |
 | 속도 제약 | 강박증 | 시작 행운 +6 | 속도계수 1.0 무기만 |
 | 속도 제약 | 속전속결 | 시작 힘 +7 | 매 전투 50틱 이내 미승리 시 패배 |
@@ -67,8 +67,19 @@
 | 가혹 | 빈사의유령 | metaBonus +14 | HP 30% 이하 500틱 미달 |
 | 가혹 | 저주의동반자 | metaBonus +13 | 저주의 무기 해제 시 실패 |
 | 가혹 | **고집불통** | metaBonus +10 | 상점 새로고침 1회라도 사용 시 실패 |
-| 가혹 | 만성피로 | metaBonus +7 (50층) | 최종 속도 7 이상 실패 |
+| 가혹 | 만성피로 | metaBonus +7 (50층) | 민첩 11 이상 실패 |
 | 가혹 | 가난이체질 | metaBonus +10 + EX | 평균 티어 3 초과 실패 |
+
+### v9 신규 (6종)
+
+| 종류 | 챌린지 | 보상 | 페널티 |
+|---|---|---|---|
+| instant | 크리광인 | 시작 민첩 +10, 행운 +6 | 민첩 25 미만 시 즉사 |
+| instant | 로브의길 | 시작 마력 +14 | 마법무기 + 로브 외 장착 X |
+| instant | 강철요새 | 시작 체력 +12, 힘 +4 | 판금 외 갑옷 X |
+| risk | 둔감 | metaBonus +9 (50층) | 민첩 6 이상 실패 |
+| risk | 독재자의일격 | metaBonus +10 | 힘 24 이하 실패 |
+| risk | 운명의주사위 | metaBonus +8 | 행운 24 이하 실패 |
 
 > 옛 "노 포션"은 climetop에 포션 시스템이 없어 영구 자동성공 상태였음. v6.1 에서 **고집불통**(새로고침 0회)으로 교체.
 
@@ -81,7 +92,9 @@
 ### 무기/방어구 제약
 - `forceLowTraitsOnly`, `forceCommonNormalOnly`, `forceLowNormalOnly`
 - `noArmor`, `lockStartingGear`, `forbidPlateHeavy`, `forbidLargeWeapon`, `forbidMagicWeapon`, `onlySpeedCoef1`
-- `maxAtk`, `speedFixed`, `mpCapFixed`
+- `maxAtk` (v9: 곱셈 스케일 ~200), `weaponTicksMin` (v9 신규, 굼벵이 전술), `mpCapFixed`
+- `forceMagicLobeBuild` (v9 신규, 로브의 길), `forceHeavyArmor` (v9 신규, 강철 요새)
+- `speedFixed` (deprecated — v9에서 의미 없음)
 
 ### 경제
 - `goldZero`, `goldMax500Death`, `noShop`, `noShopRefresh`, `noBuyback`, `noShopDiscount`
@@ -94,7 +107,9 @@
 - `trackLuckOnly`, `trackPacifist`, `trackAltarEveryChapter`, `trackSkillOnly`, `trackMpEmptyAtChapterEnd`
 - `trackGoldZeroAtFinalBoss`, `trackUseRefreshEveryChapter`, `trackTotalSpendUnder300`, `trackKillAllMimics`, `trackBlackMarketCount`
 - `trackDodgeAllMirage`, `trackRouletteGreat3`, `trackSmith80PctBet`, `trackBetrayalPerfect`, `trackBoss100Tick`
-- `trackLowHp500Tick`, `trackCursedNeverRemove`, **`trackNoRefreshEver`** (신규), `trackSpeedBelow6`, `trackAvgTier3OrLower`
+- `trackLowHp500Tick`, `trackCursedNeverRemove`, `trackNoRefreshEver`, `trackAvgTier3OrLower`
+- v9 신규: `trackAgilityBelow` / `trackAgilityAtLeast` / `trackLuckAtLeast` / `trackStrengthAtLeast`
+- `trackSpeedBelow6` (deprecated → 민첩 6 이하로 동작)
 
 ---
 
