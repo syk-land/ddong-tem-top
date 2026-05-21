@@ -30,7 +30,6 @@ export interface ActiveChallenge {
     potionPurchased?: boolean
     activeSkillsUsed?: number
     basicAttacksUsed?: number
-    mpEmptyEveryChapter?: boolean
     speedAlways6OrBelow?: boolean
     avgTierViolated?: boolean
   }
@@ -167,8 +166,8 @@ export function checkInstantDeathConditions(_character: Character, ctx: Challeng
   if (flags.maxAtk !== undefined && currentEffectiveAtk > flags.maxAtk) {
     return `공격력 한계 초과: ${currentEffectiveAtk.toFixed(1)} > ${flags.maxAtk}로 사망`
   }
-  if (flags.goldMax500Death && totalGoldEarned > 500) {
-    return `황금 알레르기: 누적 골드 ${totalGoldEarned} > 500으로 사망`
+  if (flags.goldMax500Death && totalGoldEarned > 2000) {
+    return `황금 알레르기: 누적 골드 ${totalGoldEarned} > 2000으로 사망`
   }
   return null
 }
@@ -390,15 +389,6 @@ export function onChapterEnd(ctx: ChallengeContext, chapter: number, character: 
   forActive(ctx, (ac, def) => {
     const f = def.flags
     if (!f) return
-    // MP 0 챕터 종료 (자연치유 거부)
-    if (f.trackMpEmptyAtChapterEnd) {
-      if (character.mp > 0) {
-        ac.counters.mpEmptyEveryChapter = false
-        ac.failed = true
-      } else if (ac.counters.mpEmptyEveryChapter === undefined) {
-        ac.counters.mpEmptyEveryChapter = true
-      }
-    }
     // 새로고침 매 챕터 사용 (황금고블린 파트너)
     if (f.trackUseRefreshEveryChapter) {
       if (!refreshUsedThisChapter) {

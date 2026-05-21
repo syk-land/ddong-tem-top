@@ -67,7 +67,6 @@ export interface ChallengeFlags {
   trackPacifist?: boolean
   trackAltarEveryChapter?: boolean
   trackSkillOnly?: boolean
-  trackMpEmptyAtChapterEnd?: boolean
   trackGoldZeroAtFinalBoss?: boolean
   trackUseRefreshEveryChapter?: boolean
   trackTotalSpendUnder300?: boolean
@@ -164,7 +163,7 @@ export const CHALLENGES: ChallengeDef[] = [
     key: '황금알레르기', category: 'instant', group: '재화 제약', name: '황금 알레르기',
     description: '돈만 만지면 두드러기.',
     reward: '전 스탯 +3',
-    penalty: '누적 획득 골드 500 초과 시 사망',
+    penalty: '누적 획득 골드 2000 초과 시 사망',
     instantBonus: { 힘: 3, 민첩: 3, 체력: 3, 마력: 3, 행운: 3 },
     flags: { goldMax500Death: true },
   },
@@ -219,9 +218,9 @@ export const CHALLENGES: ChallengeDef[] = [
   {
     key: '조급증', category: 'instant', group: '속도 제약', name: '조급증',
     description: '빠르게, 그러나 단조롭게.',
-    reward: '시작 민첩 +5',
+    reward: '시작 민첩 +10',
     penalty: '공격 스킬 사용 불가 (평타만 가능)',
-    instantBonus: { 민첩: 5 },
+    instantBonus: { 민첩: 10 },
     flags: { noActiveSkills: true },
   },
   {
@@ -234,11 +233,11 @@ export const CHALLENGES: ChallengeDef[] = [
   },
   {
     key: '속전속결', category: 'instant', group: '속도 제약', name: '속전속결',
-    description: '50틱 안에 끝장낸다.',
+    description: '80틱 안에 끝장낸다.',
     reward: '시작 힘 +7',
-    penalty: '매 전투 50틱 이내 미승리 시 패배',
+    penalty: '매 전투 80틱 이내 미승리 시 패배',
     instantBonus: { 힘: 7 },
-    flags: { combatTimeLimit: 50 },
+    flags: { combatTimeLimit: 80 },
   },
   {
     key: '유지력상실', category: 'instant', group: '속도 제약', name: '유지력 상실',
@@ -362,14 +361,6 @@ export const CHALLENGES: ChallengeDef[] = [
     penalty: '평타 사용 시 실패',
     metaBonus: 5,
     flags: { trackSkillOnly: true, onlyActiveSkills: true },
-  },
-  {
-    key: '자연치유거부', category: 'risk', group: '전투 스타일', name: '자연치유 거부',
-    description: '챕터 종료 시 MP 0이어야 함.',
-    reward: '다음 회차 마력 최대 상한 ↑',
-    penalty: '챕터 종료 시 MP > 0 이면 실패',
-    permanentStat: {},
-    flags: { trackMpEmptyAtChapterEnd: true },
   },
   {
     key: '자산동결', category: 'risk', group: '경제', name: '자산 동결',
