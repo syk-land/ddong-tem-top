@@ -205,6 +205,26 @@ function breakdownCritMult(): Breakdown[] {
 function openDetail(name: string, total: number, entries: Breakdown[]) {
   detailModal.value = { name, total, entries }
 }
+
+function showSkillDetail(key: string) {
+  const skill = SKILLS[key]
+  if (!skill) return
+  const kindMap: Record<string, string> = {
+    physical_atk: '물리 공격',
+    magic_atk: '마법 공격',
+    physical_def: '물리 방어/유틸',
+    magic_def: '마법 방어/유틸',
+  }
+  const isAttack = skill.kind === 'physical_atk' || skill.kind === 'magic_atk'
+  const lines = [
+    `종류: ${kindMap[skill.kind] ?? skill.kind}`,
+    `소모 MP: ${skill.mp}`,
+    isAttack ? `발동률: ${weaponProcPct.value}%` : '발동: 조건부 (방어/회피 트리거)',
+    '',
+    skill.description,
+  ]
+  game.alertModal(lines.join('\n'), `⚡ ${skill.name}`)
+}
 </script>
 
 <template>
@@ -384,9 +404,11 @@ function openDetail(name: string, total: number, entries: Breakdown[]) {
 
       <!-- 자동 발동 스킬 -->
       <div v-if="skillKeys.length > 0" class="bg-bg-tertiary rounded p-2 space-y-1">
-        <div class="text-xs text-gray-400">⚡ 자동 발동 스킬</div>
+        <div class="text-xs text-gray-400">⚡ 자동 발동 스킬 (탭하면 상세)</div>
         <div class="space-y-0.5 text-xs">
-          <div v-for="key in skillKeys" :key="key" class="flex items-baseline justify-between">
+          <div v-for="key in skillKeys" :key="key"
+               class="flex items-baseline justify-between cursor-pointer hover:bg-bg-secondary rounded px-1 py-0.5"
+               @click="showSkillDetail(key)">
             <span>
               <span class="text-log-skill">{{ SKILLS[key]?.name ?? key }}</span>
               <span class="text-gray-500 ml-2 text-[10px]">{{ SKILLS[key]?.description }}</span>
