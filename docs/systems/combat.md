@@ -85,14 +85,18 @@ hit = max(1, atk × multiplier × (1 − 실효방어%/100))
 
 ---
 
-## 공격력 (v9 곱셈 모델)
+## 공격력 (v9.x 곱셈 모델)
 
 ```
-물리 atk = 힘 × baseAtk × coef × (1 + trait_atk_pct) × 3.0
-마법 atk = 마력 × baseAtk × coef × (1 + trait_atk_pct) × 1.5 × magicSynergy
+물리 atk = physStat × baseAtk × coef × (1 + trait_atk_pct) × 3.0
+마법 atk = 마력     × baseAtk × coef × (1 + trait_atk_pct) × 1.5 × magicSynergy
+
+physStat:
+- 대부분 무기 = 힘
+- ranged (숏보우/롱보우/석궁) = 힘 + 민첩 × 0.3   ← v9.x
 
 magicSynergy:
-- 마법무기 + 로브 = 1.7
+- 마법무기 + 로브 = 1.5   ← v9.x (기존 1.7)
 - 그 외 = 1.0
 ```
 
@@ -100,14 +104,35 @@ magicSynergy:
 
 ---
 
-## 방어% (v9)
+## 방어% (v9.x)
 
 ```
-방어% = baseDef × coef × (1 + trait_def_pct) + 체력 × 0.3
+방어% = baseDef × coef × (1 + trait_def_pct) + 체력 × 0.3 × coef   ← v9.x
 받는 dmg = max(1, atk × (1 − 실효방어%/100))
 ```
 
-상한 없음. 최소 데미지 1 보장.
+상한 없음. 최소 데미지 1 보장. 갑옷 자동 반응이 추가 변형 가함(아래).
+
+---
+
+## 갑옷 자동 반응 (v9.x — 피격 시 발동)
+
+`monsterAttack` 내 명중 굴림 성공 직후, 데미지 적용 전에 굴림.
+
+```
+발동률 = 0.10 + 행운 × 0.005
+```
+
+발동 시 갑옷 종류별 효과:
+
+| 갑옷 | 효과 |
+|---|---|
+| 가죽갑 | 데미지 0 무효 (완전 회피, 로그 'miss') |
+| 로브 | 데미지 50% 차감, 차감량만큼 MP 소모 (부족 시 부분 차감) |
+| 판금 | 데미지 그대로 받음 + 평타 atk × 0.5 카운터 (방어 무시) |
+| 중갑 | 자동 반응 없음 (speedMult 1.00 으로 보상) |
+
+게이지 사이클의 무기 액티브 스킬과 별개 슬롯. 챌린지 `noActiveSkills` 와 무관하게 작동.
 
 ---
 

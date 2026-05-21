@@ -22,22 +22,27 @@
 
 ## 파생 공식 (v9)
 
-### 공격력 (곱셈 모델)
+### 공격력 (곱셈 모델, v9.x)
 ```
-물리 atk = 힘 × baseAtk × coef × (1 + trait_atk_pct) × ATK_K_PHYS (= 3.0)
-마법 atk = 마력 × baseAtk × coef × (1 + trait_atk_pct) × ATK_K_MAGIC (= 1.5) × magicSynergy
+물리 atk = physStat × baseAtk × coef × (1 + trait_atk_pct) × ATK_K_PHYS (= 3.0)
+마법 atk = 마력     × baseAtk × coef × (1 + trait_atk_pct) × ATK_K_MAGIC (= 1.5) × magicSynergy
+
+physStat:
+- 대부분 무기 = 힘
+- ranged (숏보우/롱보우/석궁) = 힘 + 민첩 × 0.3   ← v9.x 추가
 
 magicSynergy:
-- 마법무기 + 로브 = 1.7  (v9 시그니처 시너지)
+- 마법무기 + 로브 = 1.5  (v9.x 너프, 기존 1.7)
 - 그 외 = 1.0
 ```
 
-### 방어 (% 단위)
+### 방어 (% 단위, v9.x)
 ```
-방어% = baseDef × coef × (1 + trait_def_pct) + 체력 × 0.3
+방어% = baseDef × coef × (1 + trait_def_pct) + 체력 × 0.3 × coef   ← v9.x: 체력에도 coef 곱
 실효방어% = max(0, 방어% − 관통%)
 받는 dmg = max(1, 적 atk × (1 − 실효방어%/100))
 ```
+※ 갑옷 자동 반응(피격 시 발동, [combat.md](./combat.md) 참조) 이 추가 변형을 가함.
 
 ### 명중 / 회피 (%p 단위)
 ```
@@ -89,7 +94,7 @@ maxMp = 15 × 마력 + 30      # 마력 10 → 180
 
 ### 마법무기 + 로브
 - 게이지 ×1.15 (속도 가속)
-- 마법 atk ×1.7 (시그니처 시너지)
+- 마법 atk ×1.5 (시그니처 시너지, v9.x 너프)
 - 로브의 마력 +8 → MP 보너스
 
 → 마법 빌드의 정체성. 시뮬 검증: 마법무기 + 로브 조합이 best armor 자동 선택.
