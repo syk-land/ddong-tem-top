@@ -108,11 +108,11 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       // 메인 100% + 스플래시 40%(나머지 적)
       const main = currentTarget(ctx)
       if (!main) break
-      magicAttackOnTarget(ctx, main, 2.6, '점화', 0.25)
+      magicAttackOnTarget(ctx, main, 6.5, '점화', 0.25)
       const splash = aliveMonsters(ctx).filter((m) => m !== main)
       if (splash.length > 0) {
         pushLog(ctx, `화염구 스플래시: ${splash.length}마리에 화상 비산`, 'skill')
-        magicAttackMulti(ctx, splash, 2.6 * 0.4, undefined, 0, { accBonus: 20 })
+        magicAttackMulti(ctx, splash, 6.5 * 0.4, undefined, 0, { accBonus: 20 })
       }
       break
     }
@@ -129,10 +129,10 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       // 전체 70% 데미지, 둔화는 메인에만
       const main = currentTarget(ctx)
       if (!main) break
-      magicAttackOnTarget(ctx, main, 2.3, '둔화', 0.40)
+      magicAttackOnTarget(ctx, main, 4.8, '둔화', 0.40)
       const rest = aliveMonsters(ctx).filter((m) => m !== main)
       if (rest.length > 0) {
-        magicAttackMulti(ctx, rest, 2.3 * 0.7, undefined, 0)
+        magicAttackMulti(ctx, rest, 4.8 * 0.7, undefined, 0)
         pushLog(ctx, `바위 충격: 광역 진동`, 'skill')
       }
       break
@@ -141,17 +141,17 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       // 메인 + 연쇄 2 (확률 60% / 30%), 메인 게이지 -10
       const main = currentTarget(ctx)
       if (!main) break
-      magicAttackOnTarget(ctx, main, 2.9, '감전', 0.15)
+      magicAttackOnTarget(ctx, main, 5.5, '감전', 0.15)
       main.actionGauge = Math.max(0, main.actionGauge - 10)
       const remaining = aliveMonsters(ctx).filter((m) => m !== main)
       if (remaining.length > 0 && Math.random() < 0.6) {
         const chain1 = remaining[0]
-        magicAttackOnTarget(ctx, chain1, 2.9 * 0.5, '감전', 0.10)
+        magicAttackOnTarget(ctx, chain1, 5.5 * 0.5, '감전', 0.10)
         pushLog(ctx, `번개 연쇄 1단: ${chain1.template.name}`, 'skill')
         const remaining2 = remaining.filter((m) => m !== chain1 && m.hp > 0)
         if (remaining2.length > 0 && Math.random() < 0.3) {
           const chain2 = remaining2[0]
-          magicAttackOnTarget(ctx, chain2, 2.9 * 0.25, '감전', 0.05)
+          magicAttackOnTarget(ctx, chain2, 5.5 * 0.25, '감전', 0.05)
           pushLog(ctx, `번개 연쇄 2단: ${chain2.template.name}`, 'skill')
         }
       }

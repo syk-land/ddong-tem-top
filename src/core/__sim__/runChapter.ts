@@ -304,6 +304,42 @@ export function runCliV9() {
   console.log('\n=== v9 완료 ===\n')
 }
 
+// v9: 마법 빌드 전용 측정 — 마법 무기 + 로브 고정, 균등 vs 고마력
+export function runCliMagic() {
+  const RUNS = 500
+  const GRADES: Grade[] = ['스페셜', '레전드']
+  const MAGIC_WEAPONS = ['완드', '스태프', '마도서']
+  const BUILDS: { name: string; stats: Stats }[] = [
+    { name: '균등',   stats: { 힘: 12, 민첩: 12, 체력: 12, 마력: 12, 행운: 12 } },
+    { name: '고마력', stats: { 힘: 10, 민첩: 10, 체력: 10, 마력: 20, 행운: 10 } },
+  ]
+
+  console.log(`\n=== 마법 빌드 측정 — 마법무기 + 로브 / ${RUNS}런 ===\n`)
+  for (const grade of GRADES) {
+    console.log(`## 등급: ${grade}`)
+    console.log('무기     | ' + BUILDS.map((b) => b.name.padStart(8)).join(' | ') + ' |    평균')
+    console.log('---------+' + BUILDS.map(() => '----------').join('+') + '+--------')
+    for (const w of MAGIC_WEAPONS) {
+      const rates: number[] = []
+      const cells: string[] = []
+      for (const b of BUILDS) {
+        let wins = 0
+        for (let i = 0; i < RUNS; i++) {
+          const char = makeCharacterWithStats(w, '로브', grade, b.stats)
+          if (simRunClear2(char)) wins++
+        }
+        const r = wins / RUNS
+        rates.push(r)
+        cells.push(formatPct(r).padStart(8))
+      }
+      const avg = rates.reduce((a, b) => a + b, 0) / rates.length
+      console.log(`${w.padEnd(8)} | ${cells.join(' | ')} | ${formatPct(avg).padStart(6)}`)
+    }
+    console.log()
+  }
+  console.log('=== 마법 측정 완료 ===\n')
+}
+
 function simRunClear2(character: Character): boolean {
   const themes = [...ALL_THEMES]
   for (let i = themes.length - 1; i > 0; i--) {
@@ -318,4 +354,5 @@ function simRunClear2(character: Character): boolean {
 
 if (typeof process !== 'undefined' && process.argv?.[1]?.includes('runChapter')) {
   runCliV9()
+  runCliMagic()
 }
