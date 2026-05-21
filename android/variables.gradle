@@ -13,4 +13,8 @@ ext {
     androidxJunitVersion = '1.1.5'
     androidxEspressoCoreVersion = '3.5.1'
     cordovaAndroidVersion = '10.1.1'
+
+    // @capacitor-firebase/authentication — Google 로그인 의존성을 런타임 포함
+    //   기본값 false 면 play-services-auth 가 compileOnly 라서 런타임 NPE 발생.
+    rgcfaIncludeGoogle = true
 }
