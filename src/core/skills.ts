@@ -47,7 +47,8 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       attackSkill(ctx, 1.0, { penBoost: 2.0 })
       break
     case '연속공격': {
-      const hits = 1 + Math.floor(eff.속도 / 20)
+      // v9: 속도 → 민첩 (스탯) 직접 사용. 민첩 20 = +1 hit
+      const hits = 1 + Math.floor(eff.민첩 / 20)
       for (let i = 0; i < hits; i++) {
         const t = currentTarget(ctx)
         if (!t || t.hp <= 0) break
@@ -71,10 +72,11 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       pushLog(ctx, '회피 자세 (10틱)', 'skill')
       break
     case '패링':
+      // v9: 속도 → 민첩 직접 사용. defMult = 1 + (민첩×1.0 + 공격력×0.5) / 100
       ctx.buffs.set('parry', {
         duration: 10,
         effect: {
-          defMult: 1 + (eff.속도 * 0.3 + eff.공격력 * 0.5) / 100,
+          defMult: 1 + (eff.민첩 * 1.0 + eff.공격력 * 0.5) / 100,
           reflect: 0.5,
         },
       })

@@ -20,14 +20,25 @@ import { rollItem } from '../items'
 import { CHAPTER_THEMES } from '@/data/chapters'
 import { WEAPON_KEYS } from '@/data/weapons'
 import { ARMOR_KEYS } from '@/data/armor'
-import type { Character, ChapterTheme, Grade, TraitTier } from '@/types'
+import type { Character, ChapterTheme, Grade, Stats, TraitTier } from '@/types'
 import { computeMaxHp, computeMaxMp } from '../character'
+
+// v9: 총 60pt 스탯 분배 다양화 (한쪽 극단 X — 각 stat 8~20 범위)
+const STAT_BUILDS: { name: string; stats: Stats }[] = [
+  { name: '균등',     stats: { 힘: 12, 민첩: 12, 체력: 12, 마력: 12, 행운: 12 } },
+  { name: '힘탱',     stats: { 힘: 18, 민첩: 10, 체력: 15, 마력: 9,  행운: 8  } },
+  { name: '속도형',   stats: { 힘: 10, 민첩: 18, 체력: 10, 마력: 10, 행운: 12 } },
+  { name: '체력딜',   stats: { 힘: 15, 민첩: 10, 체력: 18, 마력: 9,  행운: 8  } },
+  { name: '마법형',   stats: { 힘: 8,  민첩: 12, 체력: 12, 마력: 18, 행운: 10 } },
+  { name: '행운형',   stats: { 힘: 14, 민첩: 10, 체력: 12, 마력: 8,  행운: 16 } },
+]
 
 // 균등 표준 빌드 — 보너스 없는 5스탯 각 10
 function makeStandardCharacter(weaponKey: string, armorKey: string, grade: Grade, traitTier: TraitTier = '보통'): Character {
-  const stats = {
-    힘: 10, 민첩: 10, 체력: 10, 마력: 10, 행운: 10,
-  }
+  return makeCharacterWithStats(weaponKey, armorKey, grade, { 힘: 10, 민첩: 10, 체력: 10, 마력: 10, 행운: 10 }, traitTier)
+}
+
+function makeCharacterWithStats(weaponKey: string, armorKey: string, grade: Grade, stats: Stats, traitTier: TraitTier = '보통'): Character {
   const weapon = rollItem({
     kind: 'weapon',
     forceBaseKey: weaponKey,
@@ -41,7 +52,7 @@ function makeStandardCharacter(weaponKey: string, armorKey: string, grade: Grade
     forceTraitTier: traitTier,
   })
   return {
-    stats,
+    stats: { ...stats },
     hp: computeMaxHp(stats.체력),
     maxHp: computeMaxHp(stats.체력),
     mp: computeMaxMp(stats.마력),
@@ -229,6 +240,82 @@ export function runCli() {
   console.log('\n=== 완료 ===\n')
 }
 
+// v9: 스탯 분배 다양화 시뮬 — 사용자 목표 (스페셜 ~10%, 레전드 ~50%, 노말/레어 0%) 측정용
+export function runCliV9() {
+  const RUNS = 50
+  const GRADES: Grade[] = ['스페셜', '레전드']     // 노말/레어는 0% 의도 → 측정 skip
+
+  console.log(`\n=== Climetop v9 시뮬 — 스탯 분배 ${STAT_BUILDS.length}종 × ${RUNS} runs ===`)
+  console.log(`(총 스탯 60pt, 각 stat 8~20 범위, 트레잇 보통 고정)`)
+  console.log(`목표: 스페셜+스페셜 ~10% / 레전드+레전드 ~50% / 노말·레어 0%\n`)
+
+  type WeaponResult = { weapon: string; gradeRates: Record<Grade, { perBuild: Record<string, number>; bestArmor: Record<string, string>; avg: number; best: number }> }
+  const results: WeaponResult[] = []
+
+  for (const w of WEAPON_KEYS) {
+    const wr: WeaponResult = { weapon: w, gradeRates: {} as any }
+    for (const grade of GRADES) {
+      const perBuild: Record<string, number> = {}
+      const bestArmorPerBuild: Record<string, string> = {}
+      for (const build of STAT_BUILDS) {
+        // 각 빌드에 best 갑옷 자동 선택
+        let best = { armor: '', rate: 0 }
+        for (const a of ARMOR_KEYS) {
+          let wins = 0
+          for (let i = 0; i < RUNS; i++) {
+            const char = makeCharacterWithStats(w, a, grade, build.stats)
+            if (simRunClear2(char)) wins++
+          }
+          const rate = wins / RUNS
+          if (rate > best.rate) best = { armor: a, rate }
+        }
+        perBuild[build.name] = best.rate
+        bestArmorPerBuild[build.name] = best.armor
+      }
+      const rates = Object.values(perBuild)
+      const avg = rates.reduce((a, b) => a + b, 0) / rates.length
+      const best = Math.max(...rates)
+      wr.gradeRates[grade] = { perBuild, bestArmor: bestArmorPerBuild, avg, best }
+    }
+    results.push(wr)
+  }
+
+  // 출력 — 무기별 등급별 stat-build 평균 + best
+  for (const grade of GRADES) {
+    console.log(`\n## 등급: ${grade} — 무기별 빌드별 클리어률`)
+    const header = '무기         | ' + STAT_BUILDS.map((b) => b.name.padStart(8)).join(' | ') + ' |    평균 |    best'
+    console.log(header)
+    console.log('-------------+' + STAT_BUILDS.map(() => '----------').join('+') + '+---------+--------')
+    for (const wr of results) {
+      const g = wr.gradeRates[grade]
+      const row = STAT_BUILDS.map((b) => formatPct(g.perBuild[b.name]).padStart(8)).join(' | ')
+      console.log(`${wr.weapon.padEnd(12)} | ${row} | ${formatPct(g.avg).padStart(7)} | ${formatPct(g.best).padStart(6)}`)
+    }
+  }
+
+  // 등급별 전체 평균 (모든 무기 평균)
+  console.log(`\n## 등급별 전체 평균 (15무기 × ${STAT_BUILDS.length}빌드 평균)`)
+  for (const grade of GRADES) {
+    const allAvg = results.map((r) => r.gradeRates[grade].avg).reduce((a, b) => a + b, 0) / results.length
+    const allBest = results.map((r) => r.gradeRates[grade].best).reduce((a, b) => a + b, 0) / results.length
+    console.log(`${grade.padEnd(5)}: 무기별 평균의 평균=${formatPct(allAvg)} | 무기별 best의 평균=${formatPct(allBest)}`)
+  }
+
+  console.log('\n=== v9 완료 ===\n')
+}
+
+function simRunClear2(character: Character): boolean {
+  const themes = [...ALL_THEMES]
+  for (let i = themes.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[themes[i], themes[j]] = [themes[j], themes[i]]
+  }
+  for (let ch = 1; ch <= 10; ch++) {
+    if (!simBossFight(ch, themes[ch - 1], character)) return false
+  }
+  return true
+}
+
 if (typeof process !== 'undefined' && process.argv?.[1]?.includes('runChapter')) {
-  runCli()
+  runCliV9()
 }

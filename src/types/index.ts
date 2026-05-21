@@ -37,11 +37,14 @@ export const GRADE_COEF_RANGE: Record<Grade, [number, number]> = {
 //   설계: 노말 1 / 레어 2 / 스페셜 4 / 레전드 6
 //   특성 단계와 결합되어 다음 등급으로 도약하는 격차 형성
 //   (특성 특별 ≈ 다음 등급 하급)
+// v9: 곱셈 모델 격차 (1/2/4/6 → 1.5/2/2.8/4.3)
+//   노말·레어 = 클리어 못 함 (의도), 스페셜 평균 ~10%, 레전드 평균 ~50%
+//   coef는 무기 atk·갑옷 def 동시 적용 → 너무 키우면 적 무력화
 export const GRADE_COEF: Record<Grade, number> = {
-  노말: 1,
+  노말: 1.5,
   레어: 2,
-  스페셜: 4,
-  레전드: 6,
+  스페셜: 2.8,
+  레전드: 4.3,
 }
 
 export const GRADE_PRICE_MULT: Record<Grade, number> = {

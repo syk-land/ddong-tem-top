@@ -82,12 +82,16 @@ export function computeEffectiveStats(c: Character): EffectiveStats {
   const defPct = (aTraitDef?.effects.방어력_pct ?? 0) + (aTraitDef?.effects.전스탯_pct ?? 0)
   const speedPct = (weffects.속도_pct ?? 0) + (aeffects.속도_pct ?? 0)
 
-  // ── 공격력 (곱셈 모델): stat × baseAtk × coef × (1 + atk_pct) ──
+  // ── 공격력 (곱셈 모델): stat × baseAtk × coef × (1 + atk_pct) × ATK_K ──
+  //   ATK_K: 균등 빌드(노말+보통)에서도 atk이 적 HP에 의미 있는 비율 갖도록 보정
+  //   마법은 스킬 multiplier (2.0~2.7) 가 추가로 곱해지므로 ATK_K 작게
+  const ATK_K_PHYS = 5
+  const ATK_K_MAGIC = 3
   const baseAtk = wbase?.baseAtk ?? 0
   const weaponCoef = weapon?.coef ?? 0
-  const atkMult = baseAtk * weaponCoef * (1 + atkPct)
-  const finalAtk = s.힘 * atkMult
-  const finalMagicAtk = wbase?.isMagic ? s.마력 * atkMult : 0
+  const atkMultBase = baseAtk * weaponCoef * (1 + atkPct)
+  const finalAtk = s.힘 * atkMultBase * ATK_K_PHYS
+  const finalMagicAtk = wbase?.isMagic ? s.마력 * atkMultBase * ATK_K_MAGIC : 0
 
   // ── 방어% (곱셈 모델): baseDef × coef × (1 + def_pct) + 체력 × 0.3 ──
   const armorBaseDef = abase?.baseDef ?? 0

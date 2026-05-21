@@ -341,8 +341,9 @@ export function onTick(ctx: ChallengeContext, character: Character) {
       }
     }
     if (f.trackSpeedBelow6) {
+      // v9: 속도 → 민첩 직접 측정 (옛 stat 속도 와 동일 의미)
       const eff = computeEffectiveStats(character)
-      if (eff.속도 > 6) {
+      if (eff.민첩 > 6) {
         ac.counters.speedAlways6OrBelow = false
         ac.failed = true
       } else if (ac.counters.speedAlways6OrBelow === undefined) {
