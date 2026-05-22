@@ -305,8 +305,9 @@ watch(
     </div>
 
     <template v-else>
-      <!-- 헤더 행: 닫기 + 속도 + 자동 + 사운드 요약 -->
-      <div class="flex items-center gap-1 px-2 py-1">
+      <!-- 헤더 행: 닫기 + 속도 + 자동 + 사운드 요약. 100x 추가 시(개발자) 가로 폭이
+           좁은 화면에선 넘쳐서 자동 버튼이 잘리므로 flex-wrap 허용 → 자동이 다음 줄로 내려감. -->
+      <div class="flex flex-wrap items-center gap-1 px-2 py-1">
         <button
           class="w-5 h-5 flex items-center justify-center rounded text-sm hover:bg-slate-700"
           title="설정 패널 접기"
