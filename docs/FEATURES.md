@@ -40,7 +40,7 @@
 | `src/screens/RealBossChallenge.vue` | 진짜 보스 도전 대치 화면 |
 | `src/screens/RealBossResult.vue` | 진짜 보스 결과 (깎은 비율/보너스) |
 | `src/ui/components/IntroComic.vue` | 인트로 만화 (탭/클릭 진행) |
-| `src/ui/components/ItemAnnounceModal.vue` | 아이템 획득 알림 (큐의 첫 아이템 카드 + 확인) |
+| `src/ui/components/ItemAnnounceModal.vue` | 아이템 획득 알림 (큐 전체를 한 모달에 카드 N장 + "확인" 한 번에 전체 비움) |
 | `src/ui/components/TutorialOverlay.vue` | 인게임 튜토리얼 (박동 화살표 + 스포트라이트) |
 | `src/ui/components/*Modal.vue` | 8종 공통 모달 (Dialog/Input/List/Pickup/Inventory/Status/ItemDetail/Status) |
 | `src/ui/components/HpMpBar.vue`, `SpeedControl.vue`, `StatusBadges.vue`, `GrowthPenaltyPanel.vue` | 게이지 / 속도 패널 / 상태 뱃지 / 등급 미리보기 |

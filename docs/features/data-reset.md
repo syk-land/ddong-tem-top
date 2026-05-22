@@ -1,18 +1,27 @@
 # 데이터 리셋
 
-> 모든 localStorage 키 비우고 새로고침 — 인트로 만화도 재표시. 클라우드 동기화 데이터는 별도 처리.
+> 모든 localStorage 키 비우고 새로고침 + 로그인 상태라면 Firestore 사용자 문서도 함께 삭제.
 
-코드: `src/screens/SettingsScreen.vue`
+코드: `src/screens/SettingsScreen.vue`, `src/screens/MainMenu.vue`, `src/lib/cloudSync.ts`
 
 ---
 
 ## 진입
 
+두 위치에서 동일 흐름:
+- MainMenu 푸터의 "데이터 리셋"
+- 설정 (Settings) 의 "모든 데이터 리셋"
+
 ```
-MainMenu → 설정 (Settings) → "모든 데이터 리셋" 버튼
-   └─ 확인 다이얼로그
-       └─ 확인 → localStorage 전체 제거 + window.location.reload()
+확인 다이얼로그
+   └─ 확인 → ① Firestore 사용자 문서 삭제 (로그인 시 — deleteCloudUserData)
+          → ② localStorage 전체 제거
+          → ③ window.location.reload()
 ```
+
+이전엔 localStorage 만 비웠는데, reload 후 auth listener 가 클라우드 meta 를
+다시 받아와 빈 메타를 덮어쓰는 문제가 있어 Firestore 의 `meta/{uid}` +
+`leaderboard/{uid}` 도 함께 삭제하도록 통합.
 
 ---
 

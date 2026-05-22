@@ -72,17 +72,48 @@
 - **챕터 1 보스 약화**: `startMonsterFight` 의 보스 분기에서 `chapterNum === 1`
   이고 `!first_chapter_clear` 면 `hp ×0.5`, `atk ×0.7` 적용 — 첫 챕터 보스를
   사용자가 무조건 잡고 진행할 수 있도록
+- **2층 보물에서 학습 완료 전엔 3층 진입 절대 차단**:
+  - `pendingTutorialTreasureAdvance` 플래그 — `openTreasure` 의 isTutorial 분기는
+    `receiveItem` 만 하고 `advance()` 호출 X (이전엔 자동 진입 모드에서 즉시 3층
+    상점으로 넘어가 학습이 어긋남)
+  - `game.advance()` 초입 가드: `pendingTutorialTreasureAdvance && (!first_inventory
+    || !first_status)` 이면 무조건 return → autoEnter / `clearItemAnnounce` 재시도도
+    차단
+  - `completeTutorial('first_status')` 시 자동 `advance()` → 3층 진입
+  - Dungeon "진입" 버튼: `:disabled="game.isTutorialBlockingExit"` + 라벨 "학습 진행 중…"
+- **튜토리얼 챌린지 게이팅**: `first_chapter_clear` 전에는
+  `pickThreeRandomChallenges({ eventOnly: true })` 로 도박/룰렛/제단/모험가/대장장이/
+  거울/환영/꿈/신탁 키워드의 특별이벤트 챌린지만 풀에 둠. 상점/장비 차단 챌린지도
+  보조 옵션 (`excludeShop`, `excludeItemRestrict`) 으로 같이 배제.
+- **인벤·상태 학습은 보물 노드(= 2층) 에서만 트리거**: `triggerTutorial` 가드 —
+  `first_inventory` / `prompt_status` / `first_status` 는 `floor.type === 'treasure'`
+  일 때만 발화. 사용자가 다른 층에서 모달 열어도 학습 X (위 advance 차단과 함께
+  이중 방어선).
+- **아이템 획득 모달 떠 있으면 자동 진입 보류**: `game.advance()` 가
+  `itemAnnounceQueue.length > 0` 이면 return. autoEnter 모드여도 사용자가 보상 카드를
+  보지 못한 채 다음 층으로 넘어가지 않음. `clearItemAnnounce` 가 큐 비운 직후
+  자동 재시도.
 
-## 페이지 흐름 — CTA / 자동 위임 / 자동 스크롤
+## 페이지 흐름 — 타겟 직접 클릭 / 자동 스크롤 / cooldown / 스킵
 
 - **타겟 직접 클릭 모드** (타겟이 `<button>`/`<a>`/`role=button` 일 때):
   - 카드 안에 CTA 버튼을 두지 않고 "↑ 강조된 버튼을 눌러주세요" 안내 텍스트만 표시
-  - 백드롭의 `pointer-events` 를 `none` 으로 풀어서 사용자 클릭이 타겟까지 도달
+  - 부모 z-[60] div 에 `pointer-events-none` 적용 (`targetActionEl` 있을 때) →
+    사용자 클릭이 타겟까지 도달. 카드 element 만 `pointer-events-auto` 로 받음.
   - 타겟 element 에 **capture phase** click 리스너 부착 → 사용자가 타겟을 누르는 그
     한 번의 클릭이 ① 튜토리얼 진행(pageIdx++ 또는 completeTutorial) + ② 원래 동작
     (주사위 굴림 / 모달 열림 / 페이지 이동) 을 동시에 수행. `stopPropagation` 안 하므로
     원래 핸들러까지 그대로 흘러감.
   - 타겟이 panel/div 등 클릭 가능 요소가 아니면 카드의 "알겠어요" CTA 로 fallback
+  - **`noAutoAction` 옵션**: 타겟이 버튼이어도 자동 클릭 위임을 끔. 누르면 자원이
+    소모되는 버튼 (예: `first_shop` p3 의 새로고침) — 강조만 하고 진행은 카드 CTA 로.
+- **1초 cooldown**: 단계가 바뀐 직후 의도하지 않은 클릭으로 두 단계가 연쇄 진행되던
+  문제. `cooldownUntil` 변수 — step/pageIdx 변경 시 1초 갱신. 그 동안 클릭은
+  `advance` 도 막고 원 click 도 `preventDefault + stopPropagation` 으로 차단.
+- **전체 스킵 버튼**: `TutorialOverlay` 안 `fixed top-[40px] left-1 z-[101]`
+  (SpeedControl 아래) 버튼. 확인 모달 후 `game.skipAllTutorials()` → 모든
+  `tutorialSeen` true 마킹 + `pendingTreasureTutorial` / `pendingTutorialTreasureAdvance`
+  클리어 + `persistMeta`.
 - **자동 스크롤 (모드별)**:
   - `scrollMode: 'center'` (기본) — 타겟 중앙 Y 가 viewport 중앙 ±25% 안에 없으면
     `block: 'center'` 로 강제 스크롤
