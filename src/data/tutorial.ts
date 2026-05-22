@@ -175,10 +175,16 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
     step: 'first_status',
     pages: [
       {
-        title: '상태창 보는 법',
+        title: '상태창 — 기본 능력치',
         body:
-          '5스탯과 파생 능력치 (공격력·방어·명중·회피 등) 를 모두 확인할 수 있어요.\n항목을 누르면 어떤 요소가 그 능력치에 기여하는지 자세히 볼 수 있어요.',
+          '5스탯(힘/민첩/체력/마력/행운) 이 모두 표시돼요.\n장비 + 트레이트 + 챌린지 + 메타 보너스를 합산한 최종 값입니다.\n각 항목을 누르면 어떤 요소가 얼마씩 기여했는지 분해도 볼 수 있어요.',
         target: '[data-tutorial-target="status-stats"]',
+      },
+      {
+        title: '상세 능력치',
+        body:
+          '"상세 능력치" 탭도 눌러보세요.\n공격력·방어·명중·회피·크리·관통 등 전투에 직접 쓰이는 값을 모두 볼 수 있어요.',
+        target: '[data-tutorial-target="status-detail-tab"]',
       },
     ],
   },

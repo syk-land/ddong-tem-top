@@ -339,6 +339,8 @@ function showSkillDetail(key: string) {
           @click="tab = 'base'"
         >기본 능력치</button>
         <button
+          data-tutorial-target="status-detail-tab"
+          data-tutorial-cta-label="상세 능력치"
           class="px-3 py-1.5 text-xs font-bold rounded-t"
           :class="tab === 'detail' ? 'bg-bg-tertiary text-gray-100' : 'text-gray-500 hover:text-gray-300'"
           @click="tab = 'detail'"
@@ -348,8 +350,11 @@ function showSkillDetail(key: string) {
       <!-- 기본 능력치 — 각 스탯 탭하면 기여 능력치 분해 -->
       <div v-if="tab === 'base'" class="bg-bg-tertiary rounded p-2">
         <div class="grid grid-cols-2 gap-1.5 text-sm font-mono">
-          <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-3 py-2 min-h-11 transition-colors"
-                  @click="openDetail('힘', c.stats.힘, breakdownStat힘())">
+          <button
+            data-tutorial-target="status-first-stat"
+            data-tutorial-cta-label="힘"
+            class="text-left bg-slate-800 hover:bg-slate-700 rounded px-3 py-2 min-h-11 transition-colors"
+            @click="openDetail('힘', c.stats.힘, breakdownStat힘())">
             <span :class="statColorClass.힘" class="text-gray-500">힘</span>
             <span :class="statColorClass.힘" class="font-bold text-base ml-2">{{ c.stats.힘 }}</span>
           </button>

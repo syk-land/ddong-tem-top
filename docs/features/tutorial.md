@@ -186,7 +186,8 @@
 | `first_shop` (p1) | `[data-tutorial-target="shop-slot"]` | 상점 매물 패널 | "알겠어요" |
 | `first_shop` (p2) | `[data-tutorial-target="shop-sell"]` | 장착 중 (판매) 패널 | "알겠어요" |
 | `first_shop` (p3) | `[data-tutorial-target="shop-refresh"]` | "🔄 새로고침" 버튼 | ✅ → "🔄 새로고침 (n)" |
-| `first_status` | `[data-tutorial-target="status-stats"]` | 상태창 패널 전체 | "알겠어요" |
+| `first_status` (p1) | `[data-tutorial-target="status-stats"]` | 상태창 본문 패널 | "알겠어요" |
+| `first_status` (p2) | `[data-tutorial-target="status-detail-tab"]` | "상세 능력치" 탭 버튼 | ✅ → "상세 능력치" |
 | `second_combat` | `[data-tutorial-target="speed-control"]` | SpeedControl 패널 (div) | "알겠어요" |
 | `first_chapter_clear` | `[data-tutorial-target="speed-control"]` | SpeedControl 패널 (div) | "알겠어요" |
 | `meta_creation` | `[data-tutorial-target="bonus-alloc"]` | 보너스 분배 패널 (div) | "알겠어요" |
