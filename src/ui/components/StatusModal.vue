@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { statColorClass, tierColorClass, gradeColorClass } from '@/ui/colors'
 import ItemName from '@/ui/components/ItemName.vue'
@@ -15,6 +15,12 @@ const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 const game = useGameStore()
+
+// 상태창이 처음 열리면 first_status 튜토리얼 트리거
+watch(() => props.open, (v) => {
+  if (v) game.triggerTutorial('first_status')
+})
+
 const c = computed(() => game.run!.character)
 const effective = computed(() => computeEffectiveStats(c.value))
 const skillKeys = computed(() => game.availableSkills)
@@ -303,7 +309,7 @@ function showSkillDetail(key: string) {
     class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-3 py-6"
     @click.self="emit('close')"
   >
-    <div class="panel max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-3">
+    <div data-tutorial-target="status-stats" class="panel max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-3">
       <header class="flex items-center justify-between sticky top-0 bg-bg-panel z-10 -mx-3 px-3 py-1">
         <div class="text-lg font-bold">상태창</div>
         <button class="text-gray-400 hover:text-white text-xl leading-none" @click="emit('close')">✕</button>

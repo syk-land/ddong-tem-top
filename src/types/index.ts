@@ -334,12 +334,14 @@ export interface TutorialSeen {
   creation_intro: boolean       // [2] 첫 캐릭터 생성 진입 시 — 주사위/5스탯/챌린지
   first_node: boolean           // [3] 첫 던전 진입 — 노드 클릭법
   first_combat: boolean         // [4] 첫 전투 시작 (= 챕터 1 1층 일반) — HP/MP/게이지/자동 스킬
-  first_treasure: boolean       // [5] 보물 노드 드랍 (= 챕터 1 2층) — 인벤토리·아이템 비교
-  first_shop: boolean           // [6] 첫 상점 진입 (= 챕터 1 3층) — 구매/판매/새로고침
-  second_combat: boolean        // [7] 챕터 1 4층 일반 몬스터 전투 — 2배속 잠금 해제 + 안내
-  first_chapter_clear: boolean  // [8] 챕터 2 1층 진입 — 4배속·자동진입 광고 해금 안내
-  meta_creation: boolean        // [9] 첫 사망/클리어 후 캐릭터 생성 — 누적 보너스 분배
-  realboss_clear: boolean       // [10] 첫 진짜 보스 클리어 후 — 영구 시작 보너스
+  first_treasure: boolean       // [5] 보물 노드 드랍 (= 챕터 1 2층) — 인벤 버튼 안내
+  first_inventory: boolean      // [6] 인벤 모달 첫 진입 — 장비 카드 보는 법 + 장착
+  first_shop: boolean           // [7] 첫 상점 진입 (= 챕터 1 3층) — 매물/구매/판매/새로고침
+  first_status: boolean         // [8] 상태창 모달 첫 진입 — 스탯/능력치 확인
+  second_combat: boolean        // [9] 챕터 1 4층 일반 몬스터 전투 — 2배속 잠금 해제 + 안내
+  first_chapter_clear: boolean  // [10] 챕터 2 1층 진입 — 4배속·자동진입 광고 해금 안내
+  meta_creation: boolean        // [11] 첫 사망/클리어 후 캐릭터 생성 — 누적 보너스 분배
+  realboss_clear: boolean       // [12] 첫 진짜 보스 클리어 후 — 영구 시작 보너스
 }
 
 export type TutorialStep = keyof TutorialSeen

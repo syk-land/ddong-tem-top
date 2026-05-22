@@ -465,7 +465,8 @@ export const useGameStore = defineStore('game', {
               .then(() => this.advance())
             break
           }
-          this.shop = createShop(chapterNum)
+          // 튜토리얼 — 첫 상점 학습 전엔 명중 트레이트 강제 (회피 미스 누적 방지)
+          this.shop = createShop(chapterNum, { tutorialForceAcc: !this.meta.tutorialSeen.first_shop })
           this.screen = 'shop'
           break
         }
@@ -534,7 +535,27 @@ export const useGameStore = defineStore('game', {
     },
 
     openTreasure(chapter: number) {
-      // 10% 미믹, 85% 1개, 5% 2개
+      // 튜토리얼 (보물 학습 전) — 미믹 우회 + 무기/방어구 1개씩 강제 드랍 + 명중 트레이트.
+      // 사용자가 인벤토리에서 무기·갑옷 둘 다 비교/장착 학습 가능하도록.
+      const isTutorial = !this.meta.tutorialSeen.first_treasure
+      if (isTutorial) {
+        const rewards: ItemInstance[] = [
+          rollItem({ kind: 'weapon', chapter, source: 'treasure', forceTraitName: '날카로운' }),
+          rollItem({ kind: 'armor',  chapter, source: 'treasure', forceTraitName: '정밀한' }),
+        ]
+        if (this.autoEnter) {
+          for (const item of rewards) this.receiveItem(item)
+          this.advance()
+          return
+        }
+        const names = rewards.map((r) => `${r.trait} ${r.grade} ${r.baseKey}`).join('\n• ')
+        this.alertModal(`• ${names}`, '보물상자 획득').then(() => {
+          for (const item of rewards) this.receiveItem(item)
+          this.advance()
+        })
+        return
+      }
+      // 통상: 10% 미믹, 85% 1개, 5% 2개
       const roll = Math.random()
       if (roll < 0.10) {
         // 미믹 출현
@@ -939,6 +960,14 @@ export const useGameStore = defineStore('game', {
       if (this.tutorialActive) return
       this.tutorialActive = step
     },
+    // 첫 상점 진입 시 1회 100골드 지급 — 튜토리얼에서 구매 학습이 가능하도록.
+    // first_shop 마킹 전에만 지급, 이미 본 사용자에겐 지급 안 함.
+    grantTutorialShopBonus() {
+      if (!this.run) return
+      if (this.meta.tutorialSeen.first_shop) return
+      this.run.character.gold += 100
+      saveRun(this.run)
+    },
     // 현재 단계 닫기 — 본 것으로 마킹하고 저장
     completeTutorial() {
       const step = this.tutorialActive
@@ -955,7 +984,9 @@ export const useGameStore = defineStore('game', {
         first_node: false,
         first_combat: false,
         first_treasure: false,
+        first_inventory: false,
         first_shop: false,
+        first_status: false,
         second_combat: false,
         first_chapter_clear: false,
         meta_creation: false,
@@ -1433,6 +1464,8 @@ export const useGameStore = defineStore('game', {
         this.receiveItem(drop)
         pushLog(this.combat, `보스 드랍: ${drop.trait} ${drop.grade} ${drop.baseKey}`, 'reward')
       } else if (isMimicFight) {
+        // 튜토리얼 학습 중에는 openTreasure 가 미믹 자체를 우회하므로 여기 도달 X.
+        // 일반 모드의 미믹 드랍 — 통상 1개.
         const drop = rollItem({ kind: Math.random() < 0.5 ? 'weapon' : 'armor', chapter: chapterNum, source: 'treasure' })
         this.receiveItem(drop)
         pushLog(this.combat, `미믹 드랍: ${drop.trait} ${drop.grade} ${drop.baseKey}`, 'reward')
@@ -1566,7 +1599,7 @@ export const useGameStore = defineStore('game', {
         return false
       }
       const chapter = currentChapter(this.run).chapter
-      const ok = refreshShop(this.shop, this.run.refreshState, chapter)
+      const ok = refreshShop(this.shop, this.run.refreshState, chapter, { tutorialForceAcc: !this.meta.tutorialSeen.first_shop })
       if (ok) {
         this.refreshUsedThisChapter = true
         if (this.challengeContext) {

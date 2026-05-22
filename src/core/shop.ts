@@ -7,24 +7,31 @@ export function shopSlotCount(chapter: number): number {
 }
 
 // 8.3 인벤토리 무작위 추첨 (무기/갑옷 50:50)
-export function generateShopInventory(chapter: number): ItemInstance[] {
+//   tutorialForceAcc: 첫 상점 학습용 — 모든 매물에 명중 트레이트 강제.
+//     명중 회피 미스 누적으로 튜토리얼이 늘어지지 않게.
+//     무기 → "날카로운" (+5 명중), 갑옷 → "정밀한" (+8 명중) — 트레이트 등급
+//     '보통' 이지만 grade(노말~레전드) 는 자유라 매물 다양성은 유지됨.
+export function generateShopInventory(chapter: number, opts: { tutorialForceAcc?: boolean } = {}): ItemInstance[] {
   const count = shopSlotCount(chapter)
   const items: ItemInstance[] = []
   for (let i = 0; i < count; i++) {
     const kind = Math.random() < 0.5 ? 'weapon' : 'armor'
-    items.push(rollItem({ kind, chapter, source: 'shop' }))
+    const forceTraitName = opts.tutorialForceAcc
+      ? (kind === 'weapon' ? '날카로운' : '정밀한')
+      : undefined
+    items.push(rollItem({ kind, chapter, source: 'shop', forceTraitName }))
   }
   return items
 }
 
-export function createShop(chapter: number): ShopState {
+export function createShop(chapter: number, opts: { tutorialForceAcc?: boolean } = {}): ShopState {
   return {
-    inventory: generateShopInventory(chapter),
+    inventory: generateShopInventory(chapter, opts),
     slotCount: shopSlotCount(chapter),
   }
 }
 
-export function refreshShop(shop: ShopState, refresh: ShopRefreshState, chapter: number): boolean {
+export function refreshShop(shop: ShopState, refresh: ShopRefreshState, chapter: number, opts: { tutorialForceAcc?: boolean } = {}): boolean {
   if (refresh.charges <= 0) return false
 
   // 3-충전 페널티 플래그
@@ -32,7 +39,7 @@ export function refreshShop(shop: ShopState, refresh: ShopRefreshState, chapter:
     refresh.usedAtMax = true
   }
   refresh.charges -= 1
-  shop.inventory = generateShopInventory(chapter)
+  shop.inventory = generateShopInventory(chapter, opts)
   return true
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
 import ItemDetail from '@/ui/components/ItemDetail.vue'
 import { canEquipItem } from '@/core/challengeRuntime'
@@ -12,6 +12,11 @@ const game = useGameStore()
 const c = computed(() => game.run!.character)
 const inventory = computed(() => game.run?.inventory ?? [])
 const inventoryCap = computed(() => game.run?.inventoryCap ?? 0)
+
+// 인벤 모달이 처음 열리면 first_inventory 튜토리얼 트리거
+watch(() => props.open, (v) => {
+  if (v) game.triggerTutorial('first_inventory')
+})
 
 async function equipItem(idx: number) {
   const result = game.equipFromInventory(idx)
@@ -93,6 +98,7 @@ function checkEquip(item: ItemInstance): { ok: boolean; reason?: string } {
           <div
             v-for="(item, idx) in inventory"
             :key="item.id"
+            :data-tutorial-target="idx === 0 ? 'inventory-item-card' : undefined"
             class="bg-bg-tertiary rounded p-2 space-y-2"
           >
             <ItemDetail :item="item" :character="c" />
@@ -105,6 +111,7 @@ function checkEquip(item: ItemInstance): { ok: boolean; reason?: string } {
               >착용불가</button>
               <button
                 v-else
+                :data-tutorial-target="idx === 0 ? 'inventory-equip-btn' : undefined"
                 class="flex-1 text-xs px-2 py-1 rounded bg-log-skill/30 text-log-skill hover:bg-log-skill/50"
                 @click="equipItem(idx)"
               >장착</button>

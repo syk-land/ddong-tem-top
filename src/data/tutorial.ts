@@ -90,30 +90,76 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
     ],
   },
 
-  // ── [4] 첫 보물/드랍 ──────────────────────────────────────
+  // ── [5] 첫 보물 — 인벤 버튼 안내 ──────────────────────────
   //   트리거: 보물 노드에서 receiveItem 호출 시 pendingTreasureTutorial 만 set,
   //   다음 Dungeon onMounted 에서 발화 → 인벤 버튼이 DOM 에 있는 상태에서 타겟 발사.
+  //   강제로 무기+방어구 각 1개씩 드랍되어 인벤토리에 들어가 있음.
   first_treasure: {
     step: 'first_treasure',
     pages: [
       {
         title: '아이템 획득',
         body:
-          '몬스터·보물에서 무기와 갑옷이 떨어집니다.\n인벤 버튼을 눌러 현재 장비와 비교해보세요.\n인벤토리가 가득하면 폐기할 슬롯을 골라야 해요.',
+          '보물 상자에서 무기와 갑옷이 나왔어요.\n인벤 버튼을 눌러 인벤토리를 열어보세요.',
         target: '[data-tutorial-target="inventory-btn"]',
       },
     ],
   },
 
-  // ── [5] 첫 상점 진입 — 구매·판매·새로고침만 (속도는 [6]에서 분리) ─────
+  // ── [6] 인벤 모달 첫 진입 — 장비 카드 + 장착 ──────────────
+  first_inventory: {
+    step: 'first_inventory',
+    pages: [
+      {
+        title: '장비 카드 보는 법',
+        body:
+          '카드 테두리 색이 등급을 나타내요 (노말→레어→스페셜→레전드).\n공격·방어 점수로 현재 장비와 비교할 수 있어요.\n점수가 높을수록 강한 장비입니다.',
+        target: '[data-tutorial-target="inventory-item-card"]',
+      },
+      {
+        title: '장착하기',
+        body:
+          '장착 버튼을 누르면 현재 장비와 자동 교체됩니다.\n빠진 장비는 인벤토리로 옮겨져요.\n원치 않으면 카드 옆 폐기 버튼으로 버릴 수도 있어요.',
+        target: '[data-tutorial-target="inventory-equip-btn"]',
+      },
+    ],
+  },
+
+  // ── [7] 첫 상점 — 매물 / 판매 / 새로고침 (다중 페이지) ─────
+  //   첫 진입 시 게임 스토어가 100골드를 1회 지급 — 구매 학습 가능.
   first_shop: {
     step: 'first_shop',
     pages: [
       {
-        title: '상점',
+        title: '상점 매물 보는 법',
         body:
-          '골드로 무기·갑옷을 사고 팔 수 있어요.\n새로고침으로 매물을 갱신할 수도 있습니다.\n원치 않으면 그냥 떠나면 돼요.',
+          '카드 테두리 색이 등급을 나타내요.\n공/방 옆 숫자가 장비 점수 — 클수록 강한 장비.\n가격 아래 버튼으로 즉시 구매할 수 있어요.\n(첫 상점 학습용으로 100G를 드렸어요)',
         target: '[data-tutorial-target="shop-slot"]',
+      },
+      {
+        title: '판매하기',
+        body:
+          '장착 중인 장비도, 인벤토리 장비도 골드로 팔 수 있어요.\n전부 판매 버튼은 인벤토리를 한 번에 비웁니다.',
+        target: '[data-tutorial-target="shop-sell"]',
+      },
+      {
+        title: '새로고침',
+        body:
+          '매물이 맘에 안 들면 새로고침으로 다시 뽑을 수 있어요.\n챕터마다 충전이 갱신됩니다.',
+        target: '[data-tutorial-target="shop-refresh"]',
+      },
+    ],
+  },
+
+  // ── [8] 상태창 모달 첫 진입 — 스탯/능력치 확인 ────────────
+  first_status: {
+    step: 'first_status',
+    pages: [
+      {
+        title: '상태창 보는 법',
+        body:
+          '5스탯과 파생 능력치 (공격력·방어·명중·회피 등) 를 모두 확인할 수 있어요.\n항목을 누르면 어떤 요소가 그 능력치에 기여하는지 자세히 볼 수 있어요.',
+        target: '[data-tutorial-target="status-stats"]',
       },
     ],
   },
@@ -183,7 +229,9 @@ export const TUTORIAL_KEYS: TutorialStep[] = [
   'first_node',
   'first_combat',
   'first_treasure',
+  'first_inventory',
   'first_shop',
+  'first_status',
   'second_combat',
   'first_chapter_clear',
   'meta_creation',

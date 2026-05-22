@@ -9,8 +9,9 @@ import { CHALLENGES_MAP } from '@/data/challenges'
 
 const game = useGameStore()
 
-// 첫 상점 — 구매/판매 안내 + 2배속 잠금 해제 (안내 페이지에서 처리)
+// 첫 상점 — 구매/판매/새로고침 안내 + 학습용 100G 1회 지급 + 매물 명중 강제는 createShop 쪽에서 처리
 onMounted(() => {
+  game.grantTutorialShopBonus()  // first_shop 마킹 전에만 1회 +100G
   game.triggerTutorial('first_shop')
 })
 const shop = computed(() => game.shop!)
@@ -139,7 +140,7 @@ void bgUrl  // 추후 배경 활용 여지
     <!-- ====================================================== -->
 
     <!-- 장착 중 (판매) -->
-    <div class="rounded-lg border border-amber-400/30 bg-bg-secondary/60 backdrop-blur-sm overflow-hidden">
+    <div data-tutorial-target="shop-sell" class="rounded-lg border border-amber-400/30 bg-bg-secondary/60 backdrop-blur-sm overflow-hidden">
       <div class="px-3 py-1.5 bg-amber-950/40 border-b border-amber-400/20 flex items-center justify-between">
         <span class="text-xs font-bold text-amber-300">💰 장착 중 (판매)</span>
       </div>
@@ -279,6 +280,7 @@ void bgUrl  // 추후 배경 활용 여지
     <!-- ====================================================== -->
     <div class="flex gap-2 sticky bottom-0 z-10 pt-2 pb-1 bg-gradient-to-t from-bg-primary/95 to-bg-primary/0">
       <button
+        data-tutorial-target="shop-refresh"
         class="flex-1 min-h-12 px-4 rounded-md font-bold text-sm transition active:scale-[0.98] border-2 disabled:opacity-40 disabled:cursor-not-allowed"
         :class="refresh.charges <= 0
           ? 'bg-slate-800/70 text-gray-500 border-slate-700/60'

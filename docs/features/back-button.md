@@ -9,14 +9,33 @@
 ## 우선순위
 
 ```
-1. PickupModal (인벤토리 풀) → 신규 포기
-2. DialogModal (alert/confirm) → 취소 / 마지막 버튼
-3. InputModal (텍스트/숫자 입력) → null 취소
-4. ListModal (리스트 선택) → null 취소
-5. IntroComic (인트로 만화) → 닫기 (현재 페이지에서 종료)
-6. Shop (상점) → 다음 층 진입
-7. 처리된 모달 없음 → 기본 동작 (앱 종료 / 페이지 이전)
+0. TutorialOverlay (튜토리얼 카드)  → 현재 단계 닫기 (가장 위)
+1. PickupModal (인벤토리 풀)        → 신규 포기
+2. DialogModal (alert/confirm)      → 취소 / 마지막 버튼
+3. InputModal (텍스트/숫자 입력)    → null 취소
+4. ListModal (리스트 선택)          → null 취소
+5. IntroComic (인트로 만화)         → 닫기 (현재 페이지에서 종료)
+6. Shop (상점)                      → 다음 층 진입
+7. 처리된 모달 없음 → "게임을 종료하시겠습니까?" 확인 →
+                      예 → CapApp.exitApp() / 아니오 → 그대로
 ```
+
+## 안드로이드 종료 확인
+
+`main.ts` 의 backButton 리스너:
+
+```ts
+CapApp.addListener('backButton', async (e) => {
+  const handled = game.handleBackButton()
+  if (handled || e.canGoBack) return
+  const ok = await game.confirmModal('게임을 종료하시겠습니까?', {
+    title: '종료', okLabel: '예', cancelLabel: '아니오',
+  })
+  if (ok) CapApp.exitApp()
+})
+```
+
+우발적 종료 방지 — 모달이 다 닫힌 상태에서 한 번 더 뒤로가기 누르면 확인 다이얼로그가 뜨고, "아니오" 면 게임 그대로, "예" 면 앱 종료. 다이얼로그가 떠 있을 때 또 뒤로가기 누르면 `DialogModal` 분기로 처리되어 자연스럽게 취소됨.
 
 ---
 

@@ -36,22 +36,37 @@
 
 ---
 
-## 10 단계
+## 12 단계
 
 각 단계 = `meta.tutorialSeen` 의 boolean 플래그. 처음 만날 때 1회 노출, 닫으면 영구 마킹.
 
 | # | step | 트리거 시점 | 가르치는 것 | 서사 힌트 (작은 회색) |
 |---|---|---|---|---|
-| 1 | **`menu_start`** | **인트로 만화 종료 직후, first flow** (`closeIntroComic` 안) | "새 캐릭터 시작" 버튼 안내 | "탑이 너를 부르고 있다." |
-| 2 | `creation_intro` | 첫 캐릭터 생성 화면 진입 (`clearCount + climbCount === 0`) | 주사위 / 5스탯 / 챌린지 선택 | "당신에게 힘이 부여되고 있다…" |
-| 3 | `first_node` | 첫 던전 화면 진입 | 노드 카드 클릭법 | "이 풍경… 어쩐지 익숙하다." |
+| 1 | `menu_start` | 인트로 만화 종료 직후, first flow | "새 캐릭터 시작" 버튼 안내 | "탑이 너를 부르고 있다." |
+| 2 | `creation_intro` | 첫 캐릭터 생성 진입 (`clearCount + climbCount === 0`) | 주사위 / 5스탯 / 챌린지 (페이지별 다른 영역) | "당신에게 힘이 부여되고 있다…" |
+| 3 | `first_node` | 첫 던전 화면 진입 | "진입" 버튼 클릭법 | "이 풍경… 어쩐지 익숙하다." |
 | 4 | `first_combat` | 첫 전투 (= 챕터 1 1층 일반) | HP/MP/게이지, 자동 스킬 발동 | "약하다. 왜 이렇게 약할까…" |
-| 5 | `first_treasure` | 보물 노드 `receiveItem()` (= 챕터 1 2층) | 인벤토리, 아이템 비교 | — |
-| 6 | `first_shop` | 첫 상점 진입 (= 챕터 1 3층) | 구매·판매·새로고침 (속도 안내 X) | — |
-| 7 | `second_combat` | 챕터 1 4층 일반 전투 (`ch.chapter === 1 && currentFloor === 3 && floor.type === 'monster'`) | 2배속 잠금 해제 + 안내 | "시간이 조금 가까워진 느낌이다." |
-| 8 | `first_chapter_clear` | 챕터 2 1층 진입 (`ch.chapter === 2 && currentFloor === 0`) | 4배속·자동진입 광고 해금 안내 | "탑은 더 높아진다. 누군가 너를 지켜보는 것 같다." |
-| 9 | `meta_creation` | 사망/클리어 후 첫 캐릭터 생성 (`clearCount + climbCount >= 1`) | 누적 보너스 풀 분배 | "받은 힘이 너의 안에 쌓이고 있다." |
-| 10 | `realboss_clear` | 첫 진짜 보스 결과 화면 (`drainRatio > 0`) | 영구 시작 보너스 | "깊은 곳에서 누군가가 너를 도와주고 있다." |
+| 5 | `first_treasure` | 보물 노드 `receiveItem()` (= 챕터 1 2층) | 인벤 버튼 안내 | — |
+| 6 | **`first_inventory`** | 인벤 모달 첫 진입 | 장비 카드 (등급 테두리·벨류) 보는 법 + 장착 | — |
+| 7 | `first_shop` | 첫 상점 진입 (= 챕터 1 3층) | 매물(p1) + 판매(p2) + 새로고침(p3) | — |
+| 8 | **`first_status`** | 상태창 모달 첫 진입 | 5스탯 / 능력치 확인 | — |
+| 9 | `second_combat` | 챕터 1 4층 일반 전투 | 2배속 잠금 해제 + 안내 | "시간이 조금 가까워진 느낌이다." |
+| 10 | `first_chapter_clear` | 챕터 2 1층 진입 | 4배속·자동진입 광고 해금 안내 | "탑은 더 높아진다. 누군가 너를 지켜보는 것 같다." |
+| 11 | `meta_creation` | 사망/클리어 후 첫 캐릭터 생성 (`clearCount + climbCount >= 1`) | 누적 보너스 풀 분배 | "받은 힘이 너의 안에 쌓이고 있다." |
+| 12 | `realboss_clear` | 첫 진짜 보스 결과 화면 (`drainRatio > 0`) | 영구 시작 보너스 | "깊은 곳에서 누군가가 너를 도와주고 있다." |
+
+## 튜토리얼 학습 환경 (루즈함 방지)
+
+`!tutorialSeen.first_treasure` 또는 `!tutorialSeen.first_shop` 동안 게임이 학습용으로 보조됨:
+
+- **보물상자 미믹 우회**: 챕터 1 2층 보물 노드가 `openTreasure` 진입 시
+  미믹 분기 건너뛰고 **무기 1 + 갑옷 1 무조건 드랍** → 인벤 학습에 필요한 카드 보장
+- **명중 트레이트 강제**:
+  - 보물 드랍: 무기 = `날카로운` (+5 명중), 갑옷 = `정밀한` (+8 명중)
+  - 첫 상점 매물: 동일하게 `forceTraitName` 으로 강제 (`createShop` / `refreshShop`
+    에 `tutorialForceAcc` 옵션) → 회피 미스 누적으로 전투가 늘어지지 않음
+- **첫 상점 100G 지급**: 첫 진입 시 `grantTutorialShopBonus()` 호출로 1회 +100G —
+  구매 학습 시 골드 부족 방지
 
 `first_treasure` 는 일반 몬스터 드랍에서는 발화하지 않음 — 보물 노드를 만나야 학습 시점이 됨.
 
@@ -138,7 +153,12 @@
 | `first_node` | `[data-tutorial-target="enter-floor-btn"]` | Dungeon 의 "진입" 버튼 | ✅ → "진입" |
 | `first_combat` | `[data-tutorial-target="combat-bars"]` | HP/MP 바 컨테이너 | "알겠어요" |
 | `first_treasure` | `[data-tutorial-target="inventory-btn"]` | Dungeon 의 "인벤" 버튼 | ✅ → "인벤" |
-| `first_shop` | `[data-tutorial-target="shop-slot"]` | 상점 매물 리스트 (div) | "알겠어요" |
+| `first_inventory` (p1) | `[data-tutorial-target="inventory-item-card"]` | 인벤 첫 아이템 카드 | "알겠어요" |
+| `first_inventory` (p2) | `[data-tutorial-target="inventory-equip-btn"]` | 첫 아이템의 "장착" 버튼 | ✅ → "장착" |
+| `first_shop` (p1) | `[data-tutorial-target="shop-slot"]` | 상점 매물 패널 | "알겠어요" |
+| `first_shop` (p2) | `[data-tutorial-target="shop-sell"]` | 장착 중 (판매) 패널 | "알겠어요" |
+| `first_shop` (p3) | `[data-tutorial-target="shop-refresh"]` | "🔄 새로고침" 버튼 | ✅ → "🔄 새로고침 (n)" |
+| `first_status` | `[data-tutorial-target="status-stats"]` | 상태창 패널 전체 | "알겠어요" |
 | `second_combat` | `[data-tutorial-target="speed-control"]` | SpeedControl 패널 (div) | "알겠어요" |
 | `first_chapter_clear` | `[data-tutorial-target="speed-control"]` | SpeedControl 패널 (div) | "알겠어요" |
 | `meta_creation` | `[data-tutorial-target="bonus-alloc"]` | 보너스 분배 패널 (div) | "알겠어요" |

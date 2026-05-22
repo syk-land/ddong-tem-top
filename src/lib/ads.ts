@@ -17,6 +17,12 @@ import {
   type AdMobRewardItem,
 } from '@capacitor-community/admob'
 
+// ─── 임시 우회 (AdMob 승인 전) ─────────────────────────────
+// AdMob 광고 단위 승인이 나기 전까지는 광고 호출 자체가 실패함.
+// 그동안 "광고 보기" 버튼을 누르면 광고 없이 보상이 즉시 지급되도록 우회.
+// 승인이 완료되면 false 로 바꾸기만 하면 됨.
+const BYPASS_ADS = true
+
 // ── Google 공식 test 광고 단위 ID (안드로이드 / Rewarded) ──
 //   참고: https://developers.google.com/admob/android/test-ads
 const TEST_REWARDED_AD_UNIT = 'ca-app-pub-3940256099942544/5224354917'
@@ -66,6 +72,8 @@ async function initIfNeeded() {
 //   웹/dev 비-네이티브 환경: 자동 true 반환 (확인 메시지 없이 즉시 보상)
 //   네이티브: 광고 prepare → show → reward 이벤트 대기
 export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
+  // AdMob 승인 전 임시 우회 — 항상 보상 즉시 지급
+  if (BYPASS_ADS) return true
   if (!isNative()) {
     // 웹/dev — AdMob 안 됨, 즉시 보상 (PoC 동작 유지)
     return true

@@ -19,12 +19,18 @@ app.mount('#app')
 ;(async () => {
   try {
     const { App: CapApp } = await import('@capacitor/app')
-    CapApp.addListener('backButton', (e: { canGoBack: boolean }) => {
+    CapApp.addListener('backButton', async (e: { canGoBack: boolean }) => {
       const game = useGameStore()
       const handled = game.handleBackButton()
-      if (!handled && !e.canGoBack) {
-        CapApp.exitApp()
-      }
+      if (handled) return
+      if (e.canGoBack) return
+      // 마지막 단계 — 우발적 종료 방지를 위해 확인 후 종료
+      const ok = await game.confirmModal('게임을 종료하시겠습니까?', {
+        title: '종료',
+        okLabel: '예',
+        cancelLabel: '아니오',
+      })
+      if (ok) CapApp.exitApp()
     })
   } catch {
     // 웹 환경 — Capacitor 미사용. 데스크탑 보조용으로 Esc 키도 동일 처리.
