@@ -28,7 +28,8 @@ export function generateChapterFloors(
     // 5~9층 (5슬롯): 회복샘 1 + 일반 몬스터 4 (특별 이벤트는 첫 챕터에서 끄는 게 안전)
     const rest: FloorEventType[] = ['healing_spring', 'monster', 'monster', 'monster', 'monster']
     const shuffledRest = shuffle(rest)
-    return [...forced, ...shuffledRest, 'boss'].map((type) => ({ type, cleared: false }))
+    const layout: FloorEventType[] = [...forced, ...shuffledRest, 'boss']
+    return layout.map((type) => ({ type, cleared: false }))
   }
 
   // 챕터 2 (idx 1) 1층 강제 일반 몬스터: 1=일반, 2~9 = 통상(회복샘/보물/상점/몬스터 셔플)
@@ -53,7 +54,8 @@ export function generateChapterFloors(
         break
       }
     } while (true)
-    return [...(['monster'] as FloorEventType[]), ...shuffled, 'boss'].map((type) => ({ type, cleared: false }))
+    const layout: FloorEventType[] = ['monster', ...shuffled, 'boss']
+    return layout.map((type) => ({ type, cleared: false }))
   }
 
   // 1~9층 (마지막 10층은 보스 고정)
