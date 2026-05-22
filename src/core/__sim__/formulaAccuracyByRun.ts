@@ -293,6 +293,8 @@ interface Sample {
   new_def: number
   v3_atk: number
   v3_def: number
+  maxHp: number            // 체력 stat 반영된 maxHp
+  maxMp: number
 }
 
 function autoplayAndEval(): Sample | null {
@@ -344,6 +346,8 @@ function autoplayAndEval(): Sample | null {
     exist_def: wExist.defValue + aExist.defValue,
     new_atk: fNew.atk, new_def: fNew.def,
     v3_atk: fV3.atk, v3_def: fV3.def,
+    maxHp: c.maxHp,
+    maxMp: c.maxMp,
   }
 }
 
@@ -533,6 +537,50 @@ function run() {
     console.log(`  [auto K = atk_avg/def_avg = ${auto.toFixed(1)}] ${label} → AUC ${a.toFixed(3)} | Pearson ${pc.toFixed(3)}`)
   }
 
+  // ── v5: maxHp 추가 + 3변수 grid search ──
+  console.log(`\n## v5 공식 — atk + def×K + maxHp×M (3변수 grid search)`)
+  function search3D(fkey: 'new' | 'v3'): { K: number; M: number; auc: number; pearson: number } {
+    let best = { K: 0, M: 0, auc: 0, pearson: 0 }
+    const KS = [10, 25, 50, 75, 100, 150]
+    const MS = [0, 0.005, 0.01, 0.02, 0.04, 0.08, 0.15, 0.3, 0.5]
+    for (const K of KS) {
+      for (const M of MS) {
+        const scores = samples.map((s) => {
+          const a = fkey === 'new' ? s.new_atk : s.v3_atk
+          const d = fkey === 'new' ? s.new_def : s.v3_def
+          return a + d * K + s.maxHp * M
+        })
+        const au = auc(scores, labels)
+        if (au > best.auc) {
+          best = { K, M, auc: au, pearson: pearson(scores, chaptersArr) }
+        }
+      }
+    }
+    return best
+  }
+  const v5N = search3D('new')
+  const v5V = search3D('v3')
+  console.log(`  v5 신규 = atk + def×${v5N.K} + maxHp×${v5N.M.toFixed(3)} → AUC ${v5N.auc.toFixed(3)} | Pearson ${v5N.pearson.toFixed(3)}`)
+  console.log(`  v5 v3   = atk + def×${v5V.K} + maxHp×${v5V.M.toFixed(3)} → AUC ${v5V.auc.toFixed(3)} | Pearson ${v5V.pearson.toFixed(3)}`)
+
+  // 곱셈 + maxHp 조합
+  console.log(`\n## 비선형 + maxHp 조합 (신규공식 기반)`)
+  const v5variants: { name: string; score: (s: Sample) => number }[] = [
+    { name: 'atk × maxHp                  ', score: (s) => s.new_atk * s.maxHp },
+    { name: '(atk + def×50) × maxHp / 100 ', score: (s) => (s.new_atk + s.new_def * 50) * s.maxHp / 100 },
+    { name: 'atk × maxHp × (1 + def × 30) ', score: (s) => s.new_atk * s.maxHp * (1 + s.new_def * 30) },
+    { name: '√(atk × maxHp)               ', score: (s) => Math.sqrt(s.new_atk * s.maxHp) },
+    { name: '√atk + √(def×50) + √maxHp×3  ', score: (s) => Math.sqrt(s.new_atk) + Math.sqrt(s.new_def * 50) + Math.sqrt(s.maxHp) * 3 },
+    // 클리어 임계 모델: atk × HP > Boss_HP × Boss_atk / (1-def)  → 단순화
+    { name: 'atk × HP × (1 + def × 30)    ', score: (s) => s.new_atk * s.maxHp * (1 + s.new_def * 30) },
+  ]
+  for (const v of v5variants) {
+    const scores = samples.map(v.score)
+    const a = auc(scores, labels)
+    const pc = pearson(scores, chaptersArr)
+    console.log(`  ${v.name}  AUC ${a.toFixed(3)} | Pearson ${pc.toFixed(3)}`)
+  }
+
   // 비교 최종 — 모든 공식 AUC 한 줄
   console.log(`\n## 최종 비교 (AUC vs cleared)`)
   console.log(`  기존공식 (현재 UI)             : AUC 0.978`)
@@ -540,6 +588,8 @@ function run() {
   console.log(`  v3공식  (raw atk+def)          : AUC 0.917`)
   console.log(`  신규공식 v4 (atk + def×${bN.k})  : AUC ${bN.auc.toFixed(3)} ${bN.auc >= 0.978 ? '✅ 1등' : ''}`)
   console.log(`  v3공식  v4 (atk + def×${bV.k})   : AUC ${bV.auc.toFixed(3)} ${bV.auc >= 0.978 ? '✅ 1등' : ''}`)
+  console.log(`  v5 신규 +HP                    : AUC ${v5N.auc.toFixed(3)} ${v5N.auc >= 0.978 ? '✅ 1등' : ''}`)
+  console.log(`  v5 v3   +HP                    : AUC ${v5V.auc.toFixed(3)} ${v5V.auc >= 0.978 ? '✅ 1등' : ''}`)
 }
 
 if (typeof process !== 'undefined' && process.argv?.[1]?.includes('formulaAccuracyByRun')) {
