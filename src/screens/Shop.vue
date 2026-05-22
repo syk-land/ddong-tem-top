@@ -231,6 +231,7 @@ void bgUrl  // 추후 배경 활용 여지
     <!-- ====================================================== -->
     <div
       ref="shopListingRef"
+      data-tutorial-target="shop-slot"
       class="rounded-lg border border-cyan-400/40 bg-bg-secondary/60 backdrop-blur-sm overflow-hidden scroll-mt-2 shadow-[0_0_18px_rgba(34,211,238,0.12)]"
     >
       <div class="px-3 py-1.5 bg-cyan-950/40 border-b border-cyan-400/20 flex items-center justify-between gap-2">

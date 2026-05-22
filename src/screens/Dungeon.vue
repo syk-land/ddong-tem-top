@@ -155,6 +155,7 @@ const floorAccent = computed(() => {
 
     <!-- ③ 층 내용 — 종류별 액센트 -->
     <div
+      data-tutorial-target="floor-current"
       :class="[
         'rounded-lg border-2 relative overflow-hidden flex flex-col items-center text-center transition-shadow',
         floorAccent.border,

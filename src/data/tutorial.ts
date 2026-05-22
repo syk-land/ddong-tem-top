@@ -13,6 +13,10 @@ export interface TutorialPage {
   body: string          // 본문 — 조작법 설명
   hint?: string         // 서사 힌트 (작은 회색 텍스트). 없으면 미표시.
   cta?: string          // 닫기 버튼 문구. 기본 "알겠어요".
+  // 가리킬 UI 요소의 CSS selector (`[data-tutorial-target="xxx"]` 권장).
+  // 없으면 화면 중앙에 정적 카드. 있으면 그 요소 근처로 동적 배치 +
+  // 방향 화살표 + 시안 ring 스포트라이트 + 위·아래 부유 애니메이션.
+  target?: string
 }
 
 export interface TutorialStepDef {
@@ -50,6 +54,7 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
         body:
           '아래 카드를 눌러 진행합니다.\n일반 몬스터·상점·보물·회복샘 등 다양한 노드가 있어요.\n10층마다 보스가 있습니다.',
         hint: '이 풍경… 어쩐지 익숙하다.',
+        target: '[data-tutorial-target="floor-current"]',
       },
     ],
   },
@@ -63,6 +68,7 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
         body:
           '전투는 게이지가 차면 자동으로 진행됩니다.\nHP(빨강) / MP(파랑) 가 0이면 위험.\n무기·갑옷에 묶인 스킬이 확률로 자동 발동해요.',
         hint: '약하다. 왜 이렇게 약할까…',
+        target: '[data-tutorial-target="combat-bars"]',
       },
     ],
   },
@@ -87,6 +93,7 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
         title: '상점',
         body:
           '골드로 무기·갑옷을 사고 팔 수 있어요.\n새로고침으로 매물을 갱신할 수도 있습니다.\n원치 않으면 그냥 떠나면 돼요.',
+        target: '[data-tutorial-target="shop-slot"]',
       },
     ],
   },
@@ -98,9 +105,10 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
       {
         title: '2배속 해금!',
         body:
-          '이제 우측 상단 패널에서 2배속을 쓸 수 있어요.\n전투가 답답하면 2배속을 활성화해보세요.',
+          '이제 좌측 상단 패널에서 2배속을 쓸 수 있어요.\n전투가 답답하면 2배속을 활성화해보세요.',
         hint: '시간이 조금 가까워진 느낌이다.',
         cta: '좋아요',
+        target: '[data-tutorial-target="speed-control"]',
       },
     ],
   },
@@ -112,8 +120,9 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
       {
         title: '챕터 2 진입',
         body:
-          '챕터가 바뀌면 HP/MP가 모두 회복돼요.\n4배속과 자동 진입은 광고를 보면 등반당 1회 해금돼요.\n우측 상단 패널에서 시도해보세요.',
+          '챕터가 바뀌면 HP/MP가 모두 회복돼요.\n4배속과 자동 진입은 광고를 보면 등반당 1회 해금돼요.\n좌측 상단 패널에서 시도해보세요.',
         hint: '탑은 더 높아진다. 누군가 너를 지켜보는 것 같다.',
+        target: '[data-tutorial-target="speed-control"]',
       },
     ],
   },
@@ -127,6 +136,7 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
         body:
           '지난 등반의 결과로 누적 보너스가 생겼어요.\n캐릭터 생성에서 원하는 스탯에 자유롭게 분배할 수 있습니다.\n분배해도 보너스 풀은 차감되지 않아요 — 매번 같은 풀로 새로 분배.',
         hint: '받은 힘이 너의 안에 쌓이고 있다.',
+        target: '[data-tutorial-target="bonus-alloc"]',
       },
     ],
   },

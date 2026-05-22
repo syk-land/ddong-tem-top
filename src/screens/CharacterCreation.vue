@@ -247,7 +247,7 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
     <!-- 메타 보너스 자유 분배 — emerald 액센트 (회복/누적 — 톤)    -->
     <!-- 주사위 스탯과 동일하게 5컬럼 한 줄, 세로 정렬 (+/이름/값/−) -->
     <!-- ====================================================== -->
-    <div v-if="bonusAvailable > 0" class="rounded-lg border border-emerald-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
+    <div v-if="bonusAvailable > 0" data-tutorial-target="bonus-alloc" class="rounded-lg border border-emerald-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
       <div class="px-3 py-1.5 bg-emerald-950/40 border-b border-emerald-400/20 flex items-center justify-between">
         <span class="text-xs font-bold text-emerald-200">✦ 누적 보너스 자유 분배</span>
         <span class="text-xs text-emerald-200/80">사용 <span class="font-mono font-bold">{{ used }}</span> / {{ bonusAvailable }}</span>

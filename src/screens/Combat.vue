@@ -394,7 +394,7 @@ watch(
                   -{{ ev.amount }}
                 </div>
               </div>
-              <div class="flex-1 min-w-0 space-y-1.5">
+              <div data-tutorial-target="combat-bars" class="flex-1 min-w-0 space-y-1.5">
                 <HpMpBar :current="player.hp" :max="player.maxHp" kind="hp" />
                 <HpMpBar :current="player.mp" :max="player.maxMp" kind="mp" />
                 <div class="text-xs flex items-center gap-1.5 flex-wrap">

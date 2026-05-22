@@ -87,12 +87,35 @@
 ## UX
 
 ### 오버레이 디자인 (`TutorialOverlay.vue`)
-- 모달 한가운데 카드 (max-width 450px)
-- 반투명 백드롭 (`bg-black/70`) — 게임 화면 살짝 보임
+- **타겟 지정** (`page.target = CSS selector`) 시:
+  - 타겟 요소의 `getBoundingClientRect()` 기준으로 카드를 위/아래 자동 배치
+    (타겟이 화면 위쪽 절반이면 아래에, 아래쪽이면 위에)
+  - 카드 + 화살표 (`↑` / `↓`) 가 함께 **위·아래 부유** (translateY ±6px, 1.8s 사인)
+  - 타겟 주변 시안 ring + glow 스포트라이트 (`ring-cyan-300/90`)
+  - 좌우는 타겟 X중앙 기준 카드 중앙 정렬, 화면 경계 안에 clamp
+  - resize / scroll 시 자동 재계산
+- **타겟 없을 때** (`page.target` 없음):
+  - 화면 중앙 / 모바일은 하단에 정적 카드 (부유 X)
 - 페이지 인디케이터 (단계가 여러 페이지일 때)
 - 본문 + 서사 힌트 (작은 italic, `text-zinc-500`)
 - CTA 버튼: "다음 →" / 마지막 페이지엔 "알겠어요"
 - 우상단 × 닫기 (이 단계만 닫기)
+
+### 타겟 매핑
+
+각 화면 요소에 `data-tutorial-target="키"` 속성을 마크해서 단계가 가리킬 수 있게 함.
+
+| step | target selector | 가리키는 요소 |
+|---|---|---|
+| `creation_intro` | (없음) | 화면 중앙 정적 카드 |
+| `first_node` | `[data-tutorial-target="floor-current"]` | Dungeon 의 현재 진입 가능 노드 |
+| `first_combat` | `[data-tutorial-target="combat-bars"]` | Combat 의 HP/MP 바 컨테이너 |
+| `first_treasure` | (없음) | 모달 위에서 화면 중앙 |
+| `first_shop` | `[data-tutorial-target="shop-slot"]` | Shop 의 매물 리스트 패널 |
+| `second_combat` | `[data-tutorial-target="speed-control"]` | SpeedControl 패널 (좌상단) |
+| `first_chapter_clear` | `[data-tutorial-target="speed-control"]` | SpeedControl 패널 |
+| `meta_creation` | `[data-tutorial-target="bonus-alloc"]` | 누적 보너스 자유 분배 패널 |
+| `realboss_clear` | (없음) | 화면 중앙 (결과 화면 위에 띄움) |
 
 ### 닫기 동작
 - 안드로이드 뒤로가기 / Esc → `completeTutorial()` 호출 (가장 우선)
@@ -129,7 +152,7 @@
 
 ## 알려진 제약 / 향후
 
-- **포지셔닝 화살표 없음**: 현재 오버레이는 화면 중앙 모달 형태. UI 요소 가리키는 화살표는 향후 작업.
 - **튜토리얼 진행 중 자동 진입 안 됨**: `first_chapter_clear` 전엔 옵션 자체가 숨김 — 첫 챕터는 사용자 손으로 진행.
 - **서사 힌트의 점진적 강도**: 시간의 신 직접 언급은 인트로 만화 t3 에만. 튜토리얼은 "누군가" 정도로만.
 - **인트로 만화와의 독립성**: 인트로 만화 `tutorialSeen:v1` 키와 튜토리얼 `meta.tutorialSeen` 필드는 별개. 데이터 리셋은 둘 다 초기화.
+- **타겟이 동적으로 사라지면**: 단계 도중 DOM 에서 사라지면 카드가 갱신될 때 중앙으로 폴백 (안전).

@@ -263,6 +263,7 @@ watch(
 
 <template>
   <div
+    data-tutorial-target="speed-control"
     class="fixed top-1 left-1 z-40 rounded-md select-none text-gray-200 transition-opacity duration-200"
     :class="[
       dimmed && !expanded ? 'opacity-25' : (expanded ? 'opacity-95' : 'opacity-60 hover:opacity-95'),
