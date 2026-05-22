@@ -129,6 +129,10 @@ interface GameState {
   // 보물 노드에서 receiveItem 호출 시 set, 다음 Dungeon onMounted 에서 first_treasure 발화.
   // (receiveItem 시점엔 Combat 화면이라 인벤 버튼이 DOM 에 없어 타겟 잡을 수 없음 — 지연 발화)
   pendingTreasureTutorial: boolean
+  // 튜토리얼 — 보물 노드에서 받기 완료했지만 인벤/상태 학습 미완료 상태.
+  // true 면 advance() 가드로 다음 층 진입 차단 + 진입 버튼 disabled.
+  // first_status 학습 완료 시점에 자동으로 false + advance() 호출.
+  pendingTutorialTreasureAdvance: boolean
   // 아이템 획득 알림 큐 — receiveItem 호출 시 push, 사용자가 확인하면 shift.
   // 다중 드랍(보물 무기+갑옷, 보스+다음 받기) 시 차례대로 표시.
   itemAnnounceQueue: ItemInstance[]
@@ -210,6 +214,7 @@ export const useGameStore = defineStore('game', {
     runAvatar: null,
     tutorialActive: null,
     pendingTreasureTutorial: false,
+    pendingTutorialTreasureAdvance: false,
     itemAnnounceQueue: [],
     realBossTheme: null,
     realBossMonster: null,
@@ -270,6 +275,12 @@ export const useGameStore = defineStore('game', {
       excludeShop: !s.meta.tutorialSeen.first_chapter_clear,
       excludeItemRestrict: !s.meta.tutorialSeen.first_chapter_clear,
     }),
+    // 튜토리얼 — 2층 보물에서 받기 끝났지만 인벤/상태 학습 미완료 → 다음 층 진입 차단.
+    // Dungeon.vue 의 "진입" 버튼 :disabled 바인딩에 사용.
+    isTutorialBlockingExit: (s): boolean => {
+      if (!s.pendingTutorialTreasureAdvance) return false
+      return !s.meta.tutorialSeen.first_inventory || !s.meta.tutorialSeen.first_status
+    },
   },
 
   actions: {
@@ -565,7 +576,10 @@ export const useGameStore = defineStore('game', {
           rollItem({ kind: 'armor',  chapter, source: 'treasure', forceTraitName: '정밀한' }),
         ]
         for (const item of rewards) this.receiveItem(item)
-        this.advance()
+        // ★ 핵심: 튜토리얼 보물에서는 advance() 호출 X.
+        //   2층 학습 (first_inventory + first_status) 완료 전엔 currentFloor=2
+        //   상태로 던전 화면에 머문다. completeTutorial(first_status) 에서 자동 advance.
+        this.pendingTutorialTreasureAdvance = true
         return
       }
       // 통상: 10% 미믹, 85% 1개, 5% 2개
@@ -626,9 +640,16 @@ export const useGameStore = defineStore('game', {
     },
 
     // ItemAnnounceModal 의 "확인" 콜백 — 큐 전체 비움 (한 모달에 카드 N장 한꺼번에 보여줌).
-    // 자동 진입 모드라 advance 가 일찍 막혔다면 큐 비워진 직후 다시 시도.
     clearItemAnnounce() {
       this.itemAnnounceQueue = []
+      // 보물 노드 받기 직후 — 튜토리얼 모드에서는 advance() 가 안 호출돼 Dungeon
+      // 의 onMounted 가 다시 실행되지 않으므로 여기서 first_treasure 발화.
+      if (this.pendingTreasureTutorial) {
+        this.pendingTreasureTutorial = false
+        this.triggerTutorial('first_treasure')
+      }
+      // 자동 진입 모드라 advance 가 일찍 막혔다면 큐 비워진 직후 다시 시도.
+      // (advance 안의 pendingTutorialTreasureAdvance 가드가 학습 미완료면 차단.)
       if (this.autoEnter && this.run && !this.combat) {
         this.advance()
       }
@@ -772,9 +793,15 @@ export const useGameStore = defineStore('game', {
     advance() {
       if (!this.run) return
       // 획득 알림 모달이 떠 있으면 사용자가 "확인" 누르기 전엔 진행하지 않음
-      // (자동 진입 모드여도 동일 — 보상 카드를 보지 못한 채 다음 층으로 넘어가지 않게).
-      // 사용자가 확인하면 clearItemAnnounce 가 호출되며 그때 자동 재시도된다.
       if (this.itemAnnounceQueue.length > 0) return
+      // ★ 튜토리얼 — 2층 보물 노드에서 인벤/상태 학습 완료 전엔 절대로 다음 층으로
+      //   안 넘어가게 차단. completeTutorial 안에서 first_status 가 마킹된 후
+      //   자동 advance 가 들어와야 통과한다.
+      if (this.pendingTutorialTreasureAdvance &&
+          (!this.meta.tutorialSeen.first_inventory || !this.meta.tutorialSeen.first_status)) {
+        return
+      }
+      this.pendingTutorialTreasureAdvance = false
       sfx.transition()
       // 층 클리어 시 플레이어 상태이상 + 침묵 전체 제거
       this.run.character.statuses = []
@@ -994,6 +1021,11 @@ export const useGameStore = defineStore('game', {
       this.meta.tutorialSeen[step] = true
       this.tutorialActive = null
       this.persistMeta()
+      // ★ 2층 보물 노드 학습 종착점 — first_status 가 마킹되면 보류된 advance 실행
+      //   → 3층 (상점) 으로 자동 진입. pendingTutorialTreasureAdvance 는 advance 안에서 클리어.
+      if (step === 'first_status' && this.pendingTutorialTreasureAdvance) {
+        this.advance()
+      }
     },
     // 튜토리얼 전체 건너뛰기 — 모든 단계를 본 것으로 마킹 + 현재 단계 종료.
     // pendingTreasureTutorial 같은 예약도 함께 클리어.

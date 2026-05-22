@@ -204,9 +204,11 @@ const floorAccent = computed(() => {
         </div>
         <button
           data-tutorial-target="enter-floor-btn"
-          class="btn-primary px-6 w-full max-w-xs min-h-12 text-base font-bold"
+          class="btn-primary px-6 w-full max-w-xs min-h-12 text-base font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+          :disabled="game.isTutorialBlockingExit"
+          :title="game.isTutorialBlockingExit ? '튜토리얼 — 인벤토리와 상태창 학습을 먼저 완료해주세요' : ''"
           @click="enter"
-        >진입</button>
+        >{{ game.isTutorialBlockingExit ? '학습 진행 중…' : '진입' }}</button>
       </div>
     </div>
 
