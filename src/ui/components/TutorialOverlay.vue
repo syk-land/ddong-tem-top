@@ -160,35 +160,63 @@ const ctaLabel = computed(() => {
   return '알겠어요'
 })
 
+// CTA 자동 위임 — 타겟이 클릭 가능 버튼이고 사용자가 카드의 닫기 (×) 만 눌러서
+// 빠져나오는 경우 (희귀 fallback). 일반적으로는 타겟 직접 클릭 흐름을 권장.
 function advance() {
   if (!def.value) return
-  const action = targetActionEl.value
   if (!isLastPage.value) {
-    // 중간 페이지: 타겟이 클릭 가능 버튼이면 click 위임 (예: 주사위 굴리기)
-    // + 다음 페이지로 진행. 위임 없으면 그냥 다음 페이지로.
-    if (action) action.click()
     pageIdx.value += 1
     return
   }
-  // 마지막 페이지: 닫기 + (있으면) 타겟 click 위임. 아니면 닫기만.
   game.completeTutorial()
-  if (action) {
-    // completeTutorial 직후 click — paused 가 풀린 상태에서 게임 정상 진행
-    action.click()
-  }
 }
 function close() {
   game.completeTutorial()
 }
 
-// 타겟 위치가 바뀔 수 있는 모든 이벤트에서 재계산
-watch([step, pageIdx], () => recompute())
+// ── 타겟 직접 클릭 위임 ──────────────────────────────────
+// 카드 안에 CTA 버튼을 두지 않고, 사용자가 화살표가 가리키는 실제 게임 UI 버튼을
+// 직접 누르게 한다. 그 한 번의 클릭이 ① 튜토리얼 진행 + ② 실제 동작을 동시에 한다.
+// capture phase 라 다른 핸들러보다 먼저 발화 — 페이지 ++ / 완료 처리만 하고
+// stopPropagation 은 하지 않으므로 원래 클릭은 그대로 진행돼 실제 동작이 일어난다.
+let attachedEl: HTMLElement | null = null
+function handleTargetClick(_e: MouseEvent) {
+  if (!def.value) return
+  if (!isLastPage.value) {
+    pageIdx.value += 1
+  } else {
+    game.completeTutorial()
+  }
+}
+function detachTargetListener() {
+  if (attachedEl) {
+    attachedEl.removeEventListener('click', handleTargetClick, true)
+    attachedEl = null
+  }
+}
+function attachTargetListener() {
+  const el = targetActionEl.value
+  if (el === attachedEl) return
+  detachTargetListener()
+  if (el) {
+    el.addEventListener('click', handleTargetClick, true)
+    attachedEl = el
+  }
+}
+
+// 타겟 위치가 바뀔 수 있는 모든 이벤트에서 재계산 + 리스너 갱신
+watch([step, pageIdx], async () => {
+  await recompute()
+  attachTargetListener()
+})
+watch(targetActionEl, () => attachTargetListener())
 onMounted(() => {
-  recompute()
+  recompute().then(attachTargetListener)
   window.addEventListener('resize', recompute)
   window.addEventListener('scroll', recompute, true)
 })
 onUnmounted(() => {
+  detachTargetListener()
   window.removeEventListener('resize', recompute)
   window.removeEventListener('scroll', recompute, true)
 })
@@ -201,10 +229,13 @@ onUnmounted(() => {
     role="dialog"
     aria-live="polite"
   >
-    <!-- 백드롭: 투명 — 게임 화면이 그대로 보이도록. 클릭은 흡수해서
-         게임 UI 가 우발적으로 눌리지 않게만 차단 (진행은 명시적 버튼/×/뒤로가기). -->
+    <!-- 백드롭: 투명 — 게임 화면이 그대로 보이도록.
+         타겟이 클릭 가능 버튼(targetActionEl) 일 때는 사용자가 그 버튼을 직접 눌러야
+         하므로 pointer-events: none 으로 클릭을 통과시킨다. 그 외(panel/div 가
+         타겟이거나 타겟 없음) 는 클릭을 흡수해 게임 UI 가 우발적으로 안 눌리게 차단. -->
     <div
       class="absolute inset-0 bg-transparent"
+      :class="targetActionEl ? 'pointer-events-none' : ''"
       @click.stop
     />
 
@@ -264,7 +295,16 @@ onUnmounted(() => {
           class="mt-3 text-xs italic text-zinc-500 whitespace-pre-line"
         >{{ currentPage.hint }}</p>
 
+        <!-- 타겟이 클릭 가능 버튼이면 카드에 CTA 버튼 없이 안내 텍스트만 표시.
+             사용자는 화살표가 가리키는 실제 버튼을 직접 눌러서 진행. -->
+        <div
+          v-if="targetActionEl"
+          class="mt-4 text-center text-xs font-medium text-cyan-300 animate-pulse"
+        >
+          {{ arrowDir === 'up' ? '↑' : '↓' }} 강조된 버튼을 눌러주세요
+        </div>
         <button
+          v-else
           class="mt-4 w-full py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 font-bold text-zinc-900 transition-colors"
           @click.stop="advance"
         >{{ ctaLabel }}</button>

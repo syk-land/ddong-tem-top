@@ -75,12 +75,14 @@
 
 ## 페이지 흐름 — CTA / 자동 위임 / 자동 스크롤
 
-- **자동 위임 (마지막 페이지)**: 타겟이 `<button>`/`<a>`/`role=button` 이면 CTA 라벨을
-  그 버튼의 텍스트(또는 `data-tutorial-cta-label`)로 자동 노출 → 클릭 시 닫기 +
-  `target.click()` 위임
-- **자동 위임 (중간 페이지)**: 중간 페이지에서도 타겟이 버튼이면 클릭 시 `target.click()`
-  먼저 실행한 뒤 다음 페이지로 진행 — 예: `creation_intro` p1 의 "주사위 굴리기"
-  버튼을 누르면 실제로 한 번 굴리고 페이지 2 (챌린지 선택) 로 넘어감
+- **타겟 직접 클릭 모드** (타겟이 `<button>`/`<a>`/`role=button` 일 때):
+  - 카드 안에 CTA 버튼을 두지 않고 "↑ 강조된 버튼을 눌러주세요" 안내 텍스트만 표시
+  - 백드롭의 `pointer-events` 를 `none` 으로 풀어서 사용자 클릭이 타겟까지 도달
+  - 타겟 element 에 **capture phase** click 리스너 부착 → 사용자가 타겟을 누르는 그
+    한 번의 클릭이 ① 튜토리얼 진행(pageIdx++ 또는 completeTutorial) + ② 원래 동작
+    (주사위 굴림 / 모달 열림 / 페이지 이동) 을 동시에 수행. `stopPropagation` 안 하므로
+    원래 핸들러까지 그대로 흘러감.
+  - 타겟이 panel/div 등 클릭 가능 요소가 아니면 카드의 "알겠어요" CTA 로 fallback
 - **자동 스크롤 (모드별)**:
   - `scrollMode: 'center'` (기본) — 타겟 중앙 Y 가 viewport 중앙 ±25% 안에 없으면
     `block: 'center'` 로 강제 스크롤
