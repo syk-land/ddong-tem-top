@@ -474,6 +474,72 @@ function run() {
       console.log(`    ${label} | AUC ${a.toFixed(3)}`)
     }
   }
+
+  // ── def 스케일 보정 + 비선형 조합 — 최적 공식 탐색 ──
+  console.log(`\n## def 스케일 보정 — atk + def × K 미세 탐색`)
+  const labels = samples.map((s) => s.cleared)
+  const chaptersArr = samples.map((s) => s.reachedChapter)
+  function searchK(fkey: 'new' | 'v3'): { k: number; auc: number; pearson: number } {
+    let best = { k: 1, auc: 0, pearson: 0 }
+    for (let k = 5; k <= 200; k += 5) {
+      const scores = samples.map((s) => {
+        if (fkey === 'new') return s.new_atk + s.new_def * k
+        return s.v3_atk + s.v3_def * k
+      })
+      const a = auc(scores, labels)
+      if (a > best.auc) best = { k, auc: a, pearson: pearson(scores, chaptersArr) }
+    }
+    return best
+  }
+  const bN = searchK('new')
+  const bV = searchK('v3')
+  console.log(`  신규공식 v4 = atk + def × ${bN.k}   → AUC ${bN.auc.toFixed(3)} | Pearson ${bN.pearson.toFixed(3)}`)
+  console.log(`  v3 공식 v4  = atk + def × ${bV.k}   → AUC ${bV.auc.toFixed(3)} | Pearson ${bV.pearson.toFixed(3)}`)
+
+  // 비선형 조합 — sqrt, multiplicative, geometric mean
+  console.log(`\n## 비선형 조합 (신규공식 기반)`)
+  const variants: { name: string; score: (s: Sample) => number }[] = [
+    { name: 'atk × def (곱)               ', score: (s) => s.new_atk * s.new_def },
+    { name: '√(atk × def) (기하평균)       ', score: (s) => Math.sqrt(s.new_atk * s.new_def) },
+    { name: '√atk + √(def × 50)           ', score: (s) => Math.sqrt(s.new_atk) + Math.sqrt(s.new_def * 50) },
+    { name: 'atk + def × 50 (베이스)       ', score: (s) => s.new_atk + s.new_def * 50 },
+    { name: 'atk × (1 + def × 30)         ', score: (s) => s.new_atk * (1 + s.new_def * 30) },
+    { name: 'atk^0.7 × def^0.3 × 100      ', score: (s) => Math.pow(s.new_atk, 0.7) * Math.pow(Math.max(0.001, s.new_def * 30), 0.3) * 100 },
+    { name: 'atk × def_norm (def/atk_avg) ', score: (s) => s.new_atk * (1 + s.new_def / 0.5) },
+  ]
+  for (const v of variants) {
+    const scores = samples.map(v.score)
+    const a = auc(scores, labels)
+    const pc = pearson(scores, chaptersArr)
+    console.log(`  ${v.name}  AUC ${a.toFixed(3)} | Pearson ${pc.toFixed(3)}`)
+  }
+
+  // 평균 비율 기반 자동 보정 (atk_mean / def_mean)
+  function avgScale(fkey: 'new' | 'v3'): number {
+    const aSum = samples.reduce((s, x) => s + (fkey === 'new' ? x.new_atk : x.v3_atk), 0)
+    const dSum = samples.reduce((s, x) => s + (fkey === 'new' ? x.new_def : x.v3_def), 0)
+    return aSum / Math.max(0.0001, dSum)
+  }
+  for (const fkey of ['new', 'v3'] as const) {
+    const auto = avgScale(fkey)
+    const scores = samples.map((s) => {
+      const ak = fkey === 'new' ? s.new_atk : s.v3_atk
+      const df = fkey === 'new' ? s.new_def : s.v3_def
+      return ak + df * auto
+    })
+    const a = auc(scores, labels)
+    const pc = pearson(scores, samples.map((s) => s.reachedChapter))
+    const label = fkey === 'new' ? '신규공식' : 'v3 공식 '
+    console.log(`  [auto K = atk_avg/def_avg = ${auto.toFixed(1)}] ${label} → AUC ${a.toFixed(3)} | Pearson ${pc.toFixed(3)}`)
+  }
+
+  // 비교 최종 — 모든 공식 AUC 한 줄
+  console.log(`\n## 최종 비교 (AUC vs cleared)`)
+  console.log(`  기존공식 (현재 UI)             : AUC 0.978`)
+  console.log(`  신규공식 (raw atk+def)         : AUC 0.930`)
+  console.log(`  v3공식  (raw atk+def)          : AUC 0.917`)
+  console.log(`  신규공식 v4 (atk + def×${bN.k})  : AUC ${bN.auc.toFixed(3)} ${bN.auc >= 0.978 ? '✅ 1등' : ''}`)
+  console.log(`  v3공식  v4 (atk + def×${bV.k})   : AUC ${bV.auc.toFixed(3)} ${bV.auc >= 0.978 ? '✅ 1등' : ''}`)
 }
 
 if (typeof process !== 'undefined' && process.argv?.[1]?.includes('formulaAccuracyByRun')) {
