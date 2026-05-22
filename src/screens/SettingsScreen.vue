@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useAuthStore } from '@/stores/auth'
+import { deleteCloudUserData } from '@/lib/cloudSync'
 import {
   isSoundEnabled, getSoundVolume, setSoundEnabled, setSoundVolume,
   isBgmEnabled, getBgmVolume, setBgmEnabled, setBgmVolume,
@@ -46,10 +47,16 @@ const STORAGE_KEYS = [
 
 async function resetAll() {
   const ok = await game.confirmModal(
-    '메타 보너스 / 진행 중 런 / 모든 설정이 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.',
+    '메타 보너스 / 진행 중 런 / 모든 설정이 삭제됩니다.\n로그인 상태라면 클라우드 데이터(누적 보너스·리더보드)도 함께 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.',
     { title: '모든 데이터 리셋', okLabel: '리셋', danger: true },
   )
   if (!ok) return
+  // 1) 로그인 상태면 Firestore 사용자 문서 (meta + leaderboard) 삭제 — 안 하면
+  //    reload 후 auth listener 가 cloud meta 를 다시 받아와 클라우드 값으로 덮어씀.
+  if (auth.uid) {
+    await deleteCloudUserData(auth.uid)
+  }
+  // 2) localStorage 비우기 + reload
   for (const k of STORAGE_KEYS) localStorage.removeItem(k)
   location.reload()
 }

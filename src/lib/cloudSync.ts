@@ -1,5 +1,5 @@
 import {
-  doc, setDoc, getDoc, serverTimestamp,
+  doc, setDoc, getDoc, deleteDoc, serverTimestamp,
   collection, query, orderBy, limit, getDocs,
 } from 'firebase/firestore'
 import { firestore } from './firebase'
@@ -87,6 +87,23 @@ export async function saveCloudMeta(uid: string, meta: MetaBonuses): Promise<voi
 export async function loadCloudMeta(uid: string): Promise<CloudMeta | null> {
   const snap = await getDoc(doc(firestore, 'meta', uid))
   return snap.exists() ? (snap.data() as CloudMeta) : null
+}
+
+// 데이터 리셋 — Firestore 의 사용자별 문서 삭제 (meta + 리더보드).
+// 로컬 localStorage 는 호출자가 별도로 비움. 로그아웃은 호출자 결정.
+// 실패해도 throw 하지 않고 로그만 — 로컬 리셋은 항상 진행되어야 하므로.
+export async function deleteCloudUserData(uid: string): Promise<void> {
+  const targets = [
+    doc(firestore, 'meta', uid),
+    doc(firestore, 'leaderboard', uid),
+  ]
+  await Promise.all(
+    targets.map((ref) =>
+      deleteDoc(ref).catch((err) => {
+        console.warn(`[cloudSync] deleteDoc ${ref.path} failed:`, err)
+      }),
+    ),
+  )
 }
 
 // ── 리더보드 ──────────────────────────────────────────────

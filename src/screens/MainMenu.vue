@@ -4,6 +4,7 @@ import { useGameStore } from '@/stores/game'
 import { useAuthStore } from '@/stores/auth'
 import { mainImageUrl, playerImageUrl, userAvatarLabel } from '@/ui/images'
 import { loadRun } from '@/core/meta'
+import { deleteCloudUserData } from '@/lib/cloudSync'
 import { themeColorClass } from '@/ui/colors'
 import HpMpBar from '@/ui/components/HpMpBar.vue'
 import type { TowerRun } from '@/types'
@@ -57,18 +58,25 @@ function loadGameClick() {
   game.loadGame()
 }
 async function resetMeta() {
-  const ok = await game.confirmModal('정말 모든 누적 보너스와 진행을 리셋할까요?', {
-    title: '데이터 리셋',
-    danger: true,
-    okLabel: '리셋',
-  })
-  if (ok) {
-    localStorage.removeItem('climetop:meta:v1')
-    localStorage.removeItem('climetop:run:v1')
-    localStorage.removeItem('climetop:tutorialSeen:v1')
-    localStorage.removeItem('climetop:creation:v1')
-    location.reload()
+  const ok = await game.confirmModal(
+    '정말 모든 누적 보너스와 진행을 리셋할까요?\n로그인 상태라면 클라우드 데이터(누적 보너스·리더보드)도 함께 삭제됩니다.',
+    {
+      title: '데이터 리셋',
+      danger: true,
+      okLabel: '리셋',
+    },
+  )
+  if (!ok) return
+  // 로그인 상태면 Firestore 사용자 문서 (meta + leaderboard) 삭제 — 안 하면
+  // reload 후 auth listener 가 cloud meta 를 다시 받아와 클라우드 값으로 덮어씀.
+  if (auth.uid) {
+    await deleteCloudUserData(auth.uid)
   }
+  localStorage.removeItem('climetop:meta:v1')
+  localStorage.removeItem('climetop:run:v1')
+  localStorage.removeItem('climetop:tutorialSeen:v1')
+  localStorage.removeItem('climetop:creation:v1')
+  location.reload()
 }
 </script>
 
