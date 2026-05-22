@@ -20,6 +20,14 @@ import {
   createCombatContext, makeMonster, advanceTick, checkActionReady,
   monsterAttack, consumeAction, playerBasicAttack,
 } from '../combat'
+import { withSeededRng } from './_seededRng'
+import {
+  pearson, spearman, auc,
+  bootstrapCI, pairedBootstrapDiff,
+  pearsonStat, spearmanStat, aucStat,
+  fmtCI,
+  percentiles, logisticFit, logisticThreshold,
+} from './_stats'
 import { computeEffectiveStats } from '../stats'
 import { useSkill, pickAutoAction } from '../skills'
 import { rollItem } from '../items'
@@ -40,6 +48,32 @@ import type {
 function clampN(v: number, lo: number, hi: number): number { return Math.max(lo, Math.min(hi, v)) }
 function isMagicWeapon(c: Character): boolean {
   return c.weapon ? !!WEAPONS[c.weapon.baseKey]?.isMagic : false
+}
+
+// ── 빌드 락인 — dice 60pt 기준, 마력 우선 > 민첩 > 그 외 ──
+type BuildType = 'magic' | 'ranged' | 'melee' | 'any'
+
+function determineBuild(stats: Stats, lock: boolean): BuildType {
+  if (!lock) return 'any'
+  const max = Math.max(stats.힘, stats.민첩, stats.체력, stats.마력, stats.행운)
+  if (stats.마력 === max) return 'magic'
+  if (stats.민첩 === max) return 'ranged'
+  return 'melee'
+}
+
+function weaponMatchesBuild(baseKey: string, build: BuildType): boolean {
+  if (build === 'any') return true
+  const w = WEAPONS[baseKey]
+  if (!w) return false
+  if (build === 'magic') return !!w.isMagic
+  if (build === 'ranged') return w.category === 'ranged' && !w.isMagic
+  return !w.isMagic && w.category !== 'ranged' // melee
+}
+
+const ALL_WEAPON_KEYS = Object.keys(WEAPONS)
+function pickWeaponForBuild(build: BuildType): string {
+  const pool = ALL_WEAPON_KEYS.filter((k) => weaponMatchesBuild(k, build))
+  return pool[Math.floor(Math.random() * pool.length)]
 }
 
 function generateDice(): Stats {
@@ -75,14 +109,15 @@ function pickChallenge(diceStats: Stats): typeof CHALLENGES[number] | null {
   return null
 }
 
-function createChar(stats: Stats, bonus?: Partial<Stats>): Character {
+function createChar(stats: Stats, bonus: Partial<Stats> | undefined, build: BuildType): Character {
   const final: Stats = { ...stats }
   if (bonus) for (const k of Object.keys(bonus) as StatKey[]) final[k] = (final[k] ?? 0) + (bonus[k] ?? 0)
+  const forceBaseKey = build === 'any' ? undefined : pickWeaponForBuild(build)
   return {
     stats: final,
     hp: computeMaxHp(final.체력), maxHp: computeMaxHp(final.체력),
     mp: computeMaxMp(final.마력), maxMp: computeMaxMp(final.마력),
-    weapon: rollItem({ kind: 'weapon', forceTraitTier: '하급', forceGrade: '노말' }),
+    weapon: rollItem({ kind: 'weapon', forceBaseKey, forceTraitTier: '하급', forceGrade: '노말' }),
     armor: null, gold: 50, statuses: [], actionGauge: 0,
   }
 }
@@ -152,13 +187,16 @@ function shouldEquipArmor(c: Character, it: ItemInstance): boolean {
   }
   return it.tier > cur.tier
 }
-function takeTreasure(c: Character, chapter: number) {
+function takeTreasure(c: Character, chapter: number, build: BuildType) {
   const k = Math.random() < 0.5 ? 'weapon' : 'armor'
   const it = rollItem({ kind: k, chapter, source: 'treasure' })
-  if (k === 'weapon') { if (!c.weapon || it.tier > c.weapon.tier) c.weapon = it }
+  if (k === 'weapon') {
+    if (!weaponMatchesBuild(it.baseKey, build)) return // 빌드 안 맞는 무기는 버림
+    if (!c.weapon || it.tier > c.weapon.tier) c.weapon = it
+  }
   else if (shouldEquipArmor(c, it)) c.armor = it
 }
-function autoShop(c: Character, chapter: number) {
+function autoShop(c: Character, chapter: number, build: BuildType) {
   const slots = Math.min(3 + Math.floor((chapter - 1) / 3), 6)
   const inv: ItemInstance[] = []
   for (let i = 0; i < slots; i++) inv.push(rollItem({ kind: Math.random() < 0.5 ? 'weapon' : 'armor', chapter, source: 'shop' }))
@@ -170,7 +208,10 @@ function autoShop(c: Character, chapter: number) {
   })
   for (const it of inv) {
     if (c.gold < it.buyPrice) continue
-    if (it.kind === 'weapon') { if (!c.weapon || it.tier > c.weapon.tier) { c.gold -= it.buyPrice; c.weapon = it } }
+    if (it.kind === 'weapon') {
+      if (!weaponMatchesBuild(it.baseKey, build)) continue // 빌드 안 맞으면 패스
+      if (!c.weapon || it.tier > c.weapon.tier) { c.gold -= it.buyPrice; c.weapon = it }
+    }
     else if (shouldEquipArmor(c, it)) { c.gold -= it.buyPrice; c.armor = it }
   }
 }
@@ -300,10 +341,11 @@ interface Sample {
   defPct: number           // 0~0.99 actual def percentage
 }
 
-function autoplayAndEval(): Sample | null {
+function autoplayAndEval(buildLock: boolean): Sample | null {
   const dice = generateDice()
+  const build = determineBuild(dice, buildLock)
   const challenge = pickChallenge(dice)
-  const c = createChar(dice, challenge?.instantBonus)
+  const c = createChar(dice, challenge?.instantBonus, build)
   if (challenge?.instantStartGold) c.gold += challenge.instantStartGold
   const pool = [...ALL_THEME_KEYS].sort(() => Math.random() - 0.5).slice(0, 5) as ChapterTheme[]
   const chapters: ChapterTheme[] = []
@@ -325,8 +367,8 @@ function autoplayAndEval(): Sample | null {
     }
     for (const ft of ftypes) {
       if (ft === 'monster') { if (!simNormalMonsters(c, theme, ch)) { died = true; break } }
-      else if (ft === 'shop') autoShop(c, ch)
-      else if (ft === 'treasure') takeTreasure(c, ch)
+      else if (ft === 'shop') autoShop(c, ch, build)
+      else if (ft === 'treasure') takeTreasure(c, ch, build)
       else if (ft === 'healing') doHealingSpring(c)
       else if (ft === 'special') doSpecialEvent(c, ch)
       c.hp = Math.min(c.maxHp, c.hp + Math.round(c.maxHp * 0.1))
@@ -368,60 +410,22 @@ function autoplayAndEval(): Sample | null {
   }
 }
 
-// ── 통계 ──
-function pearson(xs: number[], ys: number[]): number {
-  const n = xs.length
-  if (n === 0) return 0
-  const mx = xs.reduce((a, b) => a + b, 0) / n
-  const my = ys.reduce((a, b) => a + b, 0) / n
-  let num = 0, dx = 0, dy = 0
-  for (let i = 0; i < n; i++) { num += (xs[i] - mx) * (ys[i] - my); dx += (xs[i] - mx) ** 2; dy += (ys[i] - my) ** 2 }
-  return num / Math.sqrt(dx * dy || 1)
-}
-function spearman(xs: number[], ys: number[]): number {
-  function ranks(arr: number[]): number[] {
-    const idx = arr.map((v, i) => ({ v, i })).sort((a, b) => a.v - b.v)
-    const r = new Array(arr.length).fill(0)
-    for (let i = 0; i < idx.length; i++) r[idx[i].i] = i + 1
-    return r
-  }
-  return pearson(ranks(xs), ranks(ys))
-}
-// AUC for binary classification (sampled — too slow for full nested loop with 30k samples)
-function auc(scores: number[], labels: number[], maxPairs = 5_000_000): number {
-  const pos: number[] = [], neg: number[] = []
-  for (let i = 0; i < scores.length; i++) {
-    if (labels[i] > 0.5) pos.push(scores[i])
-    else neg.push(scores[i])
-  }
-  if (pos.length === 0 || neg.length === 0) return 0.5
-  // Sample pairs
-  const total = pos.length * neg.length
-  if (total <= maxPairs) {
-    let wins = 0
-    for (const p of pos) for (const n of neg) {
-      if (p > n) wins++
-      else if (p === n) wins += 0.5
-    }
-    return wins / total
-  }
-  let wins = 0
-  for (let i = 0; i < maxPairs; i++) {
-    const p = pos[Math.floor(Math.random() * pos.length)]
-    const n = neg[Math.floor(Math.random() * neg.length)]
-    if (p > n) wins++
-    else if (p === n) wins += 0.5
-  }
-  return wins / maxPairs
-}
+// 통계 — pearson/spearman/auc 는 _stats.ts 사용 (O(n log n) AUC)
 
 function run() {
   const RUNS = parseInt(process.env.RUNS || '30000')
-  console.log(`\n=== 표시값 정확도 검증 — 자동플레이 ${RUNS} 런, 클리어/실패 분리 ===\n`)
+  const BOOTS = parseInt(process.env.BOOTS || '1000')
+  const CRN = process.env.CRN !== '0' // 기본 ON. CRN=0 으로 비활성화
+  const BUILD_LOCK = process.env.BUILD_LOCK !== '0' // 기본 ON. 마력→마법/민첩→원거리/그외→근접 락
+  const SEED_BASE = parseInt(process.env.SEED || '1')
+  console.log(`\n=== 표시값 정확도 검증 — 자동플레이 ${RUNS} 런, 클리어/실패 분리 ===`)
+  console.log(`    CRN=${CRN ? 'ON' : 'OFF'} (seed base ${SEED_BASE}), BUILD_LOCK=${BUILD_LOCK ? 'ON' : 'OFF'}, Bootstrap=${BOOTS}\n`)
   const t0 = Date.now()
   const samples: Sample[] = []
   for (let i = 0; i < RUNS; i++) {
-    const s = autoplayAndEval()
+    const s = CRN
+      ? withSeededRng(SEED_BASE + i, () => autoplayAndEval(BUILD_LOCK))
+      : autoplayAndEval(BUILD_LOCK)
     if (s) samples.push(s)
     if ((i + 1) % 5000 === 0) process.stdout.write(`  진행 ${i + 1}/${RUNS} (${((Date.now() - t0) / 1000).toFixed(0)}s)\r`)
   }
@@ -447,24 +451,151 @@ function run() {
     console.log(`${label}| ${mc.toFixed(2).padStart(17)} | ${mf.toFixed(2).padStart(11)} | ${(mc / mf).toFixed(2)}x`)
   }
 
-  // AUC, Pearson with reachedChapter
-  console.log(`\n## 분류 정확도 — score = atk + def`)
-  console.log(`공식         | AUC (cleared)  | Pearson r (vs 도달챕터) | Spearman ρ`)
-  console.log('-------------+----------------+-------------------------+-----------')
+  // AUC, Pearson with reachedChapter — Bootstrap 95% CI
+  console.log(`\n## 분류 정확도 — score = atk + def  (95% CI, ${BOOTS} bootstrap)`)
+  console.log(`공식         | AUC (cleared)             | Pearson r (vs 도달챕터)   | Spearman ρ`)
+  console.log('-------------+---------------------------+---------------------------+---------------------------')
   function scoreOf(s: Sample, k: 'exist' | 'new' | 'v3'): number {
     if (k === 'exist') return s.exist_atk + s.exist_def
     if (k === 'new')   return s.new_atk + s.new_def
     return s.v3_atk + s.v3_def
   }
+  const cleared01 = samples.map((s) => s.cleared)
+  const chaptersArrAll = samples.map((s) => s.reachedChapter)
+  const scoreByFormula: Record<'exist' | 'new' | 'v3', number[]> = {
+    exist: samples.map((s) => scoreOf(s, 'exist')),
+    new:   samples.map((s) => scoreOf(s, 'new')),
+    v3:    samples.map((s) => scoreOf(s, 'v3')),
+  }
   for (const fkey of ['exist', 'new', 'v3'] as const) {
-    const scores = samples.map((s) => scoreOf(s, fkey))
-    const labels = samples.map((s) => s.cleared)
-    const chapters = samples.map((s) => s.reachedChapter)
-    const a = auc(scores, labels)
-    const pc = pearson(scores, chapters)
-    const sp = spearman(scores, chapters)
+    const scores = scoreByFormula[fkey]
+    const aCI = bootstrapCI(samples.length, aucStat(scores, cleared01), { nBoot: BOOTS, seed: 1 })
+    const pCI = bootstrapCI(samples.length, pearsonStat(scores, chaptersArrAll), { nBoot: BOOTS, seed: 2 })
+    const sCI = bootstrapCI(samples.length, spearmanStat(scores, chaptersArrAll), { nBoot: BOOTS, seed: 3 })
     const label = fkey === 'exist' ? '기존공식       ' : fkey === 'new' ? '신규공식       ' : 'v3 공식        '
-    console.log(`${label}| ${a.toFixed(3).padStart(13)}  | ${pc.toFixed(3).padStart(21)} | ${sp.toFixed(3).padStart(10)}`)
+    console.log(`${label}| ${fmtCI(aCI).padStart(25)} | ${fmtCI(pCI).padStart(25)} | ${fmtCI(sCI).padStart(25)}`)
+  }
+
+  // Paired diff — 같은 캐릭터(샘플)에 대한 공식 차이의 CI
+  // CRN ON 이면 paired sampling 의 효과가 극대화됨 (variance 상쇄).
+  console.log(`\n## 공식 간 차이 — paired bootstrap (CI 가 0 미포함 = 유의한 차이)`)
+  console.log(`비교             | ΔAUC                        | ΔPearson (도달챕터)`)
+  console.log('-----------------+-----------------------------+-----------------------------')
+  const pairs: { name: string; a: 'exist' | 'new' | 'v3'; b: 'exist' | 'new' | 'v3' }[] = [
+    { name: 'v3 − 기존공식    ', a: 'v3', b: 'exist' },
+    { name: 'v3 − 신규공식    ', a: 'v3', b: 'new'   },
+    { name: '신규공식 − 기존  ', a: 'new', b: 'exist' },
+  ]
+  for (const p of pairs) {
+    const sA = scoreByFormula[p.a]
+    const sB = scoreByFormula[p.b]
+    const dAuc = pairedBootstrapDiff(
+      samples.length,
+      aucStat(sA, cleared01),
+      aucStat(sB, cleared01),
+      { nBoot: BOOTS, seed: 11 },
+    )
+    const dPea = pairedBootstrapDiff(
+      samples.length,
+      pearsonStat(sA, chaptersArrAll),
+      pearsonStat(sB, chaptersArrAll),
+      { nBoot: BOOTS, seed: 12 },
+    )
+    console.log(`${p.name}| ${fmtCI(dAuc).padStart(27)} | ${fmtCI(dPea).padStart(27)}`)
+  }
+
+  // ===== 클리어 임계값 분석 =====
+  //   (1) 클리어한 캐릭터의 score 분포 percentile
+  //   (2) 로지스틱 회귀로 P(clear) = 0.5/0.9/0.99 인 score 라인
+  //   (3) 챕터 N 이상 도달한 캐릭터의 score 분포 percentile
+  //   (4) atk-only / def-only 도 동일 분석
+  const PCT = [0, 0.05, 0.25, 0.50, 0.75, 0.95, 1.0]
+  const PCT_LABEL = ['min', '5%', '25%', '50%', '75%', '95%', 'max']
+
+  function reportPercentile(label: string, arr: number[]) {
+    if (arr.length === 0) {
+      console.log(`  ${label.padEnd(22)} | n=0`)
+      return
+    }
+    const ps = percentiles(arr, PCT)
+    const cells = ps.map((v) => v.toFixed(1).padStart(7)).join(' | ')
+    console.log(`  ${label.padEnd(22)} | n=${arr.length.toString().padStart(5)} | ${cells}`)
+  }
+
+  function logisticReport(label: string, scores: number[], labels: number[]) {
+    const fit = logisticFit(scores, labels)
+    const p50 = logisticThreshold(fit, 0.5)
+    const p90 = logisticThreshold(fit, 0.9)
+    const p99 = logisticThreshold(fit, 0.99)
+    const note = fit.converged ? '수렴' : `미수렴(${fit.iter}회)`
+    console.log(
+      `  ${label.padEnd(20)} | β₀=${fit.b0.toFixed(3).padStart(8)}  β₁=${fit.b1.toFixed(4).padStart(8)}` +
+      ` | P=0.5 → ${p50.toFixed(2).padStart(7)} | P=0.9 → ${p90.toFixed(2).padStart(7)}` +
+      ` | P=0.99 → ${p99.toFixed(2).padStart(7)} (${note})`
+    )
+  }
+
+  console.log(`\n## 클리어 임계값 — 클리어한 캐릭터의 score 분포 percentile`)
+  console.log(`  공식 (score = atk + def)  | n     |  ${PCT_LABEL.map((l) => l.padStart(7)).join(' | ')}`)
+  console.log('  -----------------------+-------+' + '---------+'.repeat(PCT.length))
+  for (const fkey of ['exist', 'new', 'v3'] as const) {
+    const label = fkey === 'exist' ? '기존공식' : fkey === 'new' ? '신규공식' : 'v3 공식'
+    const clearedScores = samples.filter((s) => s.cleared > 0.5).map((s) => scoreOf(s, fkey))
+    reportPercentile(label, clearedScores)
+  }
+
+  console.log(`\n## 로지스틱 회귀 임계 — P(clear) = 0.5 / 0.9 / 0.99 인 score`)
+  console.log(`  ※ "이 score 면 절반/대부분/거의 확실히 클리어" 라는 임계`)
+  for (const fkey of ['exist', 'new', 'v3'] as const) {
+    const label = fkey === 'exist' ? '기존공식 (atk+def)' : fkey === 'new' ? '신규공식 (atk+def)' : 'v3 공식 (atk+def)'
+    const scores = scoreByFormula[fkey]
+    logisticReport(label, scores, cleared01)
+  }
+
+  console.log(`\n## 챕터별 도달 임계 — 챕터 ≥ N 도달한 캐릭터의 score 분포 (기존공식)`)
+  console.log(`  도달챕터 ≥  | n     | ${PCT_LABEL.map((l) => l.padStart(7)).join(' | ')}`)
+  console.log('  ----------+-------+' + '---------+'.repeat(PCT.length))
+  for (let chMin = 1; chMin <= 10; chMin++) {
+    const sub = samples.filter((s) => s.reachedChapter >= chMin)
+    reportPercentile(`챕터 ≥ ${chMin}`, sub.map((s) => s.exist_atk + s.exist_def))
+  }
+
+  console.log(`\n## 챕터별 도달 임계 — v3 공식`)
+  console.log(`  도달챕터 ≥  | n     | ${PCT_LABEL.map((l) => l.padStart(7)).join(' | ')}`)
+  console.log('  ----------+-------+' + '---------+'.repeat(PCT.length))
+  for (let chMin = 1; chMin <= 10; chMin++) {
+    const sub = samples.filter((s) => s.reachedChapter >= chMin)
+    reportPercentile(`챕터 ≥ ${chMin}`, sub.map((s) => s.v3_atk + s.v3_def))
+  }
+
+  // atk only / def only — 공격력만, 방어력만 임계
+  console.log(`\n## atk-only 임계 (클리어한 캐릭터의 atk 분포)`)
+  console.log(`  공식                  | n     | ${PCT_LABEL.map((l) => l.padStart(7)).join(' | ')}`)
+  console.log('  ----------------------+-------+' + '---------+'.repeat(PCT.length))
+  for (const fkey of ['exist', 'new', 'v3'] as const) {
+    const label = fkey === 'exist' ? '기존공식 atk' : fkey === 'new' ? '신규공식 atk' : 'v3 공식 atk'
+    const cleared = samples.filter((s) => s.cleared > 0.5)
+    const arr = cleared.map((s) => fkey === 'exist' ? s.exist_atk : fkey === 'new' ? s.new_atk : s.v3_atk)
+    reportPercentile(label, arr)
+  }
+
+  console.log(`\n## def-only 임계 (클리어한 캐릭터의 def 분포)`)
+  console.log(`  공식                  | n     | ${PCT_LABEL.map((l) => l.padStart(7)).join(' | ')}`)
+  console.log('  ----------------------+-------+' + '---------+'.repeat(PCT.length))
+  for (const fkey of ['exist', 'new', 'v3'] as const) {
+    const label = fkey === 'exist' ? '기존공식 def' : fkey === 'new' ? '신규공식 def' : 'v3 공식 def'
+    const cleared = samples.filter((s) => s.cleared > 0.5)
+    const arr = cleared.map((s) => fkey === 'exist' ? s.exist_def : fkey === 'new' ? s.new_def : s.v3_def)
+    reportPercentile(label, arr)
+  }
+
+  console.log(`\n## 로지스틱 임계 — atk-only / def-only`)
+  for (const fkey of ['exist', 'new', 'v3'] as const) {
+    const lbl = fkey === 'exist' ? '기존' : fkey === 'new' ? '신규' : 'v3 '
+    const atkScores = samples.map((s) => fkey === 'exist' ? s.exist_atk : fkey === 'new' ? s.new_atk : s.v3_atk)
+    const defScores = samples.map((s) => fkey === 'exist' ? s.exist_def : fkey === 'new' ? s.new_def : s.v3_def)
+    logisticReport(`${lbl} atk-only`, atkScores, cleared01)
+    logisticReport(`${lbl} def-only`, defScores, cleared01)
   }
 
   // 도달 챕터별 평균 표시값 (각 공식)

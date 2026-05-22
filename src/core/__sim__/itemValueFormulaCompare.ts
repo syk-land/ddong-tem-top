@@ -27,6 +27,13 @@ import {
   createCombatContext, makeMonster, advanceTick, checkActionReady,
   monsterAttack, consumeAction, playerBasicAttack,
 } from '../combat'
+import { withSeededRng } from './_seededRng'
+import {
+  pearson, spearman, auc,
+  bootstrapCI, pairedBootstrapDiff,
+  pearsonStat, spearmanStat, aucStat,
+  fmtCI,
+} from './_stats'
 import { computeEffectiveStats } from '../stats'
 import { useSkill, pickAutoAction } from '../skills'
 import { rollItem } from '../items'
@@ -223,42 +230,7 @@ function simBossFight(c: Character, chapter: number): boolean {
   return ctx.victory
 }
 
-function pearson(xs: number[], ys: number[]): number {
-  const n = xs.length
-  const mx = xs.reduce((a, b) => a + b, 0) / n
-  const my = ys.reduce((a, b) => a + b, 0) / n
-  let num = 0, dx = 0, dy = 0
-  for (let i = 0; i < n; i++) {
-    num += (xs[i] - mx) * (ys[i] - my); dx += (xs[i] - mx) ** 2; dy += (ys[i] - my) ** 2
-  }
-  return num / Math.sqrt(dx * dy || 1)
-}
-function spearman(xs: number[], ys: number[]): number {
-  function ranks(arr: number[]): number[] {
-    const idx = arr.map((v, i) => ({ v, i })).sort((a, b) => a.v - b.v)
-    const r = new Array(arr.length).fill(0)
-    for (let i = 0; i < idx.length; i++) r[idx[i].i] = i + 1
-    return r
-  }
-  return pearson(ranks(xs), ranks(ys))
-}
-// AUC: score 가 binary cleared 를 얼마나 잘 분류하는가
-function auc(scores: number[], labels: number[]): number {
-  // label = 1 (clear) vs 0 (fail). 단순 정의: 무작위 positive > negative 확률
-  const pos: number[] = [], neg: number[] = []
-  for (let i = 0; i < scores.length; i++) {
-    if (labels[i] > 0.5) pos.push(scores[i])
-    else neg.push(scores[i])
-  }
-  if (pos.length === 0 || neg.length === 0) return 0.5
-  let wins = 0, total = 0
-  for (const p of pos) for (const n of neg) {
-    if (p > n) wins += 1
-    else if (p === n) wins += 0.5
-    total += 1
-  }
-  return wins / total
-}
+// 통계 — _stats.ts 사용
 
 interface Sample {
   scores: { atk: number; def: number }[]   // 6 공식, 순서 = LABELS
@@ -276,9 +248,13 @@ const FORMULA_LABELS = [
 ]
 
 function run() {
-  const SAMPLES = 500
-  const BOSS_FIGHTS = 5
-  console.log(`\n=== 6 공식 정확도 비교 — ${SAMPLES} 캐릭터 × ${BOSS_FIGHTS} 보스전 ===\n`)
+  const SAMPLES = parseInt(process.env.SAMPLES || '500')
+  const BOSS_FIGHTS = parseInt(process.env.BOSS_FIGHTS || '5')
+  const BOOTS = parseInt(process.env.BOOTS || '1000')
+  const CRN = process.env.CRN !== '0'
+  const SEED_BASE = parseInt(process.env.SEED || '1')
+  console.log(`\n=== 6 공식 정확도 비교 — ${SAMPLES} 캐릭터 × ${BOSS_FIGHTS} 보스전 ===`)
+  console.log(`    CRN=${CRN ? 'ON' : 'OFF'} (seed base ${SEED_BASE}), Bootstrap=${BOOTS}\n`)
   console.log(`Ground truth: 각 캐릭터 ${BOSS_FIGHTS} 보스전 승률`)
   console.log(`Score: (atk + def) per-tick`)
   console.log(`조건: 스탯 60~200pt / MP 무한 / 마법무기→로브or빛나는 / 챕터=등급별 적정\n`)
@@ -286,7 +262,7 @@ function run() {
   const samples: Sample[] = []
   const t0 = Date.now()
 
-  for (let i = 0; i < SAMPLES; i++) {
+  function evalOne(i: number): Sample {
     const g = GRADES[i % GRADES.length]
     const chapter = GRADE_CHAPTER[g]
     const stats = randomStats()
@@ -309,14 +285,14 @@ function run() {
     }
     // 2) 신규공식
     const f2 = newFormulaPerTick(c, chapter)
-    // 3~6) 100/1000/10000/100000틱 측정 (한 번에 체크포인트 4개)
+    // 3~6) 100/1000/10000/100000틱 측정
     const meas = measureAtCheckpoints(c, chapter)
     const f3 = { atk: meas.atkAt[100] ?? 0, def: meas.defAt[100] ?? 0 }
     const f4 = { atk: meas.atkAt[1000] ?? 0, def: meas.defAt[1000] ?? 0 }
     const f5 = { atk: meas.atkAt[10000] ?? 0, def: meas.defAt[10000] ?? 0 }
     const f6 = { atk: meas.atkAt[100000] ?? 0, def: meas.defAt[100000] ?? 0 }
 
-    // Ground truth — 보스전 5회
+    // Ground truth — 보스전 N회
     let wins = 0
     for (let f = 0; f < BOSS_FIGHTS; f++) {
       const cFresh = makeChar(stats, w, a)
@@ -324,24 +300,52 @@ function run() {
     }
     const winRate = wins / BOSS_FIGHTS
 
-    samples.push({
+    return {
       scores: [f1, f2, f3, f4, f5, f6],
       winRate,
       cleared: winRate >= 0.5 ? 1 : 0,
-    })
+    }
+  }
+
+  for (let i = 0; i < SAMPLES; i++) {
+    const s = CRN ? withSeededRng(SEED_BASE + i, () => evalOne(i)) : evalOne(i)
+    samples.push(s)
     if ((i + 1) % 50 === 0) process.stdout.write(`  진행 ${i + 1}/${SAMPLES} (${((Date.now() - t0) / 1000).toFixed(0)}s)\r`)
   }
   console.log(`\n  소요 ${((Date.now() - t0) / 1000).toFixed(1)}s`)
 
-  // 각 공식별 정확도
-  console.log(`\n## Pearson r (score = atk + def → 승률)`)
+  // 각 공식별 정확도 — Bootstrap 95% CI
+  const wrArr = samples.map((s) => s.winRate)
+  const clArr = samples.map((s) => s.cleared)
+  const scoresByFormula: number[][] = []
   for (let f = 0; f < 6; f++) {
-    const scores = samples.map((s) => s.scores[f].atk + s.scores[f].def)
-    const wr = samples.map((s) => s.winRate)
-    const p = pearson(scores, wr)
-    const sp = spearman(scores, wr)
-    const au = auc(scores, samples.map((s) => s.cleared))
-    console.log(`  ${FORMULA_LABELS[f]} | Pearson ${p.toFixed(3)} | Spearman ${sp.toFixed(3)} | AUC ${au.toFixed(3)}`)
+    scoresByFormula.push(samples.map((s) => s.scores[f].atk + s.scores[f].def))
+  }
+
+  console.log(`\n## 정확도 (score = atk + def vs 승률 / 클리어)  — 95% CI, ${BOOTS} bootstrap`)
+  console.log(`공식             | Pearson r                 | Spearman ρ                | AUC`)
+  console.log('-----------------+---------------------------+---------------------------+---------------------------')
+  for (let f = 0; f < 6; f++) {
+    const scores = scoresByFormula[f]
+    const pCI = bootstrapCI(samples.length, pearsonStat(scores, wrArr), { nBoot: BOOTS, seed: 1 })
+    const sCI = bootstrapCI(samples.length, spearmanStat(scores, wrArr), { nBoot: BOOTS, seed: 2 })
+    const aCI = bootstrapCI(samples.length, aucStat(scores, clArr), { nBoot: BOOTS, seed: 3 })
+    console.log(`${FORMULA_LABELS[f]} | ${fmtCI(pCI).padStart(25)} | ${fmtCI(sCI).padStart(25)} | ${fmtCI(aCI).padStart(25)}`)
+  }
+
+  // Paired diff — 같은 캐릭터에 대한 공식 간 차이 (CRN ON 시 효과 큼)
+  console.log(`\n## 공식 간 차이 — paired bootstrap (ΔPearson r vs 승률)`)
+  console.log(`비교                         | ΔPearson r`)
+  console.log('-----------------------------+---------------------------')
+  // 기존공식(0) 을 baseline 으로 다른 공식들과 비교
+  for (let f = 1; f < 6; f++) {
+    const d = pairedBootstrapDiff(
+      samples.length,
+      pearsonStat(scoresByFormula[f], wrArr),
+      pearsonStat(scoresByFormula[0], wrArr),
+      { nBoot: BOOTS, seed: 100 + f },
+    )
+    console.log(`  ${FORMULA_LABELS[f]}  − 기존공식 | ${fmtCI(d).padStart(25)}`)
   }
 
   // atk only / def only 도 비교 (어느 게 더 클리어 결정적인지)
