@@ -293,8 +293,11 @@ interface Sample {
   new_def: number
   v3_atk: number
   v3_def: number
-  maxHp: number            // 체력 stat 반영된 maxHp
+  maxHp: number
   maxMp: number
+  isRanged: number         // 0 or 1
+  isMagic: number          // 0 or 1
+  defPct: number           // 0~0.99 actual def percentage
 }
 
 function autoplayAndEval(): Sample | null {
@@ -333,12 +336,23 @@ function autoplayAndEval(): Sample | null {
     if (!died) { c.hp = c.maxHp; c.mp = c.maxMp; c.statuses = []; c.actionGauge = 0 }
   }
   if (!c.weapon || !c.armor) return null
+  const wbase = WEAPONS[c.weapon.baseKey]
+  const abase = ARMORS[c.armor.baseKey as keyof typeof ARMORS]
+  const aTrait = ARMOR_TRAITS[c.armor.trait]
   // 표시값 계산 — 종료 시점 장비 + 캐릭터 스탯, 챕터는 도달 챕터 기준
   const chForCalc = reachedChapter
   const wExist = computeItemValue(c.weapon, c, { chapter: chForCalc })
   const aExist = computeItemValue(c.armor, c, { chapter: chForCalc })
   const fNew = formulaNew(c, chForCalc)
   const fV3 = formulaV3(c, chForCalc)
+  // defPct 계산 (formula 외부에서도 직접 사용 가능하도록)
+  let defPct = 0
+  if (abase && aTrait) {
+    const defPctTrait = (aTrait.effects.방어력_pct ?? 0) + (aTrait.effects.전스탯_pct ?? 0)
+    const armorDef = abase.baseDef * c.armor.coef * (1 + defPctTrait)
+    const hpDef = c.stats.체력 * 0.3 * c.armor.coef
+    defPct = clampN(armorDef + hpDef, 0, 99) / 100
+  }
   return {
     reachedChapter,
     cleared: died ? 0 : 1,
@@ -348,6 +362,9 @@ function autoplayAndEval(): Sample | null {
     v3_atk: fV3.atk, v3_def: fV3.def,
     maxHp: c.maxHp,
     maxMp: c.maxMp,
+    isRanged: wbase?.category === 'ranged' ? 1 : 0,
+    isMagic: wbase?.isMagic ? 1 : 0,
+    defPct,
   }
 }
 
@@ -581,15 +598,119 @@ function run() {
     console.log(`  ${v.name}  AUC ${a.toFixed(3)} | Pearson ${pc.toFixed(3)}`)
   }
 
-  // 비교 최종 — 모든 공식 AUC 한 줄
-  console.log(`\n## 최종 비교 (AUC vs cleared)`)
-  console.log(`  기존공식 (현재 UI)             : AUC 0.978`)
-  console.log(`  신규공식 (raw atk+def)         : AUC 0.930`)
-  console.log(`  v3공식  (raw atk+def)          : AUC 0.917`)
-  console.log(`  신규공식 v4 (atk + def×${bN.k})  : AUC ${bN.auc.toFixed(3)} ${bN.auc >= 0.978 ? '✅ 1등' : ''}`)
-  console.log(`  v3공식  v4 (atk + def×${bV.k})   : AUC ${bV.auc.toFixed(3)} ${bV.auc >= 0.978 ? '✅ 1등' : ''}`)
-  console.log(`  v5 신규 +HP                    : AUC ${v5N.auc.toFixed(3)} ${v5N.auc >= 0.978 ? '✅ 1등' : ''}`)
-  console.log(`  v5 v3   +HP                    : AUC ${v5V.auc.toFixed(3)} ${v5V.auc >= 0.978 ? '✅ 1등' : ''}`)
+  // ── v6: 4 변수 (atk + def + maxHp + maxMp) + 카테고리 보너스 ──
+  console.log(`\n## v6 공식 — atk × (1+ranged_bonus) + def×K + maxHp×M + maxMp×P`)
+  function search4D(): { K: number; M: number; P: number; R: number; auc: number; pearson: number } {
+    let best = { K: 0, M: 0, P: 0, R: 0, auc: 0, pearson: 0 }
+    const KS = [30, 50, 70, 100]
+    const MS = [0.02, 0.04, 0.06, 0.10]
+    const PS = [0, 0.005, 0.01, 0.02, 0.05]
+    const RS = [0, 0.10, 0.20, 0.30]  // ranged bonus
+    for (const K of KS) for (const M of MS) for (const P of PS) for (const R of RS) {
+      const scores = samples.map((s) => {
+        const cat = 1 + R * s.isRanged
+        return s.new_atk * cat + s.new_def * K + s.maxHp * M + s.maxMp * P
+      })
+      const au = auc(scores, labels)
+      if (au > best.auc) best = { K, M, P, R, auc: au, pearson: pearson(scores, chaptersArr) }
+    }
+    return best
+  }
+  const v6 = search4D()
+  console.log(`  v6 = atk × (1+${v6.R}×ranged) + def×${v6.K} + maxHp×${v6.M.toFixed(3)} + maxMp×${v6.P.toFixed(3)}`)
+  console.log(`     → AUC ${v6.auc.toFixed(3)} | Pearson ${v6.pearson.toFixed(3)}`)
+
+  // ── v7: 곱셈형 (effective HP) 시너지 ──
+  console.log(`\n## v7 — 곱셈형 / Effective HP / 비선형`)
+  const v7variants: { name: string; score: (s: Sample) => number }[] = [
+    { name: 'atk + maxHp / (1 - defPct)        ', score: (s) => s.new_atk + s.maxHp / Math.max(0.01, 1 - s.defPct) * 0.04 },
+    { name: 'atk × (maxHp × (1 + def×30)) / 100', score: (s) => s.new_atk * s.maxHp * (1 + s.new_def * 30) / 100 },
+    { name: '(atk + def×50) + EHP×0.04          ', score: (s) => (s.new_atk + s.new_def * 50) + (s.maxHp / Math.max(0.01, 1 - s.defPct)) * 0.04 },
+    { name: 'log(atk × EHP)                     ', score: (s) => Math.log(Math.max(0.01, s.new_atk * s.maxHp / Math.max(0.01, 1 - s.defPct))) },
+    { name: 'atk + def×50 + HP×0.04 + ranged×3 ', score: (s) => s.new_atk + s.new_def * 50 + s.maxHp * 0.04 + s.isRanged * 3 },
+    { name: 'v5 + 마법 부족 페널티               ', score: (s) => {
+      const base = s.new_atk + s.new_def * 50 + s.maxHp * 0.04
+      const magicPenalty = s.isMagic && s.maxMp < 200 ? 0.85 : 1.0
+      return base * magicPenalty
+    } },
+  ]
+  for (const v of v7variants) {
+    const scores = samples.map(v.score)
+    const a = auc(scores, labels)
+    const pc = pearson(scores, chaptersArr)
+    console.log(`  ${v.name}  AUC ${a.toFixed(3)} | Pearson ${pc.toFixed(3)}`)
+  }
+
+  // ── v8: EHP (Effective HP) 정제 — atk × HP × def_mult 변형들 ──
+  console.log(`\n## v8 — Effective HP 변형 (EHP = maxHp / (1 - defPct))`)
+  function ehp(s: Sample): number {
+    return s.maxHp / Math.max(0.01, 1 - s.defPct)
+  }
+  // 1) 가중 거듭제곱 grid search — atk^α × ehp^β
+  console.log(`  거듭제곱 grid: atk^α × EHP^β`)
+  let bestPow = { a: 0, b: 0, auc: 0, pearson: 0 }
+  for (let a = 0.3; a <= 1.6; a += 0.1) {
+    for (let b = 0.3; b <= 1.6; b += 0.1) {
+      const scores = samples.map((s) => Math.pow(Math.max(0.01, s.new_atk), a) * Math.pow(Math.max(0.01, ehp(s)), b))
+      const au = auc(scores, labels)
+      if (au > bestPow.auc) bestPow = { a, b, auc: au, pearson: pearson(scores, chaptersArr) }
+    }
+  }
+  console.log(`    best: atk^${bestPow.a.toFixed(1)} × EHP^${bestPow.b.toFixed(1)} → AUC ${bestPow.auc.toFixed(3)} | Pearson ${bestPow.pearson.toFixed(3)}`)
+
+  // 2) atk × (maxHp + K × def 기여) — 선형 EHP 근사
+  console.log(`  선형 EHP 근사 — atk × (maxHp + K × maxHp × defPct)`)
+  let bestLin = { K: 0, auc: 0, pearson: 0 }
+  for (const K of [0, 0.5, 1, 1.5, 2, 3, 5, 8, 12, 20]) {
+    const scores = samples.map((s) => s.new_atk * (s.maxHp + K * s.maxHp * s.defPct))
+    const au = auc(scores, labels)
+    if (au > bestLin.auc) bestLin = { K, auc: au, pearson: pearson(scores, chaptersArr) }
+  }
+  console.log(`    best: atk × maxHp × (1 + ${bestLin.K} × defPct) → AUC ${bestLin.auc.toFixed(3)} | Pearson ${bestLin.pearson.toFixed(3)}`)
+
+  // 3) log 분해: α log(atk) + β log(maxHp) + γ log(EHP/maxHp)
+  console.log(`  log 분해 — α·log(atk) + β·log(maxHp) + γ·log(1/(1-def))`)
+  let bestLog = { a: 0, b: 0, g: 0, auc: 0, pearson: 0 }
+  for (let a = 0.5; a <= 2.0; a += 0.25) {
+    for (let b = 0.5; b <= 2.0; b += 0.25) {
+      for (let g = 0; g <= 2.0; g += 0.25) {
+        const scores = samples.map((s) => {
+          return a * Math.log(Math.max(0.01, s.new_atk))
+               + b * Math.log(Math.max(0.01, s.maxHp))
+               + g * Math.log(Math.max(1.01, 1 / Math.max(0.01, 1 - s.defPct)))
+        })
+        const au = auc(scores, labels)
+        if (au > bestLog.auc) bestLog = { a, b, g, auc: au, pearson: pearson(scores, chaptersArr) }
+      }
+    }
+  }
+  console.log(`    best: ${bestLog.a}·log(atk) + ${bestLog.b}·log(HP) + ${bestLog.g}·log(1/(1-def)) → AUC ${bestLog.auc.toFixed(3)} | Pearson ${bestLog.pearson.toFixed(3)}`)
+
+  // 4) v9 — Pearson 도 같이 최적화 (AUC × 0.5 + Pearson × 0.5)
+  console.log(`  v9 — atk × HP^α × (1+def×K)^γ 종합 최적화`)
+  let bestV9 = { a: 0, K: 0, g: 0, auc: 0, pearson: 0, combined: 0 }
+  for (let a = 0.6; a <= 1.4; a += 0.1) {
+    for (const K of [10, 20, 30, 50, 80]) {
+      for (let g = 0.3; g <= 1.5; g += 0.2) {
+        const scores = samples.map((s) => s.new_atk * Math.pow(s.maxHp, a) * Math.pow(1 + s.new_def * K, g))
+        const au = auc(scores, labels)
+        const pc = pearson(scores, chaptersArr)
+        const comb = au * 0.5 + Math.abs(pc) * 0.5
+        if (comb > bestV9.combined) bestV9 = { a, K, g, auc: au, pearson: pc, combined: comb }
+      }
+    }
+  }
+  console.log(`    best: atk × HP^${bestV9.a.toFixed(1)} × (1+def×${bestV9.K})^${bestV9.g.toFixed(1)} → AUC ${bestV9.auc.toFixed(3)} | Pearson ${bestV9.pearson.toFixed(3)}`)
+
+  // 비교 최종
+  console.log(`\n## 최종 비교 (AUC | Pearson)`)
+  console.log(`  기존공식 (현재 UI)              : 0.978 | 0.682`)
+  console.log(`  v5 (atk + def×50 + HP×0.04)    : ${v5N.auc.toFixed(3)} | ${v5N.pearson.toFixed(3)}`)
+  console.log(`  v6 (+ MP, ranged)              : ${v6.auc.toFixed(3)} | ${v6.pearson.toFixed(3)}`)
+  console.log(`  v8 거듭제곱 (atk^${bestPow.a.toFixed(1)}×EHP^${bestPow.b.toFixed(1)}) : ${bestPow.auc.toFixed(3)} | ${bestPow.pearson.toFixed(3)}`)
+  console.log(`  v8 선형 EHP 근사 K=${bestLin.K}        : ${bestLin.auc.toFixed(3)} | ${bestLin.pearson.toFixed(3)}`)
+  console.log(`  v8 log 분해                     : ${bestLog.auc.toFixed(3)} | ${bestLog.pearson.toFixed(3)}`)
+  console.log(`  v9 종합 최적화                  : ${bestV9.auc.toFixed(3)} | ${bestV9.pearson.toFixed(3)}`)
 }
 
 if (typeof process !== 'undefined' && process.argv?.[1]?.includes('formulaAccuracyByRun')) {
