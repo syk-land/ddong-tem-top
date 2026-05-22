@@ -1,9 +1,12 @@
-// 아이템 전투력(공) / 전투력(방) — v5 공식 (자동플레이 시뮬 검증 AUC 0.982 / Pearson 0.804)
+// 아이템 전투력(공) / 전투력(방) — v5 v3 공식 (자동플레이 시뮬 검증 AUC 0.989 / Pearson 0.820)
 //
-// 종합 점수: atk + def × 50 + maxHp × 0.04
-//   - atk = per-tick DPS (현재 챕터의 일반 몬스터 baseline)
+// 종합 점수: atk_v3 + def × 50 + maxHp × 0.02
+//   - atk_v3 = per-tick DPS × MP게이팅 × 속도안정성 × 명중안정성 (chapter-relative)
+//       · MP 게이팅 = maxMp / (희망 스킬 발동 × mp 비용)  [마법무기 only, 최대 1.0]
+//       · 속도 안정성 = 1 − clamp((wticks − 8) × 0.030, 0, 0.25)   [느린무기 페널티]
+//       · 명중 안정성 = 1 + max(0, accBonus) × 0.012             [명중 보너스 가점]
 //   - def = per-tick 데미지 감소량 × DEF_SCALE(=50)
-//   - maxHp 기여 = maxHp × HP_FACTOR(=0.04) → 갑옷의 defValue 에 합산
+//   - maxHp 기여 = maxHp × HP_FACTOR(=0.02) → 갑옷의 defValue 에 합산
 //
 // 전투력(공) [무기]: 평균 DPS 추정치 (chapter-relative)
 //   atk = physStat × baseAtk × coef × (1+trait_pct) × 3.0          # 마법: 마력 × ... × 1.5 × magicSynergy
@@ -25,14 +28,15 @@ import type { ItemInstance, Character } from '@/types'
 import { WEAPONS } from '@/data/weapons'
 import { ARMORS } from '@/data/armor'
 import { WEAPON_TRAITS, ARMOR_TRAITS } from '@/data/traits'
+import { SKILLS } from '@/data/skills'
 
 const DEFAULT_STATS = { 힘: 12, 민첩: 12, 체력: 12, 마력: 12, 행운: 12 }
 const DEFAULT_CHAPTER = 5
 
-// v5 공식 상수 (자동플레이 시뮬 검증)
-//   total_score = atk + def × 50 + maxHp × 0.04
+// v5 v3 공식 상수 (자동플레이 시뮬 검증, BUILD_LOCK ON, n=47k)
+//   total_score = atk_v3 + def × 50 + maxHp × 0.02
 const DEF_SCALE = 50
-const HP_FACTOR = 0.04
+const HP_FACTOR = 0.02
 
 // v9 스킬 multiplier — skills.ts 와 동기화
 const SKILL_ATK_MULT: Record<string, { mult: number; magic: boolean; note?: string }> = {
@@ -152,13 +156,37 @@ function computeWeaponValue(
   const gaugePerTick = (1 + stats.민첩 / 100) * (1 + wSpeedPct + aSpeedPct) * armorSpeed
   const attacksPerTick = gaugePerTick / ticks
 
-  // ── DPS ──
-  const dps = avgHit * critBoost * attacksPerTick
+  // ── DPS (v3 보정 전 raw) ──
+  const dpsRaw = avgHit * critBoost * attacksPerTick
+
+  // ── v3 보정 ──
+  // 1) MP 게이팅 — 마법무기에서 maxMp 가 부족하면 스킬 발동 빈도 다 못 씀
+  let mpDiscount = 1.0
+  if (base.isMagic && skillKey && skillInfo) {
+    const skill = SKILLS[skillKey]
+    if (skill && skill.mp > 0) {
+      const FIGHT_TICKS = 200
+      const wantSkillUses = attacksPerTick * FIGHT_TICKS * procRate
+      let mpCost = skill.mp
+      if ((skill.kind === 'magic_atk' || skill.kind === 'magic_def') && base.isMagic) {
+        mpCost = Math.max(0, mpCost + (base.mpBonus ?? 0))
+      }
+      const mpNeed = wantSkillUses * mpCost
+      const maxMp = stats.마력 * 15 + 30
+      mpDiscount = mpNeed > maxMp ? maxMp / Math.max(1, mpNeed) : 1.0
+    }
+  }
+  // 2) 속도 안정성 — wticks > 8 페널티 (느린 무기)
+  const stability = 1 - Math.min(0.25, Math.max(0, (ticks - 8) * 0.030))
+  // 3) 명중 안정성 — accBonus 양수 가점
+  const accStability = 1 + Math.max(0, base.accBonus ?? 0) * 0.012
+
+  const dps = dpsRaw * mpDiscount * stability * accStability
 
   atkParts.push({
     label: `예상 DPS (적 def ${enemyDef.toFixed(0)}% / eva ${enemyEva}, ch${chapter})`,
     value: dps,
-    note: `atk ${totalAtk.toFixed(0)} × hit ${(hitRate * 100).toFixed(0)}% × ${attacksPerTick.toFixed(3)}/틱${magicSynergy !== 1 ? ' × 로브시너지 1.5' : ''}${base.category === 'ranged' ? ' (활: 힘+민첩×0.3)' : ''}`,
+    note: `atk ${totalAtk.toFixed(0)} × hit ${(hitRate * 100).toFixed(0)}% × ${attacksPerTick.toFixed(3)}/틱${magicSynergy !== 1 ? ' × 로브시너지 1.5' : ''}${base.category === 'ranged' ? ' (활: 힘+민첩×0.3)' : ''}${mpDiscount < 0.99 ? ` · MP게이팅 ×${mpDiscount.toFixed(2)}` : ''}${stability < 0.99 ? ` · 속도페널티 ×${stability.toFixed(2)}` : ''}${accStability > 1.01 ? ` · 명중보너스 ×${accStability.toFixed(2)}` : ''}`,
   })
   // 스킬 가중치 / 크리 보정은 메인 DPS 에 이미 포함되어 있음 — 정보용으로만 value=0
   if (skillInfo) {

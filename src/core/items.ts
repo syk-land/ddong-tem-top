@@ -172,8 +172,8 @@ export function rollItem(opts: RollOptions): ItemInstance {
     throw new Error(`Unknown ${kind} trait: ${traitName}`)
   }
 
-  // 4) 등급 coef — 고정 (v5: 1 / 2 / 4 / 6)
-  const coef = GRADE_COEF[grade]
+  // 4) 등급 coef — 등급별 기준값 ± 0.2 균등 굴림 (같은 등급 내 운빨)
+  const coef = GRADE_COEF[grade] + randFloat(-0.2, 0.2)
 
   // 5) 효과 스케일링
   const effects = scaleEffects(traitDef.effects, coef, traitDef)
