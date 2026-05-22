@@ -81,10 +81,13 @@
 - **자동 위임 (중간 페이지)**: 중간 페이지에서도 타겟이 버튼이면 클릭 시 `target.click()`
   먼저 실행한 뒤 다음 페이지로 진행 — 예: `creation_intro` p1 의 "주사위 굴리기"
   버튼을 누르면 실제로 한 번 굴리고 페이지 2 (챌린지 선택) 로 넘어감
-- **자동 스크롤 (강제)**: `recompute` 가 타겟 중앙 Y 가 viewport 중앙 ±25% 안에
-  있지 않으면 `el.scrollIntoView({ behavior: 'smooth', block: 'center' })` 강제
-  실행 → 보너스 분배 패널처럼 화면 끝쪽에 붙은 영역도 항상 정확히 가운데로 (360ms
-  스크롤 애니메이션 후 좌표 재측정)
+- **자동 스크롤 (모드별)**:
+  - `scrollMode: 'center'` (기본) — 타겟 중앙 Y 가 viewport 중앙 ±25% 안에 없으면
+    `block: 'center'` 로 강제 스크롤
+  - `scrollMode: 'end'` — 타겟 하단이 viewport 하단 80% ~ 100% 안에 없으면
+    `block: 'end'` 로 스크롤. 페이지 최 하단까지 내려가서 안내해야 할 때
+    (예: `meta_creation` 의 누적 보너스 분배 패널 — 페이지 끝에 위치)
+  - 360ms 스크롤 애니메이션 후 정확한 좌표 재측정
 - **학습 사이클 — 인벤 → 상태창**: `InventoryModal` 의 `props.open` watcher 가
   닫힘 시점에 `first_inventory` 가 이미 마킹됐다면 자동으로 `prompt_status` 트리거 →
   던전의 "상태" 버튼을 가리킴 → CTA "상태" 클릭 위임으로 상태 모달 열기 →

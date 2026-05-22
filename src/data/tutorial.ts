@@ -17,6 +17,10 @@ export interface TutorialPage {
   // 없으면 화면 중앙에 정적 카드. 있으면 그 요소 근처로 동적 배치 +
   // 방향 화살표 + 시안 ring 스포트라이트 + 위·아래 부유 애니메이션.
   target?: string
+  // 자동 스크롤 위치 — 'center' (기본): 타겟이 viewport 중앙.
+  //                'end':            타겟의 하단이 viewport 의 하단에 닿음
+  //                                  (예: 누적 보너스 분배 패널 — 페이지 최 하단으로)
+  scrollMode?: 'center' | 'end'
 }
 
 export interface TutorialStepDef {
@@ -218,6 +222,7 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
           '지난 등반의 결과로 누적 보너스가 생겼어요.\n캐릭터 생성에서 원하는 스탯에 자유롭게 분배할 수 있습니다.\n분배해도 보너스 풀은 차감되지 않아요 — 매번 같은 풀로 새로 분배.',
         hint: '받은 힘이 너의 안에 쌓이고 있다.',
         target: '[data-tutorial-target="bonus-alloc"]',
+        scrollMode: 'end',
       },
     ],
   },

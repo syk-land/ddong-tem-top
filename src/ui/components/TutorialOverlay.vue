@@ -44,15 +44,27 @@ async function recompute() {
     cardPos.value = null
     return
   }
-  // 자동 스크롤: 타겟이 viewport 중앙 근처(상하 ±25% 안) 가 아니면 가운데로 끌어옴.
-  // 화면 부분 가시여도 강제 스크롤 — 보너스 패널처럼 아래쪽 끝에 붙은 영역도 정확히 가운데로.
+  // 자동 스크롤
+  //   scrollMode: 'end' — 타겟의 하단을 viewport 의 하단에 맞춤. 페이지 최 하단까지
+  //                       내려가서 안내해야 할 때 (예: 누적 보너스 분배 패널).
+  //   scrollMode: 'center' (기본) — 타겟 중앙 Y 가 viewport 중앙 ±25% 안에 없으면
+  //                                 강제로 가운데로 끌어옴.
+  const scrollMode = p.scrollMode ?? 'center'
   const pre = el.getBoundingClientRect()
-  const centerY = pre.top + pre.height / 2
-  const idealLow = window.innerHeight * 0.25
-  const idealHigh = window.innerHeight * 0.75
-  const needScroll = centerY < idealLow || centerY > idealHigh
+  let needScroll = false
+  if (scrollMode === 'end') {
+    // 타겟 하단이 viewport 의 하단 80% ~ 100% 안에 있지 않으면 스크롤
+    needScroll = pre.bottom < window.innerHeight * 0.8 || pre.bottom > window.innerHeight
+  } else {
+    const centerY = pre.top + pre.height / 2
+    needScroll = centerY < window.innerHeight * 0.25 || centerY > window.innerHeight * 0.75
+  }
   if (needScroll) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+    el.scrollIntoView({
+      behavior: 'smooth',
+      block: scrollMode === 'end' ? 'end' : 'center',
+      inline: 'nearest',
+    })
     // 스크롤 애니메이션 후 정확한 좌표 재측정
     await new Promise((r) => setTimeout(r, 360))
   }
