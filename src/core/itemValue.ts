@@ -280,6 +280,10 @@ function computeArmorValue(
   // 적 per-tick 데미지 — 회피·방어 모두 무시한 raw 베이스라인.
   // (= 사용자가 어떤 갑옷도 입지 않았을 때의 최악 데미지)
   const enemyDmgFull = enemyAtk / enemyTicks
+  // enemyDmgPerTick — 회피만 반영된 적 dmg/tick. 자동 반응/피격 회복/저주 등
+  // "피격당 발동" 효과들이 실제로 맞는 빈도 × 위력 기준이라 회피는 반영해야 함.
+  // (이후 코드에서 그대로 사용)
+  const enemyDmgPerTick = enemyAtk * enemyHitRate / enemyTicks
   // 실제 받는 데미지 = 회피 안 한 비율 × 방어 후 비율
   const effectiveDmg = enemyDmgFull * enemyHitRate * (1 - totalDefPct)
   // 감소량 = 회피로 피한 부분 + 방어로 막은 부분 (둘 다 갑옷의 가치)
