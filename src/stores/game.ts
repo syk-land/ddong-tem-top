@@ -210,7 +210,7 @@ export const useGameStore = defineStore('game', {
     realBossInitialMaxHp: 0,
     realBossResultRatio: 0,
     introVisible: false,
-    introPage: 0,
+    introPage: 1,
     introFlow: 'first',
     paused: false,
   }),
@@ -394,7 +394,10 @@ export const useGameStore = defineStore('game', {
       applyInstantRewards(character, cctx)
       this.challengeContext = cctx
 
-      const run = makeTowerRun(character)
+      // 첫 상점 튜토리얼을 아직 안 본 캐릭터는 챕터 1 의 1·2·3층을
+      // 일반/보물/상점 순으로 강제 (튜토리얼 학습 흐름 보장)
+      const tutorialForceFirstChapter = !this.meta.tutorialSeen.first_shop
+      const run = makeTowerRun(character, { tutorialForceFirstChapter })
       run.challengeKeys = challengeKeys
       // 선택한 아바타 — run 데이터에 보존 + reactive state
       ;(run as any).avatarKey = this.selectedAvatar
@@ -578,8 +581,13 @@ export const useGameStore = defineStore('game', {
       // 인벤토리 보유 불가 (미니멀리스트 cap 0 등)
       if (this.run.inventoryCap <= 0) return
 
-      // 첫 드랍/픽업 — 인벤토리·아이템 비교 안내 트리거
-      this.triggerTutorial('first_treasure')
+      // 튜토리얼 — 보물 노드 (강제 배치된 2층) 의 드랍에서만 first_treasure 발화.
+      // 1층 일반 몬스터 드랍은 자동 적재만 — "보물 학습"은 보물 노드를 통해 한다.
+      const ch = this.run.chapters[this.run.currentChapterIndex]
+      const floor = ch?.floors[ch?.currentFloor]
+      if (floor?.type === 'treasure') {
+        this.triggerTutorial('first_treasure')
+      }
 
       // 빈 자리 있으면 자동 적재
       if (this.run.inventory.length < this.run.inventoryCap) {
@@ -1695,10 +1703,11 @@ export const useGameStore = defineStore('game', {
 
     openIntroComic(flow: 'first' | 'replay' | 'afterRealBoss') {
       this.introFlow = flow
-      // first: page=0 (main) → 1 → 2
-      // afterRealBoss: page=1 → 2 → 3
-      // replay: page=0 → 1 → 2 (도전 미완료) / 0 → 1 → 2 → 3 (도전 완료)
-      this.introPage = flow === 'afterRealBoss' ? 1 : 0
+      // main.png 컷은 제거 — 모든 flow 가 t1(=page 1) 부터 시작.
+      //   first:         page=1 → 2
+      //   afterRealBoss: page=1 → 2 → 3
+      //   replay:        page=1 → 2  (도전 미완료) / 1 → 2 → 3 (도전 완료)
+      this.introPage = 1
       this.introVisible = true
     },
 

@@ -61,7 +61,7 @@
 
 `src/ui/components/IntroComic.vue` 의 `introFlow`:
 
-- **`first`** (최초 플레이): `main → t1 → t2 → menu` — "탑을 올라가라" 만 알려줌
+- **`first`** (최초 플레이): `t1 → t2 → menu` — "탑을 올라가라" 만 알려줌
 - **`afterRealBoss`** (진짜 보스 처치 직후): `t1 → t2 → t3 → create` — **t3에서 진실 공개**
 - **`replay`** (설정에서 다시보기): 본인이 본 만큼만 (t3 는 `realBossDefeated` 시에만)
 

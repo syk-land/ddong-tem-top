@@ -1,18 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
-import { mainImageUrl, tutorialImageUrl } from '@/ui/images'
+import { tutorialImageUrl } from '@/ui/images'
 
 const game = useGameStore()
 
-// 페이지별 이미지 URL — page 0=main, 1=t1, 2=t2, 3=t3
+// 페이지별 이미지 URL — page 1=t1, 2=t2, 3=t3 (main 컷은 제거됨)
 const imgUrl = computed(() => {
   switch (game.introPage) {
-    case 0: return mainImageUrl()
     case 1: return tutorialImageUrl(1)
     case 2: return tutorialImageUrl(2)
     case 3: return tutorialImageUrl(3)
-    default: return mainImageUrl()
+    default: return tutorialImageUrl(1)
   }
 })
 

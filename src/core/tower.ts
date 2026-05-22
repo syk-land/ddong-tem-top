@@ -10,9 +10,22 @@ export function selectThemes(): ChapterTheme[] {
 }
 
 // 1.2 챕터 이벤트 분배 (10층 셔플)
-export function generateChapterFloors(chapterIdx: number): FloorEvent[] {
+//   tutorialForceFirstChapter: 첫 캐릭터(튜토리얼 모드)일 때 챕터 1 의 1·2·3층을
+//   각각 일반 몬스터 / 보물 / 상점 으로 강제 (튜토리얼 트리거 순서와 매칭).
+//   4~9층은 통상 분배, 10층은 보스.
+export function generateChapterFloors(chapterIdx: number, opts: { tutorialForceFirstChapter?: boolean } = {}): FloorEvent[] {
   // 0-indexed chapter -> chapter number (1-10)
   const chapterNum = chapterIdx + 1
+
+  // 튜토리얼 모드 & 챕터 1 이면 1·2·3층 강제 + 나머지 6슬롯(=4~9층) 일반 몬스터 분배
+  if (opts.tutorialForceFirstChapter && chapterIdx === 0) {
+    const forced: FloorEventType[] = ['monster', 'treasure', 'shop']
+    // 4~9층 (6슬롯): 회복샘 1 + 일반 몬스터 5 (특별 이벤트는 첫 챕터에서 끄는 게 안전)
+    const rest: FloorEventType[] = ['healing_spring', 'monster', 'monster', 'monster', 'monster', 'monster']
+    const shuffledRest = shuffle(rest)
+    // 4층 이상에만 회복샘 들어가니 그대로 사용 (4~9 = idx 3~8)
+    return [...forced, ...shuffledRest, 'boss'].map((type) => ({ type, cleared: false }))
+  }
 
   // 1~9층 (마지막 10층은 보스 고정)
   const slots: FloorEventType[] = []
@@ -64,26 +77,26 @@ export function generateChapterFloors(chapterIdx: number): FloorEvent[] {
   return shuffled.map((type) => ({ type, cleared: false }))
 }
 
-export function makeChapter(chapterIdx: number, theme: ChapterTheme, isHard: boolean): ChapterState {
+export function makeChapter(chapterIdx: number, theme: ChapterTheme, isHard: boolean, opts: { tutorialForceFirstChapter?: boolean } = {}): ChapterState {
   const themeDef = CHAPTER_THEMES[theme]
   return {
     chapter: chapterIdx + 1,
     theme,
     isHard,
     themeName: isHard ? themeDef.hardName : themeDef.baseName,
-    floors: generateChapterFloors(chapterIdx),
+    floors: generateChapterFloors(chapterIdx, opts),
     currentFloor: 0,
     specialEventOccurred: false,
   }
 }
 
-export function makeTowerRun(character: Character): TowerRun {
+export function makeTowerRun(character: Character, opts: { tutorialForceFirstChapter?: boolean } = {}): TowerRun {
   const themes = selectThemes()
   const chapters: ChapterState[] = []
   // 1~5 = base, 6~10 = hard (같은 순서로 매칭)
   for (let i = 0; i < 10; i++) {
     const themeIdx = i < 5 ? i : i - 5
-    chapters.push(makeChapter(i, themes[themeIdx], i >= 5))
+    chapters.push(makeChapter(i, themes[themeIdx], i >= 5, opts))
   }
 
   return {

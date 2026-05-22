@@ -1,20 +1,21 @@
 # 인트로 만화
 
-> 게임 서사를 전달하는 4 컷 정적 만화. 첫 플레이는 표면 컨셉만, **진짜 보스 클리어 후 진실 공개**.
+> 게임 서사를 전달하는 3 컷 정적 만화. 첫 플레이는 표면 컨셉만, **진짜 보스 클리어 후 진실 공개**.
 
 코드: `src/ui/components/IntroComic.vue`, `src/stores/game.ts` (introFlow / introPage / nextIntroPage)
-이미지: `public/images/TUTORIAL/1.png`, `2.png`, `3.png` + `public/images/main.png`
+이미지: `public/images/TUTORIAL/1.png`, `2.png`, `3.png`
 
 ---
 
-## 4 페이지 구성
+## 3 페이지 구성
 
 | page | 이미지 | 내용 (서사) |
 |---|---|---|
-| 0 | `main.png` | 메인 일러스트 — 주인공이 탑을 올려다보는 표지 |
 | 1 | `TUTORIAL/1.png` | 1컷 — 똥템 탑 등반 / 시간의 신 첫 등장 |
 | 2 | `TUTORIAL/2.png` | 2컷 — 100층 도달 후 시간의 신과 조우 |
 | 3 | `TUTORIAL/3.png` | 3컷 — **진실 공개**: 진짜 보스들이 시간의 신을 공격 중, 현실로 나가야 함 |
+
+> 옛 버전엔 `main.png` 표지 컷 (page 0) 이 있었으나 제거됨. 모든 flow 는 t1 부터 시작.
 
 ---
 
@@ -24,7 +25,7 @@
 
 ### `first` — 최초 플레이
 ```
-page: 0 (main) → 1 (t1) → 2 (t2) → menu
+page: 1 (t1) → 2 (t2) → menu
 ```
 **t3 (3컷) 은 표시 안 됨.** 표면 컨셉만 전달.
 
@@ -36,7 +37,7 @@ page: 1 (t1) → 2 (t2) → 3 (t3) → create
 
 ### `replay` — 설정에서 다시 보기
 ```
-page: 0 → 1 → 2 → (3, realBossDefeated 시에만) → menu
+page: 1 → 2 → (3, realBossDefeated 시에만) → menu
 ```
 본인이 본 만큼만 다시 재생. t3 는 `meta.realBossDefeated === true` 일 때만.
 
