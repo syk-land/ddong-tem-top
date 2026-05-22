@@ -277,15 +277,23 @@ function computeArmorValue(
     + stats.민첩 * 0.5 + stats.행운 * 0.1
   const enemyHitRate = clamp((enemyAcc - playerEva) / 100, 0, 1)
 
-  // 적 per-tick dmg & 감소량
-  const enemyDmgPerTick = enemyAtk * enemyHitRate / enemyTicks
-  const reductionPerTick = enemyDmgPerTick * totalDefPct
+  // 적 per-tick 데미지 — 회피·방어 모두 무시한 raw 베이스라인.
+  // (= 사용자가 어떤 갑옷도 입지 않았을 때의 최악 데미지)
+  const enemyDmgFull = enemyAtk / enemyTicks
+  // 실제 받는 데미지 = 회피 안 한 비율 × 방어 후 비율
+  const effectiveDmg = enemyDmgFull * enemyHitRate * (1 - totalDefPct)
+  // 감소량 = 회피로 피한 부분 + 방어로 막은 부분 (둘 다 갑옷의 가치)
+  // 이전 식 (= enemyDmgPerTick × totalDefPct) 은 회피 효과가 enemyHitRate 를
+  // 낮추면 동시에 reduction 도 함께 낮춰져서 회피 트레이트가 점수를 깎는
+  // 역효과가 있었음 → 매끈한(+8 회피) T6 가 녹슨(-50% 방어) T5 보다 낮게
+  // 평가되는 모순. 회피로 피한 부분을 명시적으로 더해 정상화.
+  const reductionPerTick = enemyDmgFull - effectiveDmg
 
   // ── 메인 방어 (per-tick 감소량 × DEF_SCALE) ──
   defParts.push({
-    label: `방어 ${(totalDefPct * 100).toFixed(1)}% (적 ${enemyDmgPerTick.toFixed(2)} dmg/틱)`,
+    label: `방어 ${(totalDefPct * 100).toFixed(1)}% · 회피 ${((1 - enemyHitRate) * 100).toFixed(0)}% (적 ${enemyDmgFull.toFixed(2)} dmg/틱)`,
     value: reductionPerTick * DEF_SCALE,
-    note: `감소 ${reductionPerTick.toFixed(3)}/틱 × ${DEF_SCALE} = baseDef ${base.baseDef} × ${a.coef.toFixed(2)} × (1${defPctTrait >= 0 ? '+' : ''}${defPctTrait.toFixed(2)})${stats.체력 ? ` + 체력 ${stats.체력} × 0.3 × ${a.coef.toFixed(2)}` : ''}`,
+    note: `감소 ${reductionPerTick.toFixed(3)}/틱 × ${DEF_SCALE} = baseDef ${base.baseDef} × ${a.coef.toFixed(2)} × (1${defPctTrait >= 0 ? '+' : ''}${defPctTrait.toFixed(2)})${stats.체력 ? ` + 체력 ${stats.체력} × 0.3 × ${a.coef.toFixed(2)}` : ''}, 회피 ${playerEva.toFixed(0)}`,
   })
 
   // ── 체력 기여 (maxHp × HP_FACTOR) ──
