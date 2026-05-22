@@ -4,6 +4,7 @@ import { CHALLENGES_MAP } from '@/data/challenges'
 import { WEAPONS, WEAPON_KEYS } from '@/data/weapons'
 import { rollItem } from './items'
 import { computeEffectiveStats } from './stats'
+import { computeMaxHp, computeMaxMp } from './character'
 
 export interface ActiveChallenge {
   key: string
@@ -77,9 +78,9 @@ export function applyInstantRewards(character: Character, ctx: ChallengeContext)
       character.gold += def.instantStartGold
     }
   }
-  // 체력/마력 변경된 경우 maxHp/MP 재계산
-  character.maxHp = character.stats.체력 * 20 + 50
-  character.maxMp = character.stats.마력 * 15 + 30
+  // 체력/마력 변경된 경우 maxHp/MP 재계산 — 표준 공식 (character.ts) 사용
+  character.maxHp = computeMaxHp(character.stats.체력)
+  character.maxMp = computeMaxMp(character.stats.마력)
   character.hp = character.maxHp
   character.mp = character.maxMp
 
@@ -106,6 +107,15 @@ export function applyInstantRewards(character: Character, ctx: ChallengeContext)
       forceGrade: '노말',
     })
   }
+  // 특정 갑옷 강제 (forceArmorBase)
+  if (flagsAfter.forceArmorBase) {
+    character.armor = rollItem({
+      kind: 'armor',
+      forceBaseKey: flagsAfter.forceArmorBase,
+      forceTraitTier: '하급',
+      forceGrade: '노말',
+    })
+  }
 }
 
 function rerollStartingWeaponForChallenge(character: Character, ctx: ChallengeContext) {
@@ -123,6 +133,10 @@ function rerollStartingWeaponForChallenge(character: Character, ctx: ChallengeCo
     if (flags.forbidLargeWeapon && wb.speedCoef <= 0.8) return false
     if (flags.onlySpeedCoef1 && wb.speedCoef !== 1.0) return false
     if (flags.forceRangedWeapon && wb.category !== 'ranged') return false
+    if (flags.forceMagicWeapon && !wb.isMagic) return false
+    if (flags.forceHeavyWeapon && wb.speedCoef > 0.8) return false
+    if (flags.forceFastWeapon && wb.speedCoef < 1.2) return false
+    if (flags.forceStandardWeapon && (wb.speedCoef <= 0.8 || wb.speedCoef >= 1.2)) return false
     return true
   })
   if (validKeys.length === 0) return
@@ -180,6 +194,18 @@ export function canEquipItem(item: ItemInstance, ctx: ChallengeContext): { ok: b
     if (flags.forceRangedWeapon && wbase && wbase.category !== 'ranged') {
       return { ok: false, reason: '활(원거리) 무기만 (명사수)' }
     }
+    if (flags.forceMagicWeapon && wbase && !wbase.isMagic) {
+      return { ok: false, reason: '마법 무기만' }
+    }
+    if (flags.forceHeavyWeapon && wbase && wbase.speedCoef > 0.8) {
+      return { ok: false, reason: '한방 무기만 (speedCoef ≤ 0.8)' }
+    }
+    if (flags.forceFastWeapon && wbase && wbase.speedCoef < 1.2) {
+      return { ok: false, reason: '속도형 무기만 (speedCoef ≥ 1.2)' }
+    }
+    if (flags.forceStandardWeapon && wbase && (wbase.speedCoef <= 0.8 || wbase.speedCoef >= 1.2)) {
+      return { ok: false, reason: '보편 무기만 (0.8 < speedCoef < 1.2)' }
+    }
     // v9: 무기 ticks 최소값 (굼벵이 전술)
     if (flags.weaponTicksMin !== undefined && wbase) {
       const ticks = Math.round(10 / wbase.speedCoef)
@@ -204,6 +230,10 @@ export function canEquipItem(item: ItemInstance, ctx: ChallengeContext): { ok: b
     // v9: 판금 강제 (강철 요새)
     if (flags.forceHeavyArmor && akey !== '판금') {
       return { ok: false, reason: '판금만 (강철 요새)' }
+    }
+    // 특정 갑옷만
+    if (flags.forceArmorBase && akey !== flags.forceArmorBase) {
+      return { ok: false, reason: `${flags.forceArmorBase}만 장착 가능` }
     }
   }
   return { ok: true }

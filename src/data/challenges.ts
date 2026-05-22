@@ -30,6 +30,11 @@ export interface ChallengeFlags {
   forbidLargeWeapon?: boolean
   forbidMagicWeapon?: boolean
   forceRangedWeapon?: boolean        // 활(ranged) 무기만
+  forceMagicWeapon?: boolean         // 마법 무기만 (isMagic)
+  forceHeavyWeapon?: boolean         // 한방 무기만 (speedCoef ≤ 0.8)
+  forceFastWeapon?: boolean          // 속도형 무기만 (speedCoef ≥ 1.2)
+  forceStandardWeapon?: boolean      // 보편 무기만 (0.8 < speedCoef < 1.2)
+  forceArmorBase?: '판금' | '중갑' | '가죽갑' | '로브'  // 특정 갑옷만
   onlySpeedCoef1?: boolean
   maxAtk?: number                    // v9 곱셈 스케일에 맞춰 의미 변경 (예: 200)
   speedFixed?: number                // (deprecated) v9 의미 없음
@@ -164,7 +169,7 @@ export const CHALLENGES: ChallengeDef[] = [
     key: '파괴주의자', category: 'instant', group: '재화 제약', name: '파괴주의자',
     description: '판매보단 분해.',
     reward: '시작 힘 +8',
-    penalty: '장비 되사기 불가',
+    penalty: '장비 판매 불가',
     instantBonus: { 힘: 8 },
     flags: { noBuyback: true },
   },
@@ -540,6 +545,74 @@ export const CHALLENGES: ChallengeDef[] = [
     penalty: '행운 24 이하 시 실패',
     metaBonus: 8,
     flags: { trackLuckAtLeast: 25 },
+  },
+
+  // ============================================================
+  // 무기/갑옷 종류 제한 (즉시 보상)
+  // ============================================================
+  {
+    key: '마법수련생', category: 'instant', group: '무기 제한', name: '마법 수련생',
+    description: '오직 마법 무기만 — 완드 · 스태프 · 마도서.',
+    reward: '시작 마력 +8',
+    penalty: '마법 무기만 장착 가능',
+    instantBonus: { 마력: 8 },
+    flags: { forceMagicWeapon: true },
+  },
+  {
+    key: '한방호걸', category: 'instant', group: '무기 제한', name: '한방 호걸',
+    description: '느리지만 한방 — 대검 · 양날도끼 · 할버드 · 석궁 · 마도서.',
+    reward: '시작 힘 +10',
+    penalty: '한방 무기(speedCoef ≤ 0.8)만 장착 가능',
+    instantBonus: { 힘: 10 },
+    flags: { forceHeavyWeapon: true },
+  },
+  {
+    key: '일격필살', category: 'instant', group: '무기 제한', name: '일격필살',
+    description: '빠르게 치고 빠진다 — 건틀릿 · 단검 · 완드 · 숏보우.',
+    reward: '시작 민첩 +10',
+    penalty: '속도형 무기(speedCoef ≥ 1.2)만 장착 가능',
+    instantBonus: { 민첩: 10 },
+    flags: { forceFastWeapon: true },
+  },
+  {
+    key: '평범의미학', category: 'instant', group: '무기 제한', name: '평범의 미학',
+    description: '검 · 창 · 사슬낫 · 철퇴 · 롱보우 · 스태프 같은 정직한 무기만.',
+    reward: '전 스탯 +3',
+    penalty: '보편 무기(0.8 < speedCoef < 1.2)만 장착 가능',
+    instantBonus: { 힘: 3, 민첩: 3, 체력: 3, 마력: 3, 행운: 3 },
+    flags: { forceStandardWeapon: true },
+  },
+  {
+    key: '로브수도승', category: 'instant', group: '갑옷 제한', name: '로브 수도승',
+    description: '로브로 마음을 다스린다.',
+    reward: '시작 마력 +8',
+    penalty: '갑옷은 로브만 장착 가능',
+    instantBonus: { 마력: 8 },
+    flags: { forceArmorBase: '로브' },
+  },
+  {
+    key: '가죽옷차림', category: 'instant', group: '갑옷 제한', name: '가죽 옷차림',
+    description: '가벼운 가죽갑이 최고.',
+    reward: '시작 민첩 +8',
+    penalty: '갑옷은 가죽갑만 장착 가능',
+    instantBonus: { 민첩: 8 },
+    flags: { forceArmorBase: '가죽갑' },
+  },
+  {
+    key: '철갑무사', category: 'instant', group: '갑옷 제한', name: '철갑무사',
+    description: '판금 갑옷의 무게가 곧 자존심.',
+    reward: '시작 체력 +8',
+    penalty: '갑옷은 판금만 장착 가능',
+    instantBonus: { 체력: 8 },
+    flags: { forceArmorBase: '판금' },
+  },
+  {
+    key: '중갑전사', category: 'instant', group: '갑옷 제한', name: '중갑 전사',
+    description: '두툼한 중갑이 안정감을 준다.',
+    reward: '시작 체력 +6',
+    penalty: '갑옷은 중갑만 장착 가능',
+    instantBonus: { 체력: 6 },
+    flags: { forceArmorBase: '중갑' },
   },
 ]
 

@@ -303,7 +303,8 @@ export interface ShopState {
 
 // ====== 메타 (영구 누적 보너스) ======
 export interface MetaBonuses {
-  clearCount: number
+  clearCount: number        // 100층 풀 클리어 횟수 (사망 등반 보상 포함 X)
+  climbCount: number        // 도중 사망 + 등반 보상 받은 런 횟수
   totalBonusStats: number   // 누적 자유 분배 가능 포인트
   allocations: Partial<Stats>  // 어떤 스탯에 얼마나 분배했는지 (다음 캐릭터에 자동 적용)
   // ── 진짜 보스 도전 시스템 ──
@@ -350,4 +351,4 @@ export interface CharacterRecord {
 export type Screen =
   | 'menu' | 'create' | 'dungeon' | 'combat' | 'shop'
   | 'gameover' | 'victory' | 'event' | 'inventory'
-  | 'intro' | 'realboss' | 'realboss_result'
+  | 'intro' | 'realboss' | 'realboss_result' | 'settings'

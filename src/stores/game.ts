@@ -1287,7 +1287,8 @@ export const useGameStore = defineStore('game', {
           // 메타 풀에 적립 + 히스토리 기록 (클리어 보상과 동일 흐름의 미니 버전)
           const lastCh = this.run.chapters[Math.max(0, this.run.currentChapterIndex)]
           pushCharacterHistory(this.meta, this.run.character, pending.score, pending.rank, this.runAvatar, lastCh?.theme ?? '고블린')
-          commitClearBonus(this.meta, {}, pending.bonus)
+          // 도중 사망 + 등반 보상 → climbCount ++  (clearCount 는 100층 클리어 전용)
+          commitClearBonus(this.meta, {}, pending.bonus, false)
         }
         clearRun()
         this.savedRunExists = false

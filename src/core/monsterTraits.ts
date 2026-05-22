@@ -394,12 +394,15 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
     key: 'copy_player',
     description: '플레이어 복사 — 스폰 시 플레이어 공/방을 모방 (도플갱어)',
     onSpawn({ ctx, monster }) {
-      // 플레이어의 표면 공격력/방어를 기반으로 atk/def 보정
+      // 플레이어의 공격력/방어%를 기반으로 보정
+      // monster.def 는 % 단위 (combat.ts: effectiveDefPct = def / 100)
+      // 이전: 체력 × 3 → 체력 30+ 에서 def 90%+ 가 되어 데미지 1로 클램프되는 버그
       const p: Character = ctx.player
-      // v6: 힘 × 1.5 + 마력 (대략 공격력 비례), 체력 × 2 (방어력 비례)
       monster.atk = Math.max(monster.atk, p.stats.힘 * 1.5 + p.stats.마력 + 5)
-      monster.def = Math.max(monster.def, p.stats.체력 * 2.0 * 1.5)
-      pushLog(ctx, `${monster.template.name}: 플레이어 복사`, 'info')
+      // 체력 % 단위로 환산: 체력 × 0.6 + 기본 10 → 체력 30이면 28%, 50이면 40%, 상한 70%
+      const copiedDef = Math.min(70, Math.round(p.stats.체력 * 0.6 + 10))
+      monster.def = Math.max(monster.def, copiedDef)
+      pushLog(ctx, `${monster.template.name}: 플레이어 복사 (방어 ${copiedDef}%)`, 'info')
     },
   },
 

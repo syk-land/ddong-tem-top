@@ -45,6 +45,7 @@ export function loadMeta(): MetaBonuses {
     const m = JSON.parse(raw) as Partial<MetaBonuses>
     const loaded = {
       clearCount: m.clearCount ?? 0,
+      climbCount: m.climbCount ?? 0,
       totalBonusStats: m.totalBonusStats ?? 0,
       allocations: migrateAllocations(m.allocations as any),
       runsSinceLastChallenge: m.runsSinceLastChallenge ?? 0,
@@ -82,6 +83,7 @@ export function saveMeta(meta: MetaBonuses) {
 export function defaultMeta(): MetaBonuses {
   return {
     clearCount: 0,
+    climbCount: 0,
     totalBonusStats: 0,
     allocations: {},
     runsSinceLastChallenge: 0,
@@ -171,9 +173,13 @@ export function computePendingBonus(
 // v6: 클리어 보너스는 분배하지 않고 메타 풀에 그대로 적립.
 // 분배는 캐릭터 생성에서. allocations 매개변수는 옛 호환용으로 받지만 무시하고,
 // pendingClear.bonus 를 totalBonusStats 에 더한다.
-export function commitClearBonus(meta: MetaBonuses, _ignored: Partial<Stats>, pendingBonus: number) {
+//
+// isFullClear: true  → 100층 풀 클리어 (clearCount ++)
+//              false → 도중 사망 + 등반 보상  (climbCount ++)
+export function commitClearBonus(meta: MetaBonuses, _ignored: Partial<Stats>, pendingBonus: number, isFullClear: boolean = true) {
   const before = meta.totalBonusStats
-  meta.clearCount += 1
+  if (isFullClear) meta.clearCount += 1
+  else             meta.climbCount = (meta.climbCount ?? 0) + 1
   meta.totalBonusStats = before + pendingBonus
   saveMeta(meta)
 }
