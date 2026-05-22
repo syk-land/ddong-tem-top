@@ -69,6 +69,12 @@ function tryAutoEnter() {
 onMounted(() => {
   // 첫 던전 진입 — 노드 클릭법 안내. 자동 진입 트리거보다 먼저 발화해야 함.
   game.triggerTutorial('first_node')
+  // 보물 노드 receiveItem 직후 pendingTreasureTutorial 가 set 된 경우 — 여기서 발화.
+  // (Combat 화면에선 인벤 버튼이 없으니 Dungeon 진입 직후로 지연)
+  if (game.pendingTreasureTutorial) {
+    game.pendingTreasureTutorial = false
+    game.triggerTutorial('first_treasure')
+  }
   // 챕터 2 1층 진입 시 4배속·자동진입 광고 해금 안내 트리거
   // (챕터 1 보스 클리어 직후 = advance 가 아니라 다음 챕터 첫 화면에서 학습)
   const ch = game.currentChapterState
@@ -141,6 +147,7 @@ const floorAccent = computed(() => {
         title="상태창"
       >상태</button>
       <button
+        data-tutorial-target="inventory-btn"
         class="btn-secondary text-xs min-h-9 px-3 font-bold flex items-center gap-1.5"
         @click="inventoryOpen = true"
         title="인벤토리"

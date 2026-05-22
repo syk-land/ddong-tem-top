@@ -120,20 +120,25 @@
 
 ### 타겟 매핑
 
-각 화면 요소에 `data-tutorial-target="키"` 속성을 마크해서 단계가 가리킬 수 있게 함.
+각 화면 요소에 `data-tutorial-target="키"` 속성을 마크해서 단계가 가리킬 수 있게 함. **모든 단계가 타겟을 갖도록 매핑됨** → 박동 화살표 + 박동 ring 스포트라이트가 어디서나 일관되게 발동.
 
 | step | target selector | 가리키는 요소 |
 |---|---|---|
 | `menu_start` | `[data-tutorial-target="new-character-btn"]` | MainMenu 의 "새 캐릭터 시작" 버튼 |
-| `creation_intro` | (없음) | 화면 중앙 정적 카드 |
+| `creation_intro` (page 1) | `[data-tutorial-target="dice-area"]` | 주사위 패널 |
+| `creation_intro` (page 2) | `[data-tutorial-target="challenge-area"]` | 챌린지 카드 패널 |
 | `first_node` | `[data-tutorial-target="floor-current"]` | Dungeon 의 현재 진입 가능 노드 |
 | `first_combat` | `[data-tutorial-target="combat-bars"]` | Combat 의 HP/MP 바 컨테이너 |
-| `first_treasure` | (없음) | 모달 위에서 화면 중앙 |
+| `first_treasure` | `[data-tutorial-target="inventory-btn"]` | Dungeon 의 인벤토리 버튼 |
 | `first_shop` | `[data-tutorial-target="shop-slot"]` | Shop 의 매물 리스트 패널 |
 | `second_combat` | `[data-tutorial-target="speed-control"]` | SpeedControl 패널 (좌상단) |
 | `first_chapter_clear` | `[data-tutorial-target="speed-control"]` | SpeedControl 패널 |
 | `meta_creation` | `[data-tutorial-target="bonus-alloc"]` | 누적 보너스 자유 분배 패널 |
-| `realboss_clear` | (없음) | 화면 중앙 (결과 화면 위에 띄움) |
+| `realboss_clear` | `[data-tutorial-target="realboss-bonus"]` | RealBossResult 의 보상 카드 (영구 보너스 표시) |
+
+### first_treasure 트리거 지연
+
+receiveItem 시점 (Combat 화면) 엔 인벤 버튼이 DOM 에 없으므로 그 자리에 직접 트리거하지 않고 `pendingTreasureTutorial = true` 만 set. 다음 Dungeon onMounted 에서 인벤 버튼이 마운트된 상태에서 발화 → 타겟 화살표 + 박동 ring 정상 작동.
 
 ### 닫기 동작
 - 안드로이드 뒤로가기 / Esc → `completeTutorial()` 호출 (가장 우선)

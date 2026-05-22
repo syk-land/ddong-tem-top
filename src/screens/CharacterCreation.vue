@@ -145,7 +145,7 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
     <!-- ====================================================== -->
     <!-- 주사위 시스템 — grade-legend 액센트                       -->
     <!-- ====================================================== -->
-    <div class="rounded-lg border border-grade-legend/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
+    <div data-tutorial-target="dice-area" class="rounded-lg border border-grade-legend/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
       <div class="px-3 py-1.5 bg-grade-legend/10 border-b border-grade-legend/30 flex items-center justify-between">
         <span class="text-xs font-bold text-grade-legend">🎲 주사위 — 능력치 굴림</span>
         <span class="text-xs text-gray-400">남은 굴림 <span class="text-grade-legend font-mono font-bold">{{ game.rollsLeft }}</span> / 3</span>
@@ -203,7 +203,7 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
     <!-- ====================================================== -->
     <!-- 챌린지 선택 — pink 액센트 (톤 가이드: 챌린지/특별 이벤트)   -->
     <!-- ====================================================== -->
-    <div class="rounded-lg border border-pink-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
+    <div data-tutorial-target="challenge-area" class="rounded-lg border border-pink-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
       <div class="px-3 py-1.5 bg-pink-950/40 border-b border-pink-400/20 flex items-center justify-between gap-2">
         <span class="text-xs font-bold text-pink-200">⚔️ 챌린지 선택</span>
         <span class="text-xs text-pink-200/60">하나만 선택 (또는 미선택)</span>

@@ -124,8 +124,11 @@ interface GameState {
   introVisible: boolean
   introPage: number              // 0=main 화면, 1=tutorial1, 2=tutorial2, 3=tutorial3
   introFlow: 'first' | 'replay' | 'afterRealBoss'  // first=최초 main->t1->t2->menu, afterRealBoss=t1->t2->t3->create, replay=설정에서 다시 보기
-  // 인게임 튜토리얼 — 현재 표시 중인 단계 (null = 없음). data/tutorial.ts 의 8단계 중 하나.
+  // 인게임 튜토리얼 — 현재 표시 중인 단계 (null = 없음). data/tutorial.ts 의 단계 중 하나.
   tutorialActive: TutorialStep | null
+  // 보물 노드에서 receiveItem 호출 시 set, 다음 Dungeon onMounted 에서 first_treasure 발화.
+  // (receiveItem 시점엔 Combat 화면이라 인벤 버튼이 DOM 에 없어 타겟 잡을 수 없음 — 지연 발화)
+  pendingTreasureTutorial: boolean
   // 백그라운드(탭 비활성) 시 일시정지 플래그 — 자동 틱/BGM 동기화용
   paused: boolean
   // 범용 다이얼로그 (alert/confirm 대체)
@@ -203,6 +206,7 @@ export const useGameStore = defineStore('game', {
     selectedAvatar: null,
     runAvatar: null,
     tutorialActive: null,
+    pendingTreasureTutorial: false,
     realBossTheme: null,
     realBossMonster: null,
     realBossWeakRecord: null,
@@ -583,12 +587,13 @@ export const useGameStore = defineStore('game', {
       // 인벤토리 보유 불가 (미니멀리스트 cap 0 등)
       if (this.run.inventoryCap <= 0) return
 
-      // 튜토리얼 — 보물 노드 (강제 배치된 2층) 의 드랍에서만 first_treasure 발화.
-      // 1층 일반 몬스터 드랍은 자동 적재만 — "보물 학습"은 보물 노드를 통해 한다.
+      // 튜토리얼 — 보물 노드의 드랍에서만 first_treasure 예약 (즉시 트리거 X).
+      // receiveItem 호출 시점은 Combat 화면이라 인벤 버튼이 DOM 에 없음.
+      // 다음 Dungeon onMounted 에서 발화하면 인벤 버튼이 마운트된 상태라 타겟 화살표 정상 작동.
       const ch = this.run.chapters[this.run.currentChapterIndex]
       const floor = ch?.floors[ch?.currentFloor]
-      if (floor?.type === 'treasure') {
-        this.triggerTutorial('first_treasure')
+      if (floor?.type === 'treasure' && !this.meta.tutorialSeen.first_treasure) {
+        this.pendingTreasureTutorial = true
       }
 
       // 빈 자리 있으면 자동 적재

@@ -63,7 +63,7 @@ function proceed() {
       </div>
 
       <!-- 보상 카드 — amber -->
-      <div class="rounded-lg border-2 border-amber-400/50 bg-amber-950/20 px-3 py-2.5 space-y-1.5">
+      <div data-tutorial-target="realboss-bonus" class="rounded-lg border-2 border-amber-400/50 bg-amber-950/20 px-3 py-2.5 space-y-1.5">
         <div>
           <div class="text-xs text-amber-300/80 font-bold">이번 도전 보상</div>
           <div class="text-amber-300 text-3xl font-bold font-mono">+{{ gain }}<span class="text-base ml-1">pt</span></div>

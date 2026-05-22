@@ -41,7 +41,7 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
     ],
   },
 
-  // ── [2] 첫 캐릭터 생성 진입 ────────────────────────────────
+  // ── [2] 첫 캐릭터 생성 진입 — 페이지별로 다른 영역 타겟 ──────
   creation_intro: {
     step: 'creation_intro',
     pages: [
@@ -50,11 +50,13 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
         body:
           '5스탯에 60포인트를 분배합니다.\n주사위를 3번까지 다시 굴릴 수 있어요.\n마음에 드는 분배가 나올 때까지 굴려보세요.',
         hint: '당신에게 힘이 부여되고 있다…',
+        target: '[data-tutorial-target="dice-area"]',
       },
       {
         title: '챌린지 선택',
         body:
           '3장의 챌린지 카드 중 1개를 선택합니다.\n어려운 조건일수록 클리어 보상이 큽니다.\n선택 안 해도 시작할 수 있어요.',
+        target: '[data-tutorial-target="challenge-area"]',
       },
     ],
   },
@@ -88,13 +90,16 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
   },
 
   // ── [4] 첫 보물/드랍 ──────────────────────────────────────
+  //   트리거: 보물 노드에서 receiveItem 호출 시 pendingTreasureTutorial 만 set,
+  //   다음 Dungeon onMounted 에서 발화 → 인벤 버튼이 DOM 에 있는 상태에서 타겟 발사.
   first_treasure: {
     step: 'first_treasure',
     pages: [
       {
         title: '아이템 획득',
         body:
-          '몬스터·보물에서 무기와 갑옷이 떨어집니다.\n현재 장비와 비교해서 교체할지 결정하세요.\n인벤토리가 가득하면 폐기할 슬롯을 골라야 해요.',
+          '몬스터·보물에서 무기와 갑옷이 떨어집니다.\n인벤 버튼을 눌러 현재 장비와 비교해보세요.\n인벤토리가 가득하면 폐기할 슬롯을 골라야 해요.',
+        target: '[data-tutorial-target="inventory-btn"]',
       },
     ],
   },
@@ -164,6 +169,7 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
         body:
           '진짜 보스에서 깎은 비율만큼 영구 시작 스탯이 추가됐어요.\n다음 캐릭터 생성에 자동으로 분배됩니다.\n완전히 처치하면 더 큰 보너스를 받을 수 있어요.',
         hint: '깊은 곳에서 누군가가 너를 도와주고 있다.',
+        target: '[data-tutorial-target="realboss-bonus"]',
       },
     ],
   },
