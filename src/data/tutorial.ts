@@ -21,6 +21,9 @@ export interface TutorialPage {
   //                'end':            타겟의 하단이 viewport 의 하단에 닿음
   //                                  (예: 누적 보너스 분배 패널 — 페이지 최 하단으로)
   scrollMode?: 'center' | 'end'
+  // true 면 타겟이 버튼이어도 자동 클릭 위임을 끈다 — 강조만 하고 카드 CTA "알겠어요"
+  // 로만 진행. 사용자가 무심코 누르면 자원이 소모되는 버튼에 사용 (예: 상점 새로고침).
+  noAutoAction?: boolean
 }
 
 export interface TutorialStepDef {
@@ -164,8 +167,9 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
       {
         title: '새로고침',
         body:
-          '매물이 맘에 안 들면 새로고침으로 다시 뽑을 수 있어요.\n챕터마다 충전이 갱신됩니다.',
+          '매물이 맘에 안 들면 새로고침으로 다시 뽑을 수 있어요.\n챕터마다 충전이 갱신됩니다.\n(지금은 누르지 말고 안내만 확인해주세요.)',
         target: '[data-tutorial-target="shop-refresh"]',
+        noAutoAction: true,
       },
     ],
   },
@@ -183,7 +187,7 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
       {
         title: '상세 능력치',
         body:
-          '"상세 능력치" 탭도 눌러보세요.\n공격력·방어·명중·회피·크리·관통 등 전투에 직접 쓰이는 값을 모두 볼 수 있어요.',
+          '"상세 능력치" 탭도 눌러보세요.\n공격력·방어·명중·회피·크리·관통 등 전투에 직접 쓰이는 값을 모두 볼 수 있어요.\n\n— 시너지 —\n• 마법공격력은 마력 스탯이 핵심이에요.\n• 마법 무기는 로브와 묶이면 마법공격력 시너지가 큽니다.\n• 활은 민첩 스탯과 묶이면 명중·크리가 더 잘 살아나요.',
         target: '[data-tutorial-target="status-detail-tab"]',
       },
     ],

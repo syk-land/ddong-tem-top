@@ -262,9 +262,11 @@ export const useGameStore = defineStore('game', {
     // 4배속·자동진입은 first_chapter_clear (챕터 2 1층 안내) 본 후 노출.
     canShowSpeed4x: (s): boolean => s.meta.tutorialSeen.first_chapter_clear,
     canShowAutoEnter: (s): boolean => s.meta.tutorialSeen.first_chapter_clear,
-    // 튜토리얼 챌린지 게이팅 — 첫 챕터 클리어 전에는 상점/장비 사용 차단 챌린지를
-    // 후보 풀에서 제외 (그 학습 자체가 막혀버리므로). 첫 챕터 클리어 후엔 전체 풀.
+    // 튜토리얼 챌린지 게이팅 — 첫 챕터 클리어 전에는 도박꾼·제단·모험가 같은
+    // 특별이벤트 챌린지만 후보 (일상 학습 흐름인 인벤/상점/장비를 방해하지 않게).
+    // 첫 챕터 클리어 후엔 전체 풀로 복귀.
     tutorialChallengeOpts: (s) => ({
+      eventOnly: !s.meta.tutorialSeen.first_chapter_clear,
       excludeShop: !s.meta.tutorialSeen.first_chapter_clear,
       excludeItemRestrict: !s.meta.tutorialSeen.first_chapter_clear,
     }),
@@ -623,9 +625,9 @@ export const useGameStore = defineStore('game', {
       this.pendingPickup = item
     },
 
-    // ItemAnnounceModal 의 "확인" 콜백 — 큐의 첫 항목 제거 → 다음 또는 빈 큐
-    popItemAnnounce() {
-      this.itemAnnounceQueue.shift()
+    // ItemAnnounceModal 의 "확인" 콜백 — 큐 전체 비움 (한 모달에 카드 N장 한꺼번에 보여줌).
+    clearItemAnnounce() {
+      this.itemAnnounceQueue = []
     },
 
     // 빈 장비 슬롯이 있고 인벤토리에 같은 종류 아이템이 있으면 가장 좋은 것(tier 우선)으로 자동 장착.
@@ -1776,9 +1778,9 @@ export const useGameStore = defineStore('game', {
         this.completeTutorial()
         return true
       }
-      // 0.5) 아이템 획득 알림 → 확인 동작과 동등 (큐 pop)
+      // 0.5) 아이템 획득 알림 → 확인 동작과 동등 (큐 전체 비움)
       if (this.itemAnnounceQueue.length > 0) {
-        this.popItemAnnounce()
+        this.clearItemAnnounce()
         return true
       }
       // 1) 인벤토리 풀 모달 → 신규 아이템 거부

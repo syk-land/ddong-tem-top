@@ -18,14 +18,12 @@ const auth = useAuthStore()
 //   first_shop 전: 1배속만
 //   first_shop 후, first_chapter_clear 전: 1·2배속
 //   first_chapter_clear 후: 1·2·4배속 (4배속·자동진입은 광고 해금 필요)
-//   syk4441@gmail.com (개발자 본인) 로그인 시: 100배 추가 — 테스트용
+// 100배는 dev 계정 전용으로 별도 줄에 단독 표시 (헤더 wrap 으로 자동 버튼이
+// 사라지는 문제 방지).
 const speeds = computed<readonly number[]>(() => {
-  const base: number[] = (() => {
-    if (!game.canUseSpeed2x) return [1]
-    if (!game.canShowSpeed4x) return [1, 2]
-    return [1, 2, 4]
-  })()
-  return auth.isDevAccount ? [...base, 100] : base
+  if (!game.canUseSpeed2x) return [1]
+  if (!game.canShowSpeed4x) return [1, 2]
+  return [1, 2, 4]
 })
 
 // 펼침 상태 — 기본 접힘. localStorage 영속화 (사용자가 명시적으로 펼친 채로 둔 경우만 복원)
@@ -379,6 +377,21 @@ watch(
           >
             <span class="text-sm leading-none">📖</span>
             <span>인트로 만화</span>
+          </button>
+        </div>
+
+        <!-- 개발자 테스트용 100배 — dev 계정만 별도 줄로 분리 (헤더 wrap 으로
+             자동 버튼이 가려지는 문제 회피) -->
+        <div v-if="auth.isDevAccount" class="flex items-center justify-center pt-1 border-t border-slate-700/40">
+          <button
+            class="px-3 py-1 rounded text-xs font-bold transition-all"
+            :class="game.combatSpeed === 100
+              ? 'bg-fuchsia-500 text-black ring-2 ring-fuchsia-200 shadow-[0_0_8px_rgba(217,70,239,0.7)]'
+              : 'bg-slate-800/70 text-gray-200 hover:bg-slate-700'"
+            title="개발자 테스트용 100배속"
+            @click="setSpeed(100)"
+          >
+            🚀 100x (dev)
           </button>
         </div>
       </div>

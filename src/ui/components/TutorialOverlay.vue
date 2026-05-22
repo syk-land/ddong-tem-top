@@ -123,12 +123,13 @@ const spotlightStyle = computed(() => {
 })
 
 // 클릭 위임 대상 — 타겟이 자체가 button/a/role=button 이면 그것, 아니면 null.
-// (안쪽 button 자동 탐색은 의도치 않은 클릭을 막기 위해 하지 않음.
-//  버튼 류가 아닌 패널이 타겟일 때는 그냥 "알겠어요" 로 닫기만.)
+// page.noAutoAction === true 면 강제로 null (강조만, 자동 클릭 위임 X — 예: 상점
+// 새로고침처럼 사용자가 무심코 누르면 자원 소모되는 버튼).
 const targetActionEl = computed<HTMLElement | null>(() => {
-  if (!targetRect.value) return null  // recompute 후 타겟 못 찾았으면 null
+  if (!targetRect.value) return null
   const p = currentPage.value
   if (!p?.target) return null
+  if (p.noAutoAction) return null
   const el = document.querySelector(p.target) as HTMLElement | null
   if (!el) return null
   if (el.tagName === 'BUTTON' || el.tagName === 'A') return el
@@ -226,6 +227,7 @@ onUnmounted(() => {
   <div
     v-if="def && currentPage"
     class="fixed inset-0 z-[60] select-none"
+    :class="targetActionEl ? 'pointer-events-none' : ''"
     role="dialog"
     aria-live="polite"
   >

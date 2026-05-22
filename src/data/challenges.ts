@@ -623,17 +623,21 @@ export const CHALLENGES_MAP: Record<string, ChallengeDef> = Object.fromEntries(
 export const INSTANT_CHALLENGES = CHALLENGES.filter((c) => c.category === 'instant')
 export const RISK_CHALLENGES = CHALLENGES.filter((c) => c.category === 'risk')
 
-// 튜토리얼 학습 흐름과 충돌하는 챌린지 제외용 — 첫 챕터 클리어 전에는
-// 상점/장비 학습이 막혀버리면 진행 자체가 안 되므로 후보에서 빼야 함.
+// 튜토리얼 학습 흐름과 충돌하는 챌린지 제외용.
 //   excludeShop:         '상점 제약' 그룹 + flags.noShop (예: '진정한 무소유')
-//   excludeItemRestrict: '무기 제한' / '갑옷 제한' / '장비 제한' 그룹 — 인벤·장착 학습 막힘
+//   excludeItemRestrict: '무기 제한' / '갑옷 제한' / '장비 제한' — 인벤·장착 학습 막힘
+//   eventOnly:           '도박꾼/제단/모험가/대장장이/거울/환영' 같은 특별이벤트
+//                        관련 챌린지만 (튜토리얼 캐릭터엔 일상 학습을 방해하지
+//                        않는 특별이벤트 챌린지만 노출).
 export interface PickChallengeOptions {
   excludeShop?: boolean
   excludeItemRestrict?: boolean
+  eventOnly?: boolean
 }
 
 const SHOP_BLOCK_GROUPS = new Set(['상점 제약'])
 const ITEM_RESTRICT_GROUPS = new Set(['무기 제한', '갑옷 제한', '장비 제한'])
+const EVENT_KEYWORDS = ['도박', '룰렛', '제단', '모험가', '구출', '대장장이', '거울', '환영', '꿈', '신탁']
 
 function isShopBlocking(c: ChallengeDef): boolean {
   if (SHOP_BLOCK_GROUPS.has(c.group)) return true
@@ -642,6 +646,12 @@ function isShopBlocking(c: ChallengeDef): boolean {
 }
 function isItemRestricting(c: ChallengeDef): boolean {
   return ITEM_RESTRICT_GROUPS.has(c.group)
+}
+function isEventOnlyChallenge(c: ChallengeDef): boolean {
+  // name / description / penalty / reward 어디든 이벤트 키워드 포함 시 채택.
+  // (도박중독·철저한등가교환·불신주의자·환영파괴자·대장장이은인 등)
+  const text = `${c.name} ${c.description ?? ''} ${c.penalty ?? ''} ${c.reward ?? ''}`
+  return EVENT_KEYWORDS.some((k) => text.includes(k))
 }
 
 export function pickThreeRandomChallenges(opts: PickChallengeOptions = {}): ChallengeDef[] {
@@ -654,11 +664,15 @@ export function pickThreeRandomChallenges(opts: PickChallengeOptions = {}): Chal
     return c
   }
   const filter = (c: ChallengeDef) => {
+    if (opts.eventOnly && !isEventOnlyChallenge(c)) return false
     if (opts.excludeShop && isShopBlocking(c)) return false
     if (opts.excludeItemRestrict && isItemRestricting(c)) return false
     return true
   }
-  const inst = shuffleArr(INSTANT_CHALLENGES.filter(filter)).slice(0, 2)
-  const risk = shuffleArr(RISK_CHALLENGES.filter(filter)).slice(0, 1)
-  return shuffleArr([...inst, ...risk])
+  const instPool = INSTANT_CHALLENGES.filter(filter)
+  const riskPool = RISK_CHALLENGES.filter(filter)
+  // eventOnly 모드는 풀이 적을 수 있어 instant 부족 시 risk 로 채움.
+  const inst = shuffleArr(instPool).slice(0, 2)
+  const risk = shuffleArr(riskPool).slice(0, Math.max(1, 3 - inst.length))
+  return shuffleArr([...inst, ...risk]).slice(0, 3)
 }
