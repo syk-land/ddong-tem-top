@@ -76,13 +76,37 @@ const defPct = computed<number | null>(() => {
   return Math.max(-100, (defDelta.value / cur) * 100)
 })
 
-// 분해 모달
-const valueModal = ref<{ kind: 'atk' | 'def'; total: number; parts: ValuePart[] } | null>(null)
+// 분해 모달 — 총량 = 이 아이템 + 다른 슬롯, 클릭 시 상세 분해 표시
+const valueModal = ref<{
+  kind: 'atk' | 'def'
+  itemContribution: number     // 이 아이템의 기여분
+  otherContribution: number    // 다른 슬롯 (변동 없음)
+  totalIfEquipped: number      // 착용 시 총량
+  currentTotal: number         // 현재 총량 (현재 장착 기준)
+  delta: number                // 변화량 = totalIfEquipped - currentTotal
+  parts: ValuePart[]           // 이 아이템의 분해
+} | null>(null)
 function openValueModal(kind: 'atk' | 'def') {
   if (kind === 'atk') {
-    valueModal.value = { kind, total: itemValue.value.atkValue, parts: itemValue.value.atkParts }
+    valueModal.value = {
+      kind,
+      itemContribution: itemValue.value.atkValue,
+      otherContribution: otherSlotValue.value.atkValue,
+      totalIfEquipped: totalNew.value.atk,
+      currentTotal: totalCurrent.value.atk,
+      delta: atkDelta.value,
+      parts: itemValue.value.atkParts,
+    }
   } else {
-    valueModal.value = { kind, total: itemValue.value.defValue, parts: itemValue.value.defParts }
+    valueModal.value = {
+      kind,
+      itemContribution: itemValue.value.defValue,
+      otherContribution: otherSlotValue.value.defValue,
+      totalIfEquipped: totalNew.value.def,
+      currentTotal: totalCurrent.value.def,
+      delta: defDelta.value,
+      parts: itemValue.value.defParts,
+    }
   }
 }
 
@@ -342,50 +366,62 @@ const rankLine = computed(() => {
         <div class="text-gray-600 text-[10px]">
           티어 {{ item.tier }} · <span :class="gradeColorClass[item.grade]">{{ item.grade }}</span> · 등급계수 {{ item.coef.toFixed(2) }}
         </div>
-        <!-- 전투력 — 공방 모두 표시 (비교는 같은 슬롯 = 무기↔무기, 갑옷↔갑옷) -->
+        <!-- 전투력 — 공/방 표시
+             장착 중: 착용중(공벨류) / 착용중(방벨류)
+             보유/판매: 착용시 총량(변화량 ±N) / 착용시 총량(변화량 ±N)
+             총량 부분 클릭 → 계산 이유 모달 -->
         <div class="flex items-center gap-1.5 mt-0.5 text-[11px] font-bold flex-wrap">
           <!-- 공 -->
           <button
-            v-if="Math.abs(itemValue.atkValue) > 0.05"
+            v-if="Math.abs(totalNew.atk) > 0.05 || Math.abs(itemValue.atkValue) > 0.05"
             class="bg-stat-phys_atk/15 hover:bg-stat-phys_atk/25 rounded px-2 py-0.5 transition-colors flex items-center gap-1"
             @click.stop="openValueModal('atk')"
-            title="전투력(공) 상세"
+            :title="character && !isSameAsEquipped ? `착용 시 공 ${totalNew.atk.toFixed(1)} (${atkDelta >= 0 ? '+' : ''}${atkDelta.toFixed(1)})` : '전투력(공) 상세'"
           >
             <span class="text-stat-phys_atk text-[10px] opacity-80">공</span>
-            <template v-if="character && atkPct !== null">
-              <span :class="[atkPct >= 0 ? 'text-log-reward' : 'text-status-burn', 'text-sm']">
-                {{ atkPct >= 0 ? '+' : '' }}{{ Math.round(atkPct) }}%
+            <template v-if="character && isSameAsEquipped">
+              <!-- 장착 중 — 단일 총량만 -->
+              <span class="text-gray-400 text-[10px]">착용중</span>
+              <span class="text-stat-phys_atk text-sm">{{ totalNew.atk.toFixed(1) }}</span>
+            </template>
+            <template v-else-if="character">
+              <!-- 보유/판매 — 총량 (변화량) -->
+              <span class="text-stat-phys_atk text-sm">{{ totalNew.atk.toFixed(1) }}</span>
+              <span
+                :class="[atkDelta > 0.05 ? 'text-log-reward' : atkDelta < -0.05 ? 'text-status-burn' : 'text-gray-500', 'text-[10px]']"
+              >
+                (<template v-if="Math.abs(atkDelta) < 0.05">0</template><template v-else>{{ atkDelta >= 0 ? '+' : '' }}{{ atkDelta.toFixed(1) }}</template>)
               </span>
             </template>
-            <template v-else-if="character && isSameAsEquipped">
-              <span class="text-gray-400 text-[10px]">현재 장착</span>
-            </template>
             <template v-else>
-              <span class="text-stat-phys_atk text-[10px]">신규</span>
+              <!-- character 없음 — 단일 값 -->
+              <span class="text-stat-phys_atk text-sm">{{ itemValue.atkValue.toFixed(1) }}</span>
             </template>
-            <span class="text-gray-500 text-[10px] opacity-70 font-normal">({{ totalNew.atk.toFixed(1) }})</span>
           </button>
 
           <!-- 방 -->
           <button
-            v-if="Math.abs(itemValue.defValue) > 0.05"
+            v-if="Math.abs(totalNew.def) > 0.05 || Math.abs(itemValue.defValue) > 0.05"
             class="bg-stat-phys_def/15 hover:bg-stat-phys_def/25 rounded px-2 py-0.5 transition-colors flex items-center gap-1"
             @click.stop="openValueModal('def')"
-            title="전투력(방) 상세"
+            :title="character && !isSameAsEquipped ? `착용 시 방 ${totalNew.def.toFixed(1)} (${defDelta >= 0 ? '+' : ''}${defDelta.toFixed(1)})` : '전투력(방) 상세'"
           >
             <span class="text-stat-phys_def text-[10px] opacity-80">방</span>
-            <template v-if="character && defPct !== null">
-              <span :class="[defPct >= 0 ? 'text-log-reward' : 'text-status-burn', 'text-sm']">
-                {{ defPct >= 0 ? '+' : '' }}{{ Math.round(defPct) }}%
+            <template v-if="character && isSameAsEquipped">
+              <span class="text-gray-400 text-[10px]">착용중</span>
+              <span class="text-stat-phys_def text-sm">{{ totalNew.def.toFixed(1) }}</span>
+            </template>
+            <template v-else-if="character">
+              <span class="text-stat-phys_def text-sm">{{ totalNew.def.toFixed(1) }}</span>
+              <span
+                :class="[defDelta > 0.05 ? 'text-log-reward' : defDelta < -0.05 ? 'text-status-burn' : 'text-gray-500', 'text-[10px]']"
+              >
+                (<template v-if="Math.abs(defDelta) < 0.05">0</template><template v-else>{{ defDelta >= 0 ? '+' : '' }}{{ defDelta.toFixed(1) }}</template>)
               </span>
             </template>
-            <template v-else-if="character && isSameAsEquipped">
-              <span class="text-gray-400 text-[10px]">현재 장착</span>
-            </template>
             <template v-else>
-              <span class="text-stat-phys_def text-[10px]">신규</span>
+              <span class="text-stat-phys_def text-sm">{{ itemValue.defValue.toFixed(1) }}</span>
             </template>
-            <span class="text-gray-500 text-[10px] opacity-70 font-normal">({{ totalNew.def.toFixed(1) }})</span>
           </button>
         </div>
         <div v-if="equipChanges.length" class="text-[10px] mt-0.5 leading-tight">
@@ -466,14 +502,38 @@ const rankLine = computed(() => {
       <div class="panel max-w-sm w-full space-y-2" @click.stop>
         <div class="flex items-center justify-between">
           <div class="text-base font-bold">
-            <span v-if="valueModal.kind === 'atk'" class="text-stat-phys_atk">전투력(공)</span>
-            <span v-else class="text-stat-phys_def">전투력(방)</span>
+            <span v-if="valueModal.kind === 'atk'" class="text-stat-phys_atk">전투력(공) 총량 분해</span>
+            <span v-else class="text-stat-phys_def">전투력(방) 총량 분해</span>
           </div>
           <button class="text-gray-400 hover:text-white text-xl leading-none" @click="valueModal = null">✕</button>
         </div>
-        <div class="text-3xl font-mono font-bold text-log-reward text-center py-2">
-          {{ valueModal.total.toFixed(1) }}
+
+        <!-- 총량 + 변화량 헤더 -->
+        <div class="bg-bg-tertiary/60 rounded px-3 py-2">
+          <div class="flex items-baseline justify-between mb-1">
+            <span class="text-xs text-gray-400">착용 시 총량</span>
+            <div>
+              <span class="text-2xl font-mono font-bold text-log-reward">{{ valueModal.totalIfEquipped.toFixed(1) }}</span>
+              <span
+                v-if="character && !isSameAsEquipped"
+                :class="[valueModal.delta > 0.05 ? 'text-log-reward' : valueModal.delta < -0.05 ? 'text-status-burn' : 'text-gray-400', 'ml-1.5 text-sm font-mono']"
+              >
+                ({{ valueModal.delta >= 0 ? '+' : '' }}{{ valueModal.delta.toFixed(1) }})
+              </span>
+            </div>
+          </div>
+          <div class="text-[10px] text-gray-500 space-y-0.5">
+            <div>= 이 아이템 <span class="text-gray-300 font-mono">{{ valueModal.itemContribution.toFixed(1) }}</span>
+                 + 다른 슬롯 <span class="text-gray-300 font-mono">{{ valueModal.otherContribution.toFixed(1) }}</span></div>
+            <div v-if="character && !isSameAsEquipped">
+              현재 총량: <span class="font-mono">{{ valueModal.currentTotal.toFixed(1) }}</span>
+              → 변화량 {{ valueModal.delta >= 0 ? '+' : '' }}{{ valueModal.delta.toFixed(1) }}
+            </div>
+          </div>
         </div>
+
+        <!-- 이 아이템의 기여 분해 -->
+        <div class="text-[11px] text-gray-400 mt-1">이 아이템의 기여 ({{ valueModal.itemContribution.toFixed(1) }})</div>
         <div v-if="valueModal.parts.length === 0" class="text-xs text-gray-500 text-center py-2">기여 없음</div>
         <div v-else class="space-y-1 text-xs">
           <div
