@@ -48,6 +48,7 @@ function tryAutoEnter() {
   if (!game.autoEnter) return
   // 모달이 떠 있으면 자동 진입 막음 (사용자 결정 대기 중)
   if (game.dialog || game.inputDialog || game.listDialog || game.pendingPickup) return
+  if (game.tutorialActive) return  // 튜토리얼 활성 동안 자동 진입 보류
   if (game.screen !== 'dungeon') return
   const f = game.currentFloorEvent
   if (!f || f.cleared) return
@@ -80,7 +81,7 @@ onUnmounted(() => {
   if (autoEnterTimer) clearTimeout(autoEnterTimer)
 })
 watch(
-  () => [game.screen, game.run?.currentChapterIndex, game.run?.chapters?.[game.run?.currentChapterIndex ?? 0]?.currentFloor, game.autoEnter],
+  () => [game.screen, game.run?.currentChapterIndex, game.run?.chapters?.[game.run?.currentChapterIndex ?? 0]?.currentFloor, game.autoEnter, game.tutorialActive],
   tryAutoEnter,
 )
 async function quit() {

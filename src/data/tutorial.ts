@@ -27,7 +27,21 @@ export interface TutorialStepDef {
 }
 
 export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
-  // ── [1] 첫 캐릭터 생성 진입 ────────────────────────────────
+  // ── [1] 인트로 만화 종료 후 메인 메뉴 — 새 캐릭터 시작 버튼 안내 ─────
+  menu_start: {
+    step: 'menu_start',
+    pages: [
+      {
+        title: '여정의 시작',
+        body:
+          '"새 캐릭터 시작" 을 눌러 첫 등반을 시작해보세요.\n주사위를 굴려 5스탯을 분배하고 챌린지를 골라 출발합니다.',
+        hint: '탑이 너를 부르고 있다.',
+        target: '[data-tutorial-target="new-character-btn"]',
+      },
+    ],
+  },
+
+  // ── [2] 첫 캐릭터 생성 진입 ────────────────────────────────
   creation_intro: {
     step: 'creation_intro',
     pages: [
@@ -157,6 +171,7 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
 
 // 단계 키 목록 (헬퍼)
 export const TUTORIAL_KEYS: TutorialStep[] = [
+  'menu_start',
   'creation_intro',
   'first_node',
   'first_combat',

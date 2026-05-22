@@ -41,6 +41,12 @@ onMounted(() => {
   refreshSavedPreview()
   // 도전 카운터 도달이면 도전 화면으로 자동 전환
   game.triggerRealBossIfDue()
+  // 인트로 만화 종료 직후 — 첫 사용자에게 새 캐릭터 버튼 안내
+  //   triggerTutorial 내부에서 introVisible/이미 본 단계는 무시되므로
+  //   인트로 만화가 떠 있는 동안은 발화 안 됨 (만화 닫힌 직후 노출)
+  if (!game.introVisible) {
+    game.triggerTutorial('menu_start')
+  }
 })
 
 function startNew() {
@@ -143,6 +149,7 @@ async function resetMeta() {
 
       <!-- ── 새 캐릭터 시작 ── -->
       <button
+        data-tutorial-target="new-character-btn"
         class="btn-primary w-full min-h-12 text-base font-bold"
         @click="startNew"
       >새 캐릭터 시작 <span class="opacity-80 text-sm font-normal ml-1">(3챌린지 선택)</span></button>

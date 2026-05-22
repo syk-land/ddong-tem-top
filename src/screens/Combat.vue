@@ -267,7 +267,7 @@ function closeAndAdvance() {
 }
 
 watch(
-  () => game.paused,
+  () => game.paused || !!game.tutorialActive,
   (p) => {
     if (p) stopAutoTick()
     else if (!combat.value?.ended) startAutoTick()

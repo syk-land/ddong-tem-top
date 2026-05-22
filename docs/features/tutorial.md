@@ -1,6 +1,6 @@
 # 인게임 튜토리얼
 
-> 첫 플레이 시 9단계로 점진적 노출. 각 단계는 처음 만날 때 1회만 표시. 속도/자동진입 옵션이 단계와 함께 점진적으로 해금. 챕터 1 의 1~4층 + 챕터 2 의 1층은 강제 배치로 학습 순서 보장.
+> 첫 플레이 시 10단계로 점진적 노출. 각 단계는 처음 만날 때 1회만 표시. 속도/자동진입 옵션이 단계와 함께 점진적으로 해금. 챕터 1 의 1~4층 + 챕터 2 의 1층은 강제 배치로 학습 순서 보장. 단계 활성 동안 **게임이 자동 일시정지** 되고 백드롭은 **투명** (게임 화면이 그대로 보이고 타겟만 스포트라이트 + 박동 화살표로 강조).
 
 코드: `src/data/tutorial.ts`, `src/ui/components/TutorialOverlay.vue`, `src/stores/game.ts` (`triggerTutorial` / `completeTutorial` / `resetTutorial`), `src/core/tower.ts` (`TowerTutorialOpts`)
 저장: `meta.tutorialSeen` (in `climetop:meta:v1`)
@@ -36,21 +36,22 @@
 
 ---
 
-## 9 단계
+## 10 단계
 
 각 단계 = `meta.tutorialSeen` 의 boolean 플래그. 처음 만날 때 1회 노출, 닫으면 영구 마킹.
 
 | # | step | 트리거 시점 | 가르치는 것 | 서사 힌트 (작은 회색) |
 |---|---|---|---|---|
-| 1 | `creation_intro` | 첫 캐릭터 생성 화면 진입 (`clearCount + climbCount === 0`) | 주사위 / 5스탯 / 챌린지 선택 | "당신에게 힘이 부여되고 있다…" |
-| 2 | `first_node` | 첫 던전 화면 진입 | 노드 카드 클릭법 | "이 풍경… 어쩐지 익숙하다." |
-| 3 | `first_combat` | 첫 전투 (= 챕터 1 1층 일반) | HP/MP/게이지, 자동 스킬 발동 | "약하다. 왜 이렇게 약할까…" |
-| 4 | `first_treasure` | 보물 노드 `receiveItem()` (= 챕터 1 2층) | 인벤토리, 아이템 비교 | — |
-| 5 | `first_shop` | 첫 상점 진입 (= 챕터 1 3층) | 구매·판매·새로고침 (속도 안내 X) | — |
-| 6 | **`second_combat`** | **챕터 1 4층 일반 전투** (`ch.chapter === 1 && currentFloor === 3 && floor.type === 'monster'`) | **2배속 잠금 해제 + 안내** | "시간이 조금 가까워진 느낌이다." |
-| 7 | `first_chapter_clear` | **챕터 2 1층 진입** (`ch.chapter === 2 && currentFloor === 0`) | **4배속·자동진입 광고 해금 안내** | "탑은 더 높아진다. 누군가 너를 지켜보는 것 같다." |
-| 8 | `meta_creation` | 사망/클리어 후 첫 캐릭터 생성 (`clearCount + climbCount >= 1`) | 누적 보너스 풀 분배 | "받은 힘이 너의 안에 쌓이고 있다." |
-| 9 | `realboss_clear` | 첫 진짜 보스 결과 화면 (`drainRatio > 0`) | 영구 시작 보너스 | "깊은 곳에서 누군가가 너를 도와주고 있다." |
+| 1 | **`menu_start`** | **인트로 만화 종료 직후, first flow** (`closeIntroComic` 안) | "새 캐릭터 시작" 버튼 안내 | "탑이 너를 부르고 있다." |
+| 2 | `creation_intro` | 첫 캐릭터 생성 화면 진입 (`clearCount + climbCount === 0`) | 주사위 / 5스탯 / 챌린지 선택 | "당신에게 힘이 부여되고 있다…" |
+| 3 | `first_node` | 첫 던전 화면 진입 | 노드 카드 클릭법 | "이 풍경… 어쩐지 익숙하다." |
+| 4 | `first_combat` | 첫 전투 (= 챕터 1 1층 일반) | HP/MP/게이지, 자동 스킬 발동 | "약하다. 왜 이렇게 약할까…" |
+| 5 | `first_treasure` | 보물 노드 `receiveItem()` (= 챕터 1 2층) | 인벤토리, 아이템 비교 | — |
+| 6 | `first_shop` | 첫 상점 진입 (= 챕터 1 3층) | 구매·판매·새로고침 (속도 안내 X) | — |
+| 7 | `second_combat` | 챕터 1 4층 일반 전투 (`ch.chapter === 1 && currentFloor === 3 && floor.type === 'monster'`) | 2배속 잠금 해제 + 안내 | "시간이 조금 가까워진 느낌이다." |
+| 8 | `first_chapter_clear` | 챕터 2 1층 진입 (`ch.chapter === 2 && currentFloor === 0`) | 4배속·자동진입 광고 해금 안내 | "탑은 더 높아진다. 누군가 너를 지켜보는 것 같다." |
+| 9 | `meta_creation` | 사망/클리어 후 첫 캐릭터 생성 (`clearCount + climbCount >= 1`) | 누적 보너스 풀 분배 | "받은 힘이 너의 안에 쌓이고 있다." |
+| 10 | `realboss_clear` | 첫 진짜 보스 결과 화면 (`drainRatio > 0`) | 영구 시작 보너스 | "깊은 곳에서 누군가가 너를 도와주고 있다." |
 
 `first_treasure` 는 일반 몬스터 드랍에서는 발화하지 않음 — 보물 노드를 만나야 학습 시점이 됨.
 
@@ -97,10 +98,15 @@
   - 타겟 주변 시안 ring + glow 스포트라이트 (`ring-cyan-300/90`)
   - 좌우는 타겟 X중앙 기준 카드 중앙 정렬, 화면 경계 안에 clamp
   - resize / scroll 시 자동 재계산
-- **상호작용 차단**: 백드롭 `bg-black/65` 가 전체 inset-0 을 덮어 게임 UI 클릭
-  완전 차단. 백드롭 클릭 자체는 `@click.stop` 으로 흡수만 하고 진행시키지 않음 →
-  무의식 클릭으로 튜토리얼이 닫히지 않음. 진행은 **명시적 "다음 →" 버튼 / × 닫기 /
-  안드로이드 뒤로가기 / Esc** 로만.
+- **상호작용 차단 & 게임 일시정지**:
+  - 백드롭은 **투명** (`bg-transparent`) 이라 게임 화면이 그대로 보임 — 타겟은
+    시안 ring + 박동 화살표로만 강조
+  - 백드롭이 전체 inset-0 을 덮어 게임 UI 클릭은 완전 차단. `@click.stop` 으로
+    흡수만 하고 진행시키지도 않음 → 무의식 클릭으로 튜토리얼이 닫히지 않음
+  - 진행은 **명시적 "다음 →" 버튼 / × 닫기 / 안드로이드 뒤로가기 / Esc** 로만
+  - 단계 활성 동안 **게임 자동 일시정지**: `tickStep` 이 `tutorialActive` 시
+    no-op, Combat.vue 의 자동 틱 watcher 가 `paused || tutorialActive` 로 멈춤,
+    Dungeon 의 자동 진입 카운트다운도 `tutorialActive` 시 보류
 - **타겟 없을 때** (`page.target` 없음):
   - 화면 중앙 / 모바일은 하단에 정적 카드 (부유 X)
 - 페이지 인디케이터 (단계가 여러 페이지일 때)
@@ -114,6 +120,7 @@
 
 | step | target selector | 가리키는 요소 |
 |---|---|---|
+| `menu_start` | `[data-tutorial-target="new-character-btn"]` | MainMenu 의 "새 캐릭터 시작" 버튼 |
 | `creation_intro` | (없음) | 화면 중앙 정적 카드 |
 | `first_node` | `[data-tutorial-target="floor-current"]` | Dungeon 의 현재 진입 가능 노드 |
 | `first_combat` | `[data-tutorial-target="combat-bars"]` | Combat 의 HP/MP 바 컨테이너 |

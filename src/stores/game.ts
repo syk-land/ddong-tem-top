@@ -840,6 +840,7 @@ export const useGameStore = defineStore('game', {
     tickStep() {
       if (!this.combat || this.combat.ended) return
       if (this.paused) return  // 백그라운드 일시정지
+      if (this.tutorialActive) return  // 튜토리얼 활성 동안 게임 일시정지
       // 도전 모드는 run 없이 진행 (realBossMonster 있을 때)
       const isRealBoss = !!this.realBossMonster
       if (!isRealBoss && !this.run) return
@@ -944,6 +945,7 @@ export const useGameStore = defineStore('game', {
     // 설정의 "튜토리얼 다시 보기" — 모든 단계 false 로 리셋
     resetTutorial() {
       this.meta.tutorialSeen = {
+        menu_start: false,
         creation_intro: false,
         first_node: false,
         first_combat: false,
@@ -1782,6 +1784,8 @@ export const useGameStore = defineStore('game', {
       } else if (flow === 'first') {
         // 메인 메뉴로 (이미 위에)
         this.screen = 'menu'
+        // 첫 실행 — 메인 메뉴에서 새 캐릭터 시작 버튼 안내 (menu_start)
+        this.triggerTutorial('menu_start')
       }
       // replay 는 이전 화면 그대로 유지
     },

@@ -142,9 +142,10 @@ onUnmounted(() => {
     role="dialog"
     aria-live="polite"
   >
-    <!-- 백드롭: 게임 화면 인터랙션 차단 (튜토리얼 진행은 명시적 버튼/×/뒤로가기로만) -->
+    <!-- 백드롭: 투명 — 게임 화면이 그대로 보이도록. 클릭은 흡수해서
+         게임 UI 가 우발적으로 눌리지 않게만 차단 (진행은 명시적 버튼/×/뒤로가기). -->
     <div
-      class="absolute inset-0 bg-black/65 backdrop-blur-[2px]"
+      class="absolute inset-0 bg-transparent"
       @click.stop
     />
 

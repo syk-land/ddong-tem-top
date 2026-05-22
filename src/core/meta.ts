@@ -40,6 +40,7 @@ function migrateAllocations(old: Partial<Record<string, number>> | undefined): P
 
 function defaultTutorialSeen(): TutorialSeen {
   return {
+    menu_start: false,
     creation_intro: false,
     first_node: false,
     first_combat: false,
@@ -56,6 +57,7 @@ function migrateTutorialSeen(t: Partial<TutorialSeen> | undefined): TutorialSeen
   const base = defaultTutorialSeen()
   if (!t) return base
   return {
+    menu_start: !!t.menu_start,
     creation_intro: !!t.creation_intro,
     first_node: !!t.first_node,
     first_combat: !!t.first_combat,
@@ -100,6 +102,7 @@ export function loadMeta(): MetaBonuses {
     //   모든 단계 본 것으로 처리해서 튜토리얼이 다시 안 뜨게 한다.
     if (!m.tutorialSeen && (loaded.clearCount > 0 || loaded.climbCount > 0)) {
       loaded.tutorialSeen = {
+        menu_start: true,
         creation_intro: true,
         first_node: true,
         first_combat: true,
