@@ -142,10 +142,10 @@ onUnmounted(() => {
     role="dialog"
     aria-live="polite"
   >
-    <!-- 백드롭: 클릭 시 다음 페이지 / 닫기 -->
+    <!-- 백드롭: 게임 화면 인터랙션 차단 (튜토리얼 진행은 명시적 버튼/×/뒤로가기로만) -->
     <div
       class="absolute inset-0 bg-black/65 backdrop-blur-[2px]"
-      @click="advance"
+      @click.stop
     />
 
     <!-- 스포트라이트 (타겟 ring) -->
@@ -161,13 +161,13 @@ onUnmounted(() => {
       class="absolute tutorial-float pointer-events-none"
       :style="{ top: `${cardPos.top}px`, left: `${cardPos.left}px`, width: '360px', maxWidth: 'calc(100% - 24px)' }"
     >
-      <!-- 화살표 (위쪽) — 카드가 타겟 아래에 있을 때 표시 -->
+      <!-- 화살표 (위쪽) — 카드가 타겟 아래, 화살표는 위로 박동 (타겟을 향해 가리킴) -->
       <div
         v-if="arrowDir === 'up' && arrowLeftPx !== null"
-        class="absolute -top-[14px] pointer-events-none"
+        class="absolute -top-[14px] pointer-events-none arrow-pulse-up"
         :style="{ left: `${arrowLeftPx - 14}px` }"
       >
-        <svg width="28" height="14" viewBox="0 0 28 14" class="text-cyan-300 drop-shadow-[0_0_6px_rgba(34,211,238,0.7)]">
+        <svg width="28" height="14" viewBox="0 0 28 14" class="text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]">
           <path d="M14 0 L28 14 L0 14 Z" fill="currentColor" />
         </svg>
       </div>
@@ -209,13 +209,13 @@ onUnmounted(() => {
         >{{ ctaLabel }}</button>
       </div>
 
-      <!-- 화살표 (아래쪽) — 카드가 타겟 위에 있을 때 표시 -->
+      <!-- 화살표 (아래쪽) — 카드가 타겟 위, 화살표는 아래로 박동 (타겟을 향해 가리킴) -->
       <div
         v-if="arrowDir === 'down' && arrowLeftPx !== null"
-        class="absolute -bottom-[14px] pointer-events-none"
+        class="absolute -bottom-[14px] pointer-events-none arrow-pulse-down"
         :style="{ left: `${arrowLeftPx - 14}px` }"
       >
-        <svg width="28" height="14" viewBox="0 0 28 14" class="text-cyan-300 drop-shadow-[0_0_6px_rgba(34,211,238,0.7)]">
+        <svg width="28" height="14" viewBox="0 0 28 14" class="text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]">
           <path d="M0 0 L28 0 L14 14 Z" fill="currentColor" />
         </svg>
       </div>
@@ -265,7 +265,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* 카드 + 화살표가 함께 부유 — 사인 곡선 위·아래 ±6px / 1.8s */
+/* 카드 + 화살표 전체가 함께 부유 — 사인 곡선 위·아래 ±6px / 1.8s */
 @keyframes tutorial-float {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-6px); }
@@ -273,4 +273,18 @@ onUnmounted(() => {
 .tutorial-float {
   animation: tutorial-float 1.8s ease-in-out infinite;
 }
+
+/* 화살표는 별도로 더 빠른 주기 (0.9s) + 더 큰 진폭 (±10px) 으로
+   "가리키는 방향"으로 박동. 카드 부유 위에 합성되어 시각적 강조.
+   ↑ 방향 화살표는 위로 (= 타겟 방향), ↓ 방향 화살표는 아래로. */
+@keyframes arrow-pulse-up {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+@keyframes arrow-pulse-down {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(10px); }
+}
+.arrow-pulse-up   { animation: arrow-pulse-up   0.9s ease-in-out infinite; }
+.arrow-pulse-down { animation: arrow-pulse-down 0.9s ease-in-out infinite; }
 </style>
