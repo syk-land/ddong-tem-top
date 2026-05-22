@@ -262,6 +262,12 @@ export const useGameStore = defineStore('game', {
     // 4배속·자동진입은 first_chapter_clear (챕터 2 1층 안내) 본 후 노출.
     canShowSpeed4x: (s): boolean => s.meta.tutorialSeen.first_chapter_clear,
     canShowAutoEnter: (s): boolean => s.meta.tutorialSeen.first_chapter_clear,
+    // 튜토리얼 챌린지 게이팅 — 첫 챕터 클리어 전에는 상점/장비 사용 차단 챌린지를
+    // 후보 풀에서 제외 (그 학습 자체가 막혀버리므로). 첫 챕터 클리어 후엔 전체 풀.
+    tutorialChallengeOpts: (s) => ({
+      excludeShop: !s.meta.tutorialSeen.first_chapter_clear,
+      excludeItemRestrict: !s.meta.tutorialSeen.first_chapter_clear,
+    }),
   },
 
   actions: {
@@ -335,7 +341,7 @@ export const useGameStore = defineStore('game', {
           ? c.selectedAvatar
           : pickRandomUserAvatars(1)[0]
       } else {
-        this.challengeOptions = pickThreeRandomChallenges()
+        this.challengeOptions = pickThreeRandomChallenges(this.tutorialChallengeOpts)
         this.selectedChallengeKey = null
         this.rolledStats = null
         this.rollsLeft = 3
@@ -347,7 +353,7 @@ export const useGameStore = defineStore('game', {
 
     // 캐릭터 생성 다시 굴림 시작 (새 챌린지 + 주사위 + 아바타 리셋)
     resetCharacterCreation() {
-      this.challengeOptions = pickThreeRandomChallenges()
+      this.challengeOptions = pickThreeRandomChallenges(this.tutorialChallengeOpts)
       this.selectedChallengeKey = null
       this.rolledStats = null
       this.rollsLeft = 3

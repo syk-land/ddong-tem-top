@@ -623,7 +623,28 @@ export const CHALLENGES_MAP: Record<string, ChallengeDef> = Object.fromEntries(
 export const INSTANT_CHALLENGES = CHALLENGES.filter((c) => c.category === 'instant')
 export const RISK_CHALLENGES = CHALLENGES.filter((c) => c.category === 'risk')
 
-export function pickThreeRandomChallenges(): ChallengeDef[] {
+// 튜토리얼 학습 흐름과 충돌하는 챌린지 제외용 — 첫 챕터 클리어 전에는
+// 상점/장비 학습이 막혀버리면 진행 자체가 안 되므로 후보에서 빼야 함.
+//   excludeShop:         '상점 제약' 그룹 + flags.noShop (예: '진정한 무소유')
+//   excludeItemRestrict: '무기 제한' / '갑옷 제한' / '장비 제한' 그룹 — 인벤·장착 학습 막힘
+export interface PickChallengeOptions {
+  excludeShop?: boolean
+  excludeItemRestrict?: boolean
+}
+
+const SHOP_BLOCK_GROUPS = new Set(['상점 제약'])
+const ITEM_RESTRICT_GROUPS = new Set(['무기 제한', '갑옷 제한', '장비 제한'])
+
+function isShopBlocking(c: ChallengeDef): boolean {
+  if (SHOP_BLOCK_GROUPS.has(c.group)) return true
+  const f = c.flags
+  return !!(f?.noShop || f?.noShopRefresh || f?.noShopDiscount)
+}
+function isItemRestricting(c: ChallengeDef): boolean {
+  return ITEM_RESTRICT_GROUPS.has(c.group)
+}
+
+export function pickThreeRandomChallenges(opts: PickChallengeOptions = {}): ChallengeDef[] {
   const shuffleArr = <T>(arr: readonly T[]): T[] => {
     const c = [...arr]
     for (let i = c.length - 1; i > 0; i--) {
@@ -632,7 +653,12 @@ export function pickThreeRandomChallenges(): ChallengeDef[] {
     }
     return c
   }
-  const inst = shuffleArr(INSTANT_CHALLENGES).slice(0, 2)
-  const risk = shuffleArr(RISK_CHALLENGES).slice(0, 1)
+  const filter = (c: ChallengeDef) => {
+    if (opts.excludeShop && isShopBlocking(c)) return false
+    if (opts.excludeItemRestrict && isItemRestricting(c)) return false
+    return true
+  }
+  const inst = shuffleArr(INSTANT_CHALLENGES.filter(filter)).slice(0, 2)
+  const risk = shuffleArr(RISK_CHALLENGES.filter(filter)).slice(0, 1)
   return shuffleArr([...inst, ...risk])
 }
