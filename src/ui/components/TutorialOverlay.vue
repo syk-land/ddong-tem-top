@@ -149,10 +149,11 @@ onUnmounted(() => {
       @click.stop
     />
 
-    <!-- 스포트라이트 (타겟 ring) -->
+    <!-- 스포트라이트: 타겟 주변 강조 — 안쪽 검정 윤곽 + 시안 두꺼운 ring +
+         바깥 검정 윤곽 + 시안 글로우. 박동 (1.2s) 으로 화살표와 같이 강조. -->
     <div
       v-if="spotlightStyle"
-      class="absolute pointer-events-none rounded-lg ring-4 ring-cyan-300/90 shadow-[0_0_30px_rgba(34,211,238,0.55)] transition-all duration-200"
+      class="absolute pointer-events-none rounded-lg tutorial-spotlight"
       :style="spotlightStyle"
     />
 
@@ -288,4 +289,31 @@ onUnmounted(() => {
 }
 .arrow-pulse-up   { animation: arrow-pulse-up   0.9s ease-in-out infinite; }
 .arrow-pulse-down { animation: arrow-pulse-down 0.9s ease-in-out infinite; }
+
+/* 스포트라이트 테두리 — 타겟 안과 밖 양쪽으로 검정 윤곽 + 시안 두꺼운 ring
+   + 외곽 글로우. 화살표 박동과 함께 ring 두께·글로우가 살짝 더 부풀었다 줄어듦. */
+.tutorial-spotlight {
+  box-shadow:
+    inset 0 0 0 2px rgba(2, 6, 23, 0.95),
+    0 0 0 4px rgba(34, 211, 238, 1),
+    0 0 0 6px rgba(2, 6, 23, 0.95),
+    0 0 24px 4px rgba(34, 211, 238, 0.55);
+  animation: spotlight-pulse 1.2s ease-in-out infinite;
+}
+@keyframes spotlight-pulse {
+  0%, 100% {
+    box-shadow:
+      inset 0 0 0 2px rgba(2, 6, 23, 0.95),
+      0 0 0 4px rgba(34, 211, 238, 1),
+      0 0 0 6px rgba(2, 6, 23, 0.95),
+      0 0 24px 4px rgba(34, 211, 238, 0.55);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 2px rgba(2, 6, 23, 0.95),
+      0 0 0 6px rgba(34, 211, 238, 1),
+      0 0 0 8px rgba(2, 6, 23, 0.95),
+      0 0 36px 6px rgba(34, 211, 238, 0.85);
+  }
+}
 </style>
