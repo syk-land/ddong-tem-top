@@ -46,6 +46,7 @@ function defaultTutorialSeen(): TutorialSeen {
     first_combat: false,
     first_treasure: false,
     first_inventory: false,
+    prompt_status: false,
     first_shop: false,
     first_status: false,
     second_combat: false,
@@ -65,6 +66,7 @@ function migrateTutorialSeen(t: Partial<TutorialSeen> | undefined): TutorialSeen
     first_combat: !!t.first_combat,
     first_treasure: !!t.first_treasure,
     first_inventory: !!t.first_inventory,
+    prompt_status: !!t.prompt_status,
     first_shop: !!t.first_shop,
     first_status: !!t.first_status,
     second_combat: !!t.second_combat,
@@ -112,12 +114,13 @@ export function loadMeta(): MetaBonuses {
         first_combat: true,
         first_treasure: true,
         first_inventory: true,
+        prompt_status: true,
         first_shop: true,
         first_status: true,
         second_combat: true,
         first_chapter_clear: true,
         meta_creation: true,
-        realboss_clear: loaded.realBossDefeated,  // 진짜 보스 안 깬 사람만 이거 노출
+        realboss_clear: loaded.realBossDefeated,
       }
     }
     return loaded

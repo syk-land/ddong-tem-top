@@ -142,6 +142,8 @@ const floorAccent = computed(() => {
         </div>
       </div>
       <button
+        data-tutorial-target="status-btn"
+        data-tutorial-cta-label="상태"
         class="btn-secondary text-xs min-h-9 px-3 font-bold"
         @click="statusOpen = true"
         title="상태창"

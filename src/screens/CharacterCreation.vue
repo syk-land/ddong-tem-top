@@ -189,6 +189,8 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
         </div>
 
         <button
+          data-tutorial-target="dice-roll-btn"
+          data-tutorial-cta-label="주사위 굴리기"
           class="btn-primary w-full min-h-11 text-sm font-bold disabled:opacity-30"
           :disabled="game.rollsLeft <= 0 || rolling"
           @click="rollDice"

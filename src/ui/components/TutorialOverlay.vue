@@ -44,6 +44,18 @@ async function recompute() {
     cardPos.value = null
     return
   }
+  // 타겟이 viewport 밖이면 자동 스크롤로 가운데로 끌어옴 (챌린지 패널 등 화면 아래쪽)
+  const preRect = el.getBoundingClientRect()
+  const fullyVisible =
+    preRect.top >= 0 &&
+    preRect.bottom <= window.innerHeight &&
+    preRect.left >= 0 &&
+    preRect.right <= window.innerWidth
+  if (!fullyVisible) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+    // 스크롤 애니메이션 후 정확한 좌표 재측정
+    await new Promise((r) => setTimeout(r, 320))
+  }
   const rect = el.getBoundingClientRect()
   targetRect.value = rect
 
@@ -138,12 +150,15 @@ const ctaLabel = computed(() => {
 
 function advance() {
   if (!def.value) return
+  const action = targetActionEl.value
   if (!isLastPage.value) {
+    // 중간 페이지: 타겟이 클릭 가능 버튼이면 click 위임 (예: 주사위 굴리기)
+    // + 다음 페이지로 진행. 위임 없으면 그냥 다음 페이지로.
+    if (action) action.click()
     pageIdx.value += 1
     return
   }
-  // 마지막 페이지: 타겟이 버튼이면 닫기 + 그 버튼 click 위임. 아니면 닫기만.
-  const action = targetActionEl.value
+  // 마지막 페이지: 닫기 + (있으면) 타겟 click 위임. 아니면 닫기만.
   game.completeTutorial()
   if (action) {
     // completeTutorial 직후 click — paused 가 풀린 상태에서 게임 정상 진행

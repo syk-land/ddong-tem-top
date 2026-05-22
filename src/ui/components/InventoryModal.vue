@@ -13,9 +13,16 @@ const c = computed(() => game.run!.character)
 const inventory = computed(() => game.run?.inventory ?? [])
 const inventoryCap = computed(() => game.run?.inventoryCap ?? 0)
 
-// 인벤 모달이 처음 열리면 first_inventory 튜토리얼 트리거
-watch(() => props.open, (v) => {
-  if (v) game.triggerTutorial('first_inventory')
+// 인벤 모달이 처음 열리면 first_inventory 튜토리얼 트리거.
+// 닫힐 때 first_inventory 가 방금 본 상태면 다음 단계 prompt_status 발화 →
+// 던전 화면의 "상태" 버튼을 가리킴 (학습 흐름: 인벤 → 상태창).
+watch(() => props.open, (v, prev) => {
+  if (v) {
+    game.triggerTutorial('first_inventory')
+  } else if (prev && game.meta.tutorialSeen.first_inventory) {
+    // 모달 닫힘. first_inventory 를 봤다면 자연스럽게 상태창 안내로 이어감.
+    game.triggerTutorial('prompt_status')
+  }
 })
 
 async function equipItem(idx: number) {

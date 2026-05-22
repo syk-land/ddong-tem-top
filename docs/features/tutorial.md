@@ -36,7 +36,7 @@
 
 ---
 
-## 12 단계
+## 13 단계
 
 각 단계 = `meta.tutorialSeen` 의 boolean 플래그. 처음 만날 때 1회 노출, 닫으면 영구 마킹.
 
@@ -47,17 +47,19 @@
 | 3 | `first_node` | 첫 던전 화면 진입 | "진입" 버튼 클릭법 | "이 풍경… 어쩐지 익숙하다." |
 | 4 | `first_combat` | 첫 전투 (= 챕터 1 1층 일반) | HP/MP/게이지, 자동 스킬 발동 | "약하다. 왜 이렇게 약할까…" |
 | 5 | `first_treasure` | 보물 노드 `receiveItem()` (= 챕터 1 2층) | 인벤 버튼 안내 | — |
-| 6 | **`first_inventory`** | 인벤 모달 첫 진입 | 장비 카드 (등급 테두리·벨류) 보는 법 + 장착 | — |
-| 7 | `first_shop` | 첫 상점 진입 (= 챕터 1 3층) | 매물(p1) + 판매(p2) + 새로고침(p3) | — |
-| 8 | **`first_status`** | 상태창 모달 첫 진입 | 5스탯 / 능력치 확인 | — |
-| 9 | `second_combat` | 챕터 1 4층 일반 전투 | 2배속 잠금 해제 + 안내 | "시간이 조금 가까워진 느낌이다." |
-| 10 | `first_chapter_clear` | 챕터 2 1층 진입 | 4배속·자동진입 광고 해금 안내 | "탑은 더 높아진다. 누군가 너를 지켜보는 것 같다." |
-| 11 | `meta_creation` | 사망/클리어 후 첫 캐릭터 생성 (`clearCount + climbCount >= 1`) | 누적 보너스 풀 분배 | "받은 힘이 너의 안에 쌓이고 있다." |
-| 12 | `realboss_clear` | 첫 진짜 보스 결과 화면 (`drainRatio > 0`) | 영구 시작 보너스 | "깊은 곳에서 누군가가 너를 도와주고 있다." |
+| 6 | `first_inventory` | 인벤 모달 첫 진입 | 장비 카드 (등급 테두리·벨류) 보는 법 + 장착 | — |
+| 7 | **`prompt_status`** | 인벤 모달 닫힘 + `first_inventory` 마킹된 직후 | "상태" 버튼 가리키기 (CTA 위임 → 상태 모달 열림) | — |
+| 8 | `first_shop` | 첫 상점 진입 (= 챕터 1 3층) | 매물(p1) + 판매(p2) + 새로고침(p3) | — |
+| 9 | `first_status` | 상태창 모달 첫 진입 | 5스탯 / 능력치 확인 | — |
+| 10 | `second_combat` | 챕터 1 4층 일반 전투 | 2배속 잠금 해제 + 안내 | "시간이 조금 가까워진 느낌이다." |
+| 11 | `first_chapter_clear` | 챕터 2 1층 진입 | 4배속·자동진입 광고 해금 안내 | "탑은 더 높아진다. 누군가 너를 지켜보는 것 같다." |
+| 12 | `meta_creation` | 사망/클리어 후 첫 캐릭터 생성 (`clearCount + climbCount >= 1`) | 누적 보너스 풀 분배 | "받은 힘이 너의 안에 쌓이고 있다." |
+| 13 | `realboss_clear` | 첫 진짜 보스 결과 화면 (`drainRatio > 0`) | 영구 시작 보너스 | "깊은 곳에서 누군가가 너를 도와주고 있다." |
 
 ## 튜토리얼 학습 환경 (루즈함 방지)
 
-`!tutorialSeen.first_treasure` 또는 `!tutorialSeen.first_shop` 동안 게임이 학습용으로 보조됨:
+`!tutorialSeen.first_treasure` / `!tutorialSeen.first_shop` / `!tutorialSeen.first_chapter_clear`
+동안 게임이 학습용으로 보조됨:
 
 - **보물상자 미믹 우회**: 챕터 1 2층 보물 노드가 `openTreasure` 진입 시
   미믹 분기 건너뛰고 **무기 1 + 갑옷 1 무조건 드랍** → 인벤 학습에 필요한 카드 보장
@@ -67,6 +69,25 @@
     에 `tutorialForceAcc` 옵션) → 회피 미스 누적으로 전투가 늘어지지 않음
 - **첫 상점 100G 지급**: 첫 진입 시 `grantTutorialShopBonus()` 호출로 1회 +100G —
   구매 학습 시 골드 부족 방지
+- **챕터 1 보스 약화**: `startMonsterFight` 의 보스 분기에서 `chapterNum === 1`
+  이고 `!first_chapter_clear` 면 `hp ×0.5`, `atk ×0.7` 적용 — 첫 챕터 보스를
+  사용자가 무조건 잡고 진행할 수 있도록
+
+## 페이지 흐름 — CTA / 자동 위임 / 자동 스크롤
+
+- **자동 위임 (마지막 페이지)**: 타겟이 `<button>`/`<a>`/`role=button` 이면 CTA 라벨을
+  그 버튼의 텍스트(또는 `data-tutorial-cta-label`)로 자동 노출 → 클릭 시 닫기 +
+  `target.click()` 위임
+- **자동 위임 (중간 페이지)**: 중간 페이지에서도 타겟이 버튼이면 클릭 시 `target.click()`
+  먼저 실행한 뒤 다음 페이지로 진행 — 예: `creation_intro` p1 의 "주사위 굴리기"
+  버튼을 누르면 실제로 한 번 굴리고 페이지 2 (챌린지 선택) 로 넘어감
+- **자동 스크롤**: `recompute` 가 타겟의 `getBoundingClientRect()` 로 viewport 밖
+  여부 판단 → 밖이면 `el.scrollIntoView({ behavior: 'smooth', block: 'center' })`
+  로 부드럽게 스크롤해서 가운데로 끌어옴 (스크롤 애니메이션 320ms 후 좌표 재측정)
+- **학습 사이클 — 인벤 → 상태창**: `InventoryModal` 의 `props.open` watcher 가
+  닫힘 시점에 `first_inventory` 가 이미 마킹됐다면 자동으로 `prompt_status` 트리거 →
+  던전의 "상태" 버튼을 가리킴 → CTA "상태" 클릭 위임으로 상태 모달 열기 →
+  모달 첫 open 에서 `first_status` 트리거 (모달 안 내용 안내)
 
 `first_treasure` 는 일반 몬스터 드랍에서는 발화하지 않음 — 보물 노드를 만나야 학습 시점이 됨.
 
@@ -148,13 +169,14 @@
 | step | target selector | 가리키는 요소 | CTA 위임 |
 |---|---|---|---|
 | `menu_start` | `[data-tutorial-target="new-character-btn"]` | "새 캐릭터 시작" 버튼 | ✅ → "새 캐릭터 시작" |
-| `creation_intro` (page 1) | `[data-tutorial-target="dice-area"]` | 주사위 패널 | — (중간 페이지) |
-| `creation_intro` (page 2) | `[data-tutorial-target="challenge-area"]` | 챌린지 패널 (div) | "알겠어요" |
+| `creation_intro` (page 1) | `[data-tutorial-target="dice-roll-btn"]` | 🎲 주사위 굴리기 버튼 | ✅ → "주사위 굴리기" (중간 페이지 위임 — 한 번 굴리고 페이지 2로) |
+| `creation_intro` (page 2) | `[data-tutorial-target="challenge-area"]` | 챌린지 패널 (div, 화면 아래 — 자동 스크롤) | "알겠어요" |
 | `first_node` | `[data-tutorial-target="enter-floor-btn"]` | Dungeon 의 "진입" 버튼 | ✅ → "진입" |
 | `first_combat` | `[data-tutorial-target="combat-bars"]` | HP/MP 바 컨테이너 | "알겠어요" |
 | `first_treasure` | `[data-tutorial-target="inventory-btn"]` | Dungeon 의 "인벤" 버튼 | ✅ → "인벤" |
 | `first_inventory` (p1) | `[data-tutorial-target="inventory-item-card"]` | 인벤 첫 아이템 카드 | "알겠어요" |
 | `first_inventory` (p2) | `[data-tutorial-target="inventory-equip-btn"]` | 첫 아이템의 "장착" 버튼 | ✅ → "장착" |
+| `prompt_status` | `[data-tutorial-target="status-btn"]` | Dungeon "상태" 버튼 | ✅ → "상태" |
 | `first_shop` (p1) | `[data-tutorial-target="shop-slot"]` | 상점 매물 패널 | "알겠어요" |
 | `first_shop` (p2) | `[data-tutorial-target="shop-sell"]` | 장착 중 (판매) 패널 | "알겠어요" |
 | `first_shop` (p3) | `[data-tutorial-target="shop-refresh"]` | "🔄 새로고침" 버튼 | ✅ → "🔄 새로고침 (n)" |

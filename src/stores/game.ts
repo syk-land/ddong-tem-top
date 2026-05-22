@@ -512,7 +512,15 @@ export const useGameStore = defineStore('game', {
       let monsters
       if (kind === 'boss') {
         const template = ch.isHard && themeDef.hardBoss ? themeDef.hardBoss : themeDef.boss
-        monsters = [makeMonster(template, chapterNum, kind)]
+        const m = makeMonster(template, chapterNum, kind)
+        // 튜토리얼 — 첫 챕터 1 보스 약화 (사용자가 무조건 잡고 진행할 수 있도록).
+        // first_chapter_clear 는 챕터 2 1층 진입 시 마킹되므로 챕터 1 보스 전투 시점엔 false.
+        if (chapterNum === 1 && !this.meta.tutorialSeen.first_chapter_clear) {
+          m.hp = Math.max(1, Math.round(m.hp * 0.5))
+          m.maxHp = m.hp
+          m.atk = Math.max(1, Math.round(m.atk * 0.7))
+        }
+        monsters = [m]
       } else if (kind === 'mimic') {
         monsters = [makeMonster(themeDef.boss, chapterNum, kind)]
       } else {
@@ -985,6 +993,7 @@ export const useGameStore = defineStore('game', {
         first_combat: false,
         first_treasure: false,
         first_inventory: false,
+        prompt_status: false,
         first_shop: false,
         first_status: false,
         second_combat: false,

@@ -42,20 +42,22 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
   },
 
   // ── [2] 첫 캐릭터 생성 진입 — 페이지별로 다른 영역 타겟 ──────
+  //   p1: 주사위 굴림 버튼 → CTA 위임 = 한 번 굴리고 페이지 2 로
+  //   p2: 챌린지 패널 (화면 아래) → 자동 스크롤로 들어감 + "알겠어요"
   creation_intro: {
     step: 'creation_intro',
     pages: [
       {
-        title: '캐릭터 만들기',
+        title: '주사위 굴리기',
         body:
-          '5스탯에 60포인트를 분배합니다.\n주사위를 3번까지 다시 굴릴 수 있어요.\n마음에 드는 분배가 나올 때까지 굴려보세요.',
+          '5스탯에 60포인트를 분배해요.\n버튼을 눌러 주사위를 굴려보세요.\n총 3번까지 다시 굴릴 수 있어요.',
         hint: '당신에게 힘이 부여되고 있다…',
-        target: '[data-tutorial-target="dice-area"]',
+        target: '[data-tutorial-target="dice-roll-btn"]',
       },
       {
         title: '챌린지 선택',
         body:
-          '3장의 챌린지 카드 중 1개를 선택합니다.\n어려운 조건일수록 클리어 보상이 큽니다.\n선택 안 해도 시작할 수 있어요.',
+          '3장의 챌린지 카드 중 1개를 선택해요.\n어려운 조건일수록 클리어 보상이 큽니다.\n선택 안 해도 시작할 수 있어요.',
         target: '[data-tutorial-target="challenge-area"]',
       },
     ],
@@ -121,6 +123,19 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
         body:
           '장착 버튼을 누르면 현재 장비와 자동 교체됩니다.\n빠진 장비는 인벤토리로 옮겨져요.\n원치 않으면 카드 옆 폐기 버튼으로 버릴 수도 있어요.',
         target: '[data-tutorial-target="inventory-equip-btn"]',
+      },
+    ],
+  },
+
+  // ── [7] 인벤 모달 닫힌 후 — "상태" 버튼 안내 (CTA 위임 → 상태 모달 열기) ──
+  prompt_status: {
+    step: 'prompt_status',
+    pages: [
+      {
+        title: '상태창 확인하기',
+        body:
+          '장비를 바꿨으니 능력치도 한번 봐봐요.\n상단의 "상태" 버튼을 눌러보세요.',
+        target: '[data-tutorial-target="status-btn"]',
       },
     ],
   },
@@ -230,6 +245,7 @@ export const TUTORIAL_KEYS: TutorialStep[] = [
   'first_combat',
   'first_treasure',
   'first_inventory',
+  'prompt_status',
   'first_shop',
   'first_status',
   'second_combat',
