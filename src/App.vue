@@ -18,6 +18,7 @@ import PickupModal from './ui/components/PickupModal.vue'
 import DialogModal from './ui/components/DialogModal.vue'
 import InputModal from './ui/components/InputModal.vue'
 import ListModal from './ui/components/ListModal.vue'
+import ItemAnnounceModal from './ui/components/ItemAnnounceModal.vue'
 import SpeedControl from './ui/components/SpeedControl.vue'
 import TutorialOverlay from './ui/components/TutorialOverlay.vue'
 import { playBgm, pauseBgm, resumeBgm, type BgmKind } from './ui/sound'
@@ -114,6 +115,8 @@ onUnmounted(() => {
     <SettingsScreen v-else-if="currentScreen === 'settings'" />
     <!-- 인트로 만화 (스플래시 후 자동/설정 다시보기) -->
     <IntroComic v-if="game.introVisible" />
+    <!-- 아이템 획득 알림 모달 (자동 적재 후 카드+확인) -->
+    <ItemAnnounceModal />
     <!-- 인벤토리 풀 알림 모달 (모든 화면 위에 오버레이) -->
     <PickupModal />
     <!-- 범용 모달 (alert/confirm/prompt/list 대체) -->

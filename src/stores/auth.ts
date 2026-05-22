@@ -24,6 +24,9 @@ export const useAuthStore = defineStore('auth', {
     uid: (s) => s.user?.uid ?? null,
     displayName: (s) => s.user?.displayName ?? null,
     photoURL: (s) => s.user?.photoURL ?? null,
+    email: (s) => s.user?.email ?? null,
+    // 테스트 권한 계정 (개발자 본인) — 100배 가속 등 디버그 옵션 노출용
+    isDevAccount: (s) => s.user?.email === 'syk4441@gmail.com',
   },
 
   actions: {

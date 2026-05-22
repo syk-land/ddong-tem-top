@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
+import { useAuthStore } from '@/stores/auth'
 import {
   isSoundEnabled, setSoundEnabled,
   isBgmEnabled, setBgmEnabled,
@@ -11,15 +12,20 @@ import {
 import { showRewardedAd } from '@/lib/ads'
 
 const game = useGameStore()
+const auth = useAuthStore()
 
 // 튜토리얼 게이팅 — 본 단계에 따라 표시 가능한 속도/옵션이 다름.
 //   first_shop 전: 1배속만
 //   first_shop 후, first_chapter_clear 전: 1·2배속
-//   first_chapter_clear 후: 전부 (4배속·자동진입은 광고 해금 필요)
+//   first_chapter_clear 후: 1·2·4배속 (4배속·자동진입은 광고 해금 필요)
+//   syk4441@gmail.com (개발자 본인) 로그인 시: 100배 추가 — 테스트용
 const speeds = computed<readonly number[]>(() => {
-  if (!game.canUseSpeed2x) return [1]
-  if (!game.canShowSpeed4x) return [1, 2]
-  return [1, 2, 4]
+  const base: number[] = (() => {
+    if (!game.canUseSpeed2x) return [1]
+    if (!game.canShowSpeed4x) return [1, 2]
+    return [1, 2, 4]
+  })()
+  return auth.isDevAccount ? [...base, 100] : base
 })
 
 // 펼침 상태 — 기본 접힘. localStorage 영속화 (사용자가 명시적으로 펼친 채로 둔 경우만 복원)
@@ -76,6 +82,11 @@ function bumpActivity() {
 async function setSpeed(s: number) {
   sfx.click()
   bumpActivity()
+  // 100배 — 개발자 테스트용 (광고 없음)
+  if (s === 100) {
+    game.setCombatSpeed(100)
+    return
+  }
   // 4배속 — 등반 1회당 광고 1번 시청 → 그 런 끝까지 자유 토글
   if (s === 4 && game.combatSpeed !== 4 && !game.run?.adFastSpeedUnlocked) {
     const ok = await game.confirmModal('광고를 보고 이번 등반 동안 4배속을 사용하시겠습니까?', {
@@ -264,7 +275,7 @@ watch(
 <template>
   <div
     data-tutorial-target="speed-control"
-    class="fixed top-1 left-1 z-40 rounded-md select-none text-gray-200 transition-opacity duration-200"
+    class="fixed top-1 left-1 z-[100] rounded-md select-none text-gray-200 transition-opacity duration-200"
     :class="[
       dimmed && !expanded ? 'opacity-25' : (expanded ? 'opacity-95' : 'opacity-60 hover:opacity-95'),
       expanded ? 'bg-black/65 backdrop-blur-sm' : 'bg-black/45 backdrop-blur-[2px]',

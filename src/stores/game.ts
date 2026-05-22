@@ -129,6 +129,9 @@ interface GameState {
   // 보물 노드에서 receiveItem 호출 시 set, 다음 Dungeon onMounted 에서 first_treasure 발화.
   // (receiveItem 시점엔 Combat 화면이라 인벤 버튼이 DOM 에 없어 타겟 잡을 수 없음 — 지연 발화)
   pendingTreasureTutorial: boolean
+  // 아이템 획득 알림 큐 — receiveItem 호출 시 push, 사용자가 확인하면 shift.
+  // 다중 드랍(보물 무기+갑옷, 보스+다음 받기) 시 차례대로 표시.
+  itemAnnounceQueue: ItemInstance[]
   // 백그라운드(탭 비활성) 시 일시정지 플래그 — 자동 틱/BGM 동기화용
   paused: boolean
   // 범용 다이얼로그 (alert/confirm 대체)
@@ -207,6 +210,7 @@ export const useGameStore = defineStore('game', {
     runAvatar: null,
     tutorialActive: null,
     pendingTreasureTutorial: false,
+    itemAnnounceQueue: [],
     realBossTheme: null,
     realBossMonster: null,
     realBossWeakRecord: null,
@@ -277,11 +281,11 @@ export const useGameStore = defineStore('game', {
     init() {
       this.meta = loadMeta()
       this.savedRunExists = loadRun() !== null
-      // 저장된 게임 속도 복원 (1/2/4 만 허용)
+      // 저장된 게임 속도 복원 (1/2/4 또는 100=개발자 테스트용)
       try {
         const raw = localStorage.getItem('climetop:speed:v1')
         const n = raw ? Number(raw) : NaN
-        if (n === 1 || n === 2 || n === 4) this.combatSpeed = n
+        if (n === 1 || n === 2 || n === 4 || n === 100) this.combatSpeed = n
       } catch {}
       // 자동 진입 토글 복원
       try {
@@ -545,22 +549,15 @@ export const useGameStore = defineStore('game', {
     openTreasure(chapter: number) {
       // 튜토리얼 (보물 학습 전) — 미믹 우회 + 무기/방어구 1개씩 강제 드랍 + 명중 트레이트.
       // 사용자가 인벤토리에서 무기·갑옷 둘 다 비교/장착 학습 가능하도록.
+      // 알림은 receiveItem 안의 itemAnnounceQueue 가 카드+확인 모달로 처리.
       const isTutorial = !this.meta.tutorialSeen.first_treasure
       if (isTutorial) {
         const rewards: ItemInstance[] = [
           rollItem({ kind: 'weapon', chapter, source: 'treasure', forceTraitName: '날카로운' }),
           rollItem({ kind: 'armor',  chapter, source: 'treasure', forceTraitName: '정밀한' }),
         ]
-        if (this.autoEnter) {
-          for (const item of rewards) this.receiveItem(item)
-          this.advance()
-          return
-        }
-        const names = rewards.map((r) => `${r.trait} ${r.grade} ${r.baseKey}`).join('\n• ')
-        this.alertModal(`• ${names}`, '보물상자 획득').then(() => {
-          for (const item of rewards) this.receiveItem(item)
-          this.advance()
-        })
+        for (const item of rewards) this.receiveItem(item)
+        this.advance()
         return
       }
       // 통상: 10% 미믹, 85% 1개, 5% 2개
@@ -584,28 +581,9 @@ export const useGameStore = defineStore('game', {
         const kind = Math.random() < 0.5 ? 'weapon' : 'armor'
         rewards.push(rollItem({ kind, chapter, source: 'treasure' }))
       }
-      // 자동 진입 모드면 모달 건너뛰고 바로 진행 (회복샘과 동일 패턴)
-      const applyRewards = () => {
-        if (this.run) {
-          for (const item of rewards) {
-            this.receiveItem(item)
-          }
-        }
-      }
-      if (this.autoEnter) {
-        applyRewards()
-        this.advance()
-        return
-      }
-      const names = rewards.map((r) => `${r.trait} ${r.grade} ${r.baseKey}`).join('\n• ')
-      this.alertModal(`• ${names}`, '보물상자 획득').then(() => {
-        if (this.run) {
-          for (const item of rewards) {
-            this.receiveItem(item)
-          }
-        }
-        this.advance()
-      })
+      // 알림은 receiveItem 내부 itemAnnounceQueue 가 처리 (카드+확인 모달). 별도 alertModal 불필요.
+      for (const item of rewards) this.receiveItem(item)
+      this.advance()
     },
 
     // 드랍/구매 처리: 인벤토리로 적재 → 슬롯 비었으면 자동 장착.
@@ -625,16 +603,23 @@ export const useGameStore = defineStore('game', {
         this.pendingTreasureTutorial = true
       }
 
-      // 빈 자리 있으면 자동 적재
+      // 빈 자리 있으면 자동 적재 + 획득 알림 큐 push (ItemAnnounceModal 이 카드+확인 모달로 안내)
       if (this.run.inventory.length < this.run.inventoryCap) {
         this.run.inventory.push(item)
         this.autoEquipFromInventory()
+        this.itemAnnounceQueue.push(item)
         saveRun(this.run)
         return
       }
 
-      // 가득 참 → 사용자 결정 대기 (모달)
+      // 가득 참 → 사용자 결정 대기 (PickupModal). 그 모달 자체가 새 아이템 카드를
+      // 보여주므로 itemAnnounceQueue 에는 push 안 함 (중복 방지).
       this.pendingPickup = item
+    },
+
+    // ItemAnnounceModal 의 "확인" 콜백 — 큐의 첫 항목 제거 → 다음 또는 빈 큐
+    popItemAnnounce() {
+      this.itemAnnounceQueue.shift()
     },
 
     // 빈 장비 슬롯이 있고 인벤토리에 같은 종류 아이템이 있으면 가장 좋은 것(tier 우선)으로 자동 장착.
@@ -948,7 +933,8 @@ export const useGameStore = defineStore('game', {
 
     setCombatSpeed(speed: number) {
       // 튜토리얼 게이팅 (강제 조작 방어):
-      //   2배속은 second_combat 학습 후, 4배속은 first_chapter_clear 학습 후만 허용
+      //   2배속은 second_combat 학습 후, 4배속은 first_chapter_clear 학습 후만 허용.
+      //   100배는 게이팅 면제 — 개발자 테스트용 (SpeedControl 에서 isDevAccount 일 때만 노출)
       if (speed === 2 && !this.meta.tutorialSeen.second_combat) {
         speed = 1
       }
@@ -1782,6 +1768,11 @@ export const useGameStore = defineStore('game', {
       // 0) 튜토리얼 오버레이 → 현재 단계 닫기 (가장 위에 떠 있음)
       if (this.tutorialActive) {
         this.completeTutorial()
+        return true
+      }
+      // 0.5) 아이템 획득 알림 → 확인 동작과 동등 (큐 pop)
+      if (this.itemAnnounceQueue.length > 0) {
+        this.popItemAnnounce()
         return true
       }
       // 1) 인벤토리 풀 모달 → 신규 아이템 거부

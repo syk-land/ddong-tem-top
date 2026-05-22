@@ -44,17 +44,17 @@ async function recompute() {
     cardPos.value = null
     return
   }
-  // 타겟이 viewport 밖이면 자동 스크롤로 가운데로 끌어옴 (챌린지 패널 등 화면 아래쪽)
-  const preRect = el.getBoundingClientRect()
-  const fullyVisible =
-    preRect.top >= 0 &&
-    preRect.bottom <= window.innerHeight &&
-    preRect.left >= 0 &&
-    preRect.right <= window.innerWidth
-  if (!fullyVisible) {
+  // 자동 스크롤: 타겟이 viewport 중앙 근처(상하 ±25% 안) 가 아니면 가운데로 끌어옴.
+  // 화면 부분 가시여도 강제 스크롤 — 보너스 패널처럼 아래쪽 끝에 붙은 영역도 정확히 가운데로.
+  const pre = el.getBoundingClientRect()
+  const centerY = pre.top + pre.height / 2
+  const idealLow = window.innerHeight * 0.25
+  const idealHigh = window.innerHeight * 0.75
+  const needScroll = centerY < idealLow || centerY > idealHigh
+  if (needScroll) {
     el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
     // 스크롤 애니메이션 후 정확한 좌표 재측정
-    await new Promise((r) => setTimeout(r, 320))
+    await new Promise((r) => setTimeout(r, 360))
   }
   const rect = el.getBoundingClientRect()
   targetRect.value = rect
