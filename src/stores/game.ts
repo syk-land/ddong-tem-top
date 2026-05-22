@@ -626,8 +626,12 @@ export const useGameStore = defineStore('game', {
     },
 
     // ItemAnnounceModal 의 "확인" 콜백 — 큐 전체 비움 (한 모달에 카드 N장 한꺼번에 보여줌).
+    // 자동 진입 모드라 advance 가 일찍 막혔다면 큐 비워진 직후 다시 시도.
     clearItemAnnounce() {
       this.itemAnnounceQueue = []
+      if (this.autoEnter && this.run && !this.combat) {
+        this.advance()
+      }
     },
 
     // 빈 장비 슬롯이 있고 인벤토리에 같은 종류 아이템이 있으면 가장 좋은 것(tier 우선)으로 자동 장착.
@@ -767,6 +771,10 @@ export const useGameStore = defineStore('game', {
     // 층 이동
     advance() {
       if (!this.run) return
+      // 획득 알림 모달이 떠 있으면 사용자가 "확인" 누르기 전엔 진행하지 않음
+      // (자동 진입 모드여도 동일 — 보상 카드를 보지 못한 채 다음 층으로 넘어가지 않게).
+      // 사용자가 확인하면 clearItemAnnounce 가 호출되며 그때 자동 재시도된다.
+      if (this.itemAnnounceQueue.length > 0) return
       sfx.transition()
       // 층 클리어 시 플레이어 상태이상 + 침묵 전체 제거
       this.run.character.statuses = []
@@ -960,6 +968,15 @@ export const useGameStore = defineStore('game', {
     triggerTutorial(step: TutorialStep) {
       if (this.meta.tutorialSeen[step]) return
       if (this.tutorialActive) return
+      // 인벤/상태창 학습 (first_inventory, prompt_status, first_status) 은
+      // 반드시 상점 전 2층 (= 챕터 1 의 보물 노드) 에서만 트리거.
+      // 사용자가 보물 노드 외에서 인벤/상태 모달을 열어도 학습 X — 의도적으로
+      // 학습 위치를 고정해서 사용자가 상점에서 학습되는 등의 어긋남을 막음.
+      if (step === 'first_inventory' || step === 'prompt_status' || step === 'first_status') {
+        const ch = this.run?.chapters[this.run.currentChapterIndex]
+        const floor = ch?.floors[ch?.currentFloor]
+        if (floor?.type !== 'treasure') return
+      }
       this.tutorialActive = step
     },
     // 첫 상점 진입 시 1회 100골드 지급 — 튜토리얼에서 구매 학습이 가능하도록.
@@ -976,6 +993,15 @@ export const useGameStore = defineStore('game', {
       if (!step) return
       this.meta.tutorialSeen[step] = true
       this.tutorialActive = null
+      this.persistMeta()
+    },
+    // 튜토리얼 전체 건너뛰기 — 모든 단계를 본 것으로 마킹 + 현재 단계 종료.
+    // pendingTreasureTutorial 같은 예약도 함께 클리어.
+    skipAllTutorials() {
+      const keys = Object.keys(this.meta.tutorialSeen) as (keyof typeof this.meta.tutorialSeen)[]
+      for (const k of keys) this.meta.tutorialSeen[k] = true
+      this.tutorialActive = null
+      this.pendingTreasureTutorial = false
       this.persistMeta()
     },
     // 설정의 "튜토리얼 다시 보기" — 모든 단계 false 로 리셋

@@ -161,10 +161,29 @@ const ctaLabel = computed(() => {
   return '알겠어요'
 })
 
+// ── 단계 전환 1초 cooldown ────────────────────────────────
+// 단계가 바뀐 직후엔 사용자가 새 카드를 인지하기 전이라 의도하지 않은 클릭이
+// 자주 발생 (예: prompt_status 클릭 → 모달 open → first_status 가 즉시 뜨고
+// 같은 손가락 위치에서 또 다른 버튼이 눌려 두 단계 연속 넘어감).
+// 단계 변경 시 cooldownUntil 갱신 → 그 동안 클릭은 advance 도 막고 원 동작
+// (preventDefault + stopPropagation) 도 막아 정말 1초의 텀을 강제한다.
+const COOLDOWN_MS = 1000
+const cooldownUntil = ref(0)
+function inCooldown(): boolean {
+  return Date.now() < cooldownUntil.value
+}
+watch(step, () => {
+  cooldownUntil.value = Date.now() + COOLDOWN_MS
+})
+watch(pageIdx, () => {
+  cooldownUntil.value = Date.now() + COOLDOWN_MS
+})
+
 // CTA 자동 위임 — 타겟이 클릭 가능 버튼이고 사용자가 카드의 닫기 (×) 만 눌러서
 // 빠져나오는 경우 (희귀 fallback). 일반적으로는 타겟 직접 클릭 흐름을 권장.
 function advance() {
   if (!def.value) return
+  if (inCooldown()) return
   if (!isLastPage.value) {
     pageIdx.value += 1
     return
@@ -175,14 +194,30 @@ function close() {
   game.completeTutorial()
 }
 
+async function skipAll() {
+  const ok = await game.confirmModal(
+    '모든 튜토리얼을 건너뛰고 다시 보지 않게 합니다.\n나중에 다시 보려면 설정에서 "튜토리얼 다시 보기" 를 이용해주세요.',
+    { title: '튜토리얼 전체 건너뛰기', okLabel: '건너뛰기', cancelLabel: '취소' },
+  )
+  if (!ok) return
+  game.skipAllTutorials()
+}
+
 // ── 타겟 직접 클릭 위임 ──────────────────────────────────
 // 카드 안에 CTA 버튼을 두지 않고, 사용자가 화살표가 가리키는 실제 게임 UI 버튼을
 // 직접 누르게 한다. 그 한 번의 클릭이 ① 튜토리얼 진행 + ② 실제 동작을 동시에 한다.
 // capture phase 라 다른 핸들러보다 먼저 발화 — 페이지 ++ / 완료 처리만 하고
 // stopPropagation 은 하지 않으므로 원래 클릭은 그대로 진행돼 실제 동작이 일어난다.
+// 단계 전환 직후 1초는 cooldown — 그 동안의 클릭은 advance 도 막고 원 click 도
+// preventDefault + stopPropagation 으로 막아 의도하지 않은 연쇄 진행을 차단.
 let attachedEl: HTMLElement | null = null
-function handleTargetClick(_e: MouseEvent) {
+function handleTargetClick(e: MouseEvent) {
   if (!def.value) return
+  if (inCooldown()) {
+    e.preventDefault()
+    e.stopPropagation()
+    return
+  }
   if (!isLastPage.value) {
     pageIdx.value += 1
   } else {
@@ -240,6 +275,13 @@ onUnmounted(() => {
       :class="targetActionEl ? 'pointer-events-none' : ''"
       @click.stop
     />
+
+    <!-- 튜토리얼 전체 건너뛰기 (좌측 상단, SpeedControl 아래 줄) -->
+    <button
+      class="fixed top-[40px] left-1 z-[101] px-2.5 py-1 rounded-md bg-zinc-800/90 hover:bg-zinc-700 ring-1 ring-zinc-600 text-xs text-zinc-300 backdrop-blur-sm pointer-events-auto shadow-lg"
+      title="모든 튜토리얼을 건너뛰고 다시 보지 않습니다"
+      @click.stop="skipAll"
+    >⏭ 튜토리얼 전체 건너뛰기</button>
 
     <!-- 스포트라이트: 타겟 주변 강조 — 안쪽 검정 윤곽 + 시안 두꺼운 ring +
          바깥 검정 윤곽 + 시안 글로우. 박동 (1.2s) 으로 화살표와 같이 강조. -->
