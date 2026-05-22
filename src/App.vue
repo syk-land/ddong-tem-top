@@ -19,6 +19,7 @@ import DialogModal from './ui/components/DialogModal.vue'
 import InputModal from './ui/components/InputModal.vue'
 import ListModal from './ui/components/ListModal.vue'
 import SpeedControl from './ui/components/SpeedControl.vue'
+import TutorialOverlay from './ui/components/TutorialOverlay.vue'
 import { playBgm, pauseBgm, resumeBgm, type BgmKind } from './ui/sound'
 
 const game = useGameStore()
@@ -121,6 +122,8 @@ onUnmounted(() => {
     <DialogModal />
     <!-- 게임 속도 컨트롤 (전역, 스플래시 동안만 숨김 — combat 화면에도 표시) -->
     <SpeedControl v-if="!showSplash" />
+    <!-- 인게임 튜토리얼 오버레이 (활성 단계가 있을 때만 표시) -->
+    <TutorialOverlay v-if="game.tutorialActive && !showSplash && !game.introVisible" />
     <!-- 최초 실행 스플래시 (클릭 시 닫힘) -->
     <SplashScreen v-if="showSplash" @dismiss="dismissSplash" />
   </main>

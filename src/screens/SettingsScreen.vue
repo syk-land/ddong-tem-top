@@ -62,6 +62,17 @@ function replayIntro() {
   game.autoShowIntroIfFirstTime()
 }
 
+// ── 인게임 튜토리얼 다시보기 ──
+async function replayTutorial() {
+  const ok = await game.confirmModal(
+    '튜토리얼 진행도를 초기화합니다.\n다음 게임 진행 중에 처음부터 다시 노출됩니다.',
+    { title: '튜토리얼 다시 보기', okLabel: '초기화' },
+  )
+  if (!ok) return
+  game.resetTutorial()
+  game.setScreen('menu')
+}
+
 function back() {
   game.setScreen('menu')
 }
@@ -177,6 +188,10 @@ onMounted(() => {
           class="w-full min-h-11 rounded-md bg-bg-tertiary hover:bg-bg-hover border border-slate-700/60 font-bold text-sm active:scale-[0.99] transition px-3 text-left"
           @click="replayIntro"
         >인트로 만화 다시보기</button>
+        <button
+          class="w-full min-h-11 rounded-md bg-bg-tertiary hover:bg-bg-hover border border-slate-700/60 font-bold text-sm active:scale-[0.99] transition px-3 text-left"
+          @click="replayTutorial"
+        >튜토리얼 다시 보기</button>
       </div>
     </div>
 

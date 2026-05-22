@@ -65,7 +65,11 @@ function tryAutoEnter() {
   }, delay)
 }
 
-onMounted(tryAutoEnter)
+onMounted(() => {
+  // 첫 던전 진입 — 노드 클릭법 안내. 자동 진입 트리거보다 먼저 발화해야 함.
+  game.triggerTutorial('first_node')
+  tryAutoEnter()
+})
 onUnmounted(() => {
   if (autoEnterTimer) clearTimeout(autoEnterTimer)
 })

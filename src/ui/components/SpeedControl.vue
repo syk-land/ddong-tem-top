@@ -11,7 +11,16 @@ import {
 import { showRewardedAd } from '@/lib/ads'
 
 const game = useGameStore()
-const speeds = [1, 2, 4] as const
+
+// 튜토리얼 게이팅 — 본 단계에 따라 표시 가능한 속도/옵션이 다름.
+//   first_shop 전: 1배속만
+//   first_shop 후, first_chapter_clear 전: 1·2배속
+//   first_chapter_clear 후: 전부 (4배속·자동진입은 광고 해금 필요)
+const speeds = computed<readonly number[]>(() => {
+  if (!game.canUseSpeed2x) return [1]
+  if (!game.canShowSpeed4x) return [1, 2]
+  return [1, 2, 4]
+})
 
 // 펼침 상태 — 기본 접힘. localStorage 영속화 (사용자가 명시적으로 펼친 채로 둔 경우만 복원)
 const expanded = ref(false)
@@ -306,6 +315,7 @@ watch(
           {{ s }}x
         </button>
         <button
+          v-if="game.canShowAutoEnter"
           class="px-2 py-0.5 rounded text-xs transition-all ml-1"
           :class="game.autoEnter
             ? 'bg-log-reward text-black font-bold ring-2 ring-amber-200 shadow-[0_0_8px_rgba(251,191,36,0.7)]'

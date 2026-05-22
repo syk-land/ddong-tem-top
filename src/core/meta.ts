@@ -1,4 +1,4 @@
-import type { MetaBonuses, Stats, StatKey, Character, TowerRun, CharacterRecord, ChapterTheme } from '@/types'
+import type { MetaBonuses, Stats, StatKey, Character, TowerRun, CharacterRecord, ChapterTheme, TutorialSeen } from '@/types'
 import { computeClearScore, getClearRank } from './character'
 
 const STORAGE_KEY_META = 'climetop:meta:v1'
@@ -38,6 +38,34 @@ function migrateAllocations(old: Partial<Record<string, number>> | undefined): P
   return out
 }
 
+function defaultTutorialSeen(): TutorialSeen {
+  return {
+    creation_intro: false,
+    first_node: false,
+    first_combat: false,
+    first_treasure: false,
+    first_shop: false,
+    first_chapter_clear: false,
+    meta_creation: false,
+    realboss_clear: false,
+  }
+}
+
+function migrateTutorialSeen(t: Partial<TutorialSeen> | undefined): TutorialSeen {
+  const base = defaultTutorialSeen()
+  if (!t) return base
+  return {
+    creation_intro: !!t.creation_intro,
+    first_node: !!t.first_node,
+    first_combat: !!t.first_combat,
+    first_treasure: !!t.first_treasure,
+    first_shop: !!t.first_shop,
+    first_chapter_clear: !!t.first_chapter_clear,
+    meta_creation: !!t.meta_creation,
+    realboss_clear: !!t.realboss_clear,
+  }
+}
+
 export function loadMeta(): MetaBonuses {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_META)
@@ -62,6 +90,23 @@ export function loadMeta(): MetaBonuses {
       realBossCompleted: m.realBossCompleted ?? false,
       realBossDefeated: m.realBossDefeated ?? false,
       totalGoldEarned: m.totalGoldEarned ?? 0,
+      tutorialSeen: migrateTutorialSeen(m.tutorialSeen),
+    }
+    // 옛 세이브 마이그레이션:
+    //   tutorialSeen 필드가 없었던 옛 플레이어는 이미 게임을 진행한 상태인데
+    //   갑자기 튜토리얼이 뜨면 부담스러움. clearCount/climbCount 가 0보다 크면
+    //   모든 단계 본 것으로 처리해서 튜토리얼이 다시 안 뜨게 한다.
+    if (!m.tutorialSeen && (loaded.clearCount > 0 || loaded.climbCount > 0)) {
+      loaded.tutorialSeen = {
+        creation_intro: true,
+        first_node: true,
+        first_combat: true,
+        first_treasure: true,
+        first_shop: true,
+        first_chapter_clear: true,
+        meta_creation: true,
+        realboss_clear: loaded.realBossDefeated,  // 진짜 보스 안 깬 사람만 이거 노출
+      }
     }
     return loaded
   } catch {
@@ -95,6 +140,7 @@ export function defaultMeta(): MetaBonuses {
     realBossCompleted: false,
     realBossDefeated: false,
     totalGoldEarned: 0,
+    tutorialSeen: defaultTutorialSeen(),
   }
 }
 

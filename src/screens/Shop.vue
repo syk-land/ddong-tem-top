@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useGameStore } from '@/stores/game'
 import ItemDetail from '@/ui/components/ItemDetail.vue'
 import type { ItemInstance } from '@/types'
@@ -8,6 +8,11 @@ import { canEquipItem } from '@/core/challengeRuntime'
 import { CHALLENGES_MAP } from '@/data/challenges'
 
 const game = useGameStore()
+
+// 첫 상점 — 구매/판매 안내 + 2배속 잠금 해제 (안내 페이지에서 처리)
+onMounted(() => {
+  game.triggerTutorial('first_shop')
+})
 const shop = computed(() => game.shop!)
 const player = computed(() => game.run!.character)
 const refresh = computed(() => game.run!.refreshState)

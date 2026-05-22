@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type {
   Screen, TowerRun, MetaBonuses, Stats, StatKey, ItemInstance, MonsterInstance, ChapterTheme, CharacterRecord,
+  TutorialStep,
 } from '@/types'
 import { createCharacter, generateRandomStats, uniformStartingStats, computeMaxMp } from '@/core/character'
 import { makeTowerRun, currentChapter, currentFloor, advanceFloor } from '@/core/tower'
@@ -123,6 +124,8 @@ interface GameState {
   introVisible: boolean
   introPage: number              // 0=main 화면, 1=tutorial1, 2=tutorial2, 3=tutorial3
   introFlow: 'first' | 'replay' | 'afterRealBoss'  // first=최초 main->t1->t2->menu, afterRealBoss=t1->t2->t3->create, replay=설정에서 다시 보기
+  // 인게임 튜토리얼 — 현재 표시 중인 단계 (null = 없음). data/tutorial.ts 의 8단계 중 하나.
+  tutorialActive: TutorialStep | null
   // 백그라운드(탭 비활성) 시 일시정지 플래그 — 자동 틱/BGM 동기화용
   paused: boolean
   // 범용 다이얼로그 (alert/confirm 대체)
@@ -199,6 +202,7 @@ export const useGameStore = defineStore('game', {
     rollsLeft: 3,
     selectedAvatar: null,
     runAvatar: null,
+    tutorialActive: null,
     realBossTheme: null,
     realBossMonster: null,
     realBossWeakRecord: null,
@@ -244,6 +248,13 @@ export const useGameStore = defineStore('game', {
       const hpScore = (c.hp / c.maxHp) * 100
       return { rank, bonus, score, eqScore, goldScore, hpScore }
     },
+    // ── 튜토리얼 속도 게이팅 ──
+    // first_shop 단계를 보기 전까지는 1배속만. 본 후엔 2배속까지 자유.
+    canUseSpeed2x: (s): boolean => s.meta.tutorialSeen.first_shop,
+    // first_chapter_clear 단계를 보기 전까지는 4배속·자동진입 노출 X.
+    // (광고 시청 자체가 그 시점 이후에야 의미 있음)
+    canShowSpeed4x: (s): boolean => s.meta.tutorialSeen.first_chapter_clear,
+    canShowAutoEnter: (s): boolean => s.meta.tutorialSeen.first_chapter_clear,
   },
 
   actions: {
@@ -567,6 +578,9 @@ export const useGameStore = defineStore('game', {
       // 인벤토리 보유 불가 (미니멀리스트 cap 0 등)
       if (this.run.inventoryCap <= 0) return
 
+      // 첫 드랍/픽업 — 인벤토리·아이템 비교 안내 트리거
+      this.triggerTutorial('first_treasure')
+
       // 빈 자리 있으면 자동 적재
       if (this.run.inventory.length < this.run.inventoryCap) {
         this.run.inventory.push(item)
@@ -733,6 +747,10 @@ export const useGameStore = defineStore('game', {
       }
       if (willEndChapter) {
         this.refreshUsedThisChapter = false
+        // 첫 챕터(1) 클리어 시 4배속·자동진입 광고 해금 안내 트리거
+        if (ch.chapter === 1) {
+          this.triggerTutorial('first_chapter_clear')
+        }
       }
 
       if (result.ended) {
@@ -886,10 +904,50 @@ export const useGameStore = defineStore('game', {
     },
 
     setCombatSpeed(speed: number) {
+      // 튜토리얼 게이팅: 2배속은 first_shop 이후, 4배속은 first_chapter_clear 이후만 허용
+      if (speed === 2 && !this.meta.tutorialSeen.first_shop) {
+        speed = 1
+      }
+      if (speed === 4 && !this.meta.tutorialSeen.first_chapter_clear) {
+        speed = 1
+      }
       this.combatSpeed = speed
       try {
         localStorage.setItem('climetop:speed:v1', String(speed))
       } catch {}
+    },
+
+    // ── 인게임 튜토리얼 ──
+    // 단계가 아직 안 봤으면 활성화. 이미 봤거나 다른 단계가 진행 중이면 무시.
+    triggerTutorial(step: TutorialStep) {
+      if (this.meta.tutorialSeen[step]) return
+      if (this.tutorialActive) return
+      this.tutorialActive = step
+    },
+    // 현재 단계 닫기 — 본 것으로 마킹하고 저장
+    completeTutorial() {
+      const step = this.tutorialActive
+      if (!step) return
+      this.meta.tutorialSeen[step] = true
+      this.tutorialActive = null
+      this.persistMeta()
+    },
+    // 설정의 "튜토리얼 다시 보기" — 모든 단계 false 로 리셋
+    resetTutorial() {
+      this.meta.tutorialSeen = {
+        creation_intro: false,
+        first_node: false,
+        first_combat: false,
+        first_treasure: false,
+        first_shop: false,
+        first_chapter_clear: false,
+        meta_creation: false,
+        realboss_clear: false,
+      }
+      // 게이팅된 속도가 켜져 있으면 1배속으로 내림 (재학습 흐름)
+      if (this.combatSpeed !== 1) this.setCombatSpeed(1)
+      if (this.autoEnter) this.setAutoEnter(false)
+      this.persistMeta()
     },
 
     setAutoEnter(on: boolean) {
@@ -1661,6 +1719,11 @@ export const useGameStore = defineStore('game', {
     // 안드로이드 뒤로가기: 떠있는 모달/오버레이를 우선순위로 닫음.
     // 닫을 게 있으면 true, 없으면 false (호출 측에서 false면 앱 종료 등 결정).
     handleBackButton(): boolean {
+      // 0) 튜토리얼 오버레이 → 현재 단계 닫기 (가장 위에 떠 있음)
+      if (this.tutorialActive) {
+        this.completeTutorial()
+        return true
+      }
       // 1) 인벤토리 풀 모달 → 신규 아이템 거부
       if (this.pendingPickup) {
         this.resolvePickupRefuse()

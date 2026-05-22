@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { defaultBgUrl } from '@/ui/images'
 
@@ -11,6 +11,11 @@ const percent = computed(() => Math.round(ratio.value * 100))
 const gain = computed(() => Math.floor(ratio.value * 60))
 const totalPermanent = computed(() => game.meta.permanentStartBonus ?? 0)
 const isGameClear = computed(() => ratio.value >= 0.9999)
+
+// 첫 진짜 보스 결과 — 영구 시작 보너스 안내. 깎은 비율이 0보다 클 때만 의미 있음.
+onMounted(() => {
+  if (ratio.value > 0) game.triggerTutorial('realboss_clear')
+})
 
 function proceed() {
   game.proceedFromRealBossResult()

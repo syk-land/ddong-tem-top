@@ -159,6 +159,8 @@ function restartTicker() {
 }
 
 onMounted(() => {
+  // 첫 전투 — HP/MP/게이지 안내
+  game.triggerTutorial('first_combat')
   startAutoTick()
 })
 onUnmounted(() => stopAutoTick())

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onBeforeUnmount } from 'vue'
+import { computed, ref, onBeforeUnmount, onMounted } from 'vue'
 import { useGameStore } from '@/stores/game'
 import type { Stats, StatKey } from '@/types'
 import { statColorClass } from '@/ui/colors'
@@ -10,6 +10,17 @@ import { START_STAT_BASE } from '@/core/realboss'
 const bgUrl = mainImageUrl()
 
 const game = useGameStore()
+
+// 튜토리얼 — 첫 캐릭터 생성이면 creation_intro, 이후 사망/클리어 후 첫 진입이면 meta_creation.
+// 둘은 독립이라 사용자가 한 단계만 빠르게 닫아도 다음에 해당하는 게 정상.
+onMounted(() => {
+  const m = game.meta
+  if (m.clearCount === 0 && m.climbCount === 0) {
+    game.triggerTutorial('creation_intro')
+  } else {
+    game.triggerTutorial('meta_creation')
+  }
+})
 
 const bonusAvailable = computed(() => game.meta.totalBonusStats)
 const allocation = ref<Partial<Stats>>({})
