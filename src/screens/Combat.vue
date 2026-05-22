@@ -159,8 +159,14 @@ function restartTicker() {
 }
 
 onMounted(() => {
-  // 첫 전투 — HP/MP/게이지 안내
+  // 첫 전투 — HP/MP/게이지 안내 (= 챕터 1 1층 강제 일반)
   game.triggerTutorial('first_combat')
+  // 챕터 1 4층 일반 몬스터 전투 → 2배속 잠금 해제 + 안내
+  const ch = game.currentChapterState
+  const floor = game.currentFloorEvent
+  if (ch?.chapter === 1 && ch.currentFloor === 3 && floor?.type === 'monster') {
+    game.triggerTutorial('second_combat')
+  }
   startAutoTick()
 })
 onUnmounted(() => stopAutoTick())

@@ -1,29 +1,42 @@
 # 인게임 튜토리얼
 
-> 첫 플레이 시 8단계로 점진적 노출. 각 단계는 처음 만날 때 1회만 표시. 속도/자동진입 옵션이 단계와 함께 점진적으로 해금. 챕터 1 의 1·2·3층은 강제 배치 (일반/보물/상점) 로 학습 순서 보장.
+> 첫 플레이 시 9단계로 점진적 노출. 각 단계는 처음 만날 때 1회만 표시. 속도/자동진입 옵션이 단계와 함께 점진적으로 해금. 챕터 1 의 1~4층 + 챕터 2 의 1층은 강제 배치로 학습 순서 보장.
 
-코드: `src/data/tutorial.ts`, `src/ui/components/TutorialOverlay.vue`, `src/stores/game.ts` (`triggerTutorial` / `completeTutorial` / `resetTutorial`), `src/core/tower.ts` (`tutorialForceFirstChapter`)
+코드: `src/data/tutorial.ts`, `src/ui/components/TutorialOverlay.vue`, `src/stores/game.ts` (`triggerTutorial` / `completeTutorial` / `resetTutorial`), `src/core/tower.ts` (`TowerTutorialOpts`)
 저장: `meta.tutorialSeen` (in `climetop:meta:v1`)
 
 ---
 
-## 챕터 1 강제 배치
+## 강제 배치
 
-`meta.tutorialSeen.first_shop === false` 인 캐릭터 (= 첫 상점 학습 전) 는 챕터 1 의 노드 순서가 강제된다 — 학습 흐름이 항상 일정.
+학습 단계와 매칭되는 시점이 항상 같은 노드에서 발화하도록 강제.
+
+### 챕터 1 (`!tutorialSeen.second_combat` 일 때)
 
 | 층 | 노드 | 발화 트리거 |
 |---|---|---|
 | 1 | 일반 몬스터 | `first_node` (Dungeon 진입) + `first_combat` (전투 진입) |
 | 2 | 보물 (미믹 전투) | `first_treasure` (보물 노드의 드랍 시) |
-| 3 | 상점 | `first_shop` (Shop 진입) + 2배속 해금 |
-| 4~9 | 자유 (회복샘 1 + 일반 몬스터 5, 셔플) | — |
-| 10 | 보스 | `first_chapter_clear` (보스 처치 후) |
+| 3 | 상점 | `first_shop` (Shop 진입) — 구매·판매·새로고침만 |
+| 4 | 일반 몬스터 | **`second_combat`** (전투 진입) — 2배속 해금 + 안내 |
+| 5~9 | 자유 (회복샘 1 + 일반 몬스터 4, 셔플) | — |
+| 10 | 보스 | — |
 
-첫 상점을 한 번이라도 본 사용자는 강제 배치가 풀리고 통상 셔플 규칙으로 돌아감.
+`second_combat` 를 본 후에는 강제 배치가 풀리고 통상 셔플 규칙으로 돌아감.
+
+### 챕터 2 (`!tutorialSeen.first_chapter_clear` 일 때)
+
+| 층 | 노드 | 발화 트리거 |
+|---|---|---|
+| 1 | 일반 몬스터 | **`first_chapter_clear`** (Dungeon 진입) — 4배속·자동진입 광고 해금 안내 |
+| 2~9 | 자유 (회복샘 1 + 보물 1 + 상점 1 + 일반 몬스터 5, 셔플) | — |
+| 10 | 보스 | — |
+
+`first_chapter_clear` 를 본 후에는 강제 배치 풀림.
 
 ---
 
-## 8 단계
+## 9 단계
 
 각 단계 = `meta.tutorialSeen` 의 boolean 플래그. 처음 만날 때 1회 노출, 닫으면 영구 마킹.
 
@@ -31,12 +44,13 @@
 |---|---|---|---|---|
 | 1 | `creation_intro` | 첫 캐릭터 생성 화면 진입 (`clearCount + climbCount === 0`) | 주사위 / 5스탯 / 챌린지 선택 | "당신에게 힘이 부여되고 있다…" |
 | 2 | `first_node` | 첫 던전 화면 진입 | 노드 카드 클릭법 | "이 풍경… 어쩐지 익숙하다." |
-| 3 | `first_combat` | 첫 전투 시작 (= 1층 일반 몬스터) | HP/MP/게이지, 자동 스킬 발동 | "약하다. 왜 이렇게 약할까…" |
-| 4 | `first_treasure` | **보물 노드** 의 `receiveItem()` (= 2층 보물 클리어) | 인벤토리, 아이템 비교 | — |
-| 5 | `first_shop` | 첫 상점 진입 (= 3층 상점) | 구매·판매·새로고침 + **2배속 잠금 해제 안내** | "시간이 조금 가까워진 느낌이다." |
-| 6 | `first_chapter_clear` | 챕터 1 (`ch.chapter === 1`) 클리어 직후 | **4배속·자동진입은 광고로 해금 가능** 안내 | "탑은 더 높아진다. 누군가 너를 지켜보는 것 같다." |
-| 7 | `meta_creation` | 사망/클리어 후 첫 캐릭터 생성 (`clearCount + climbCount >= 1`) | 누적 보너스 풀 분배 | "받은 힘이 너의 안에 쌓이고 있다." |
-| 8 | `realboss_clear` | 첫 진짜 보스 결과 화면 (`drainRatio > 0`) | 영구 시작 보너스 | "깊은 곳에서 누군가가 너를 도와주고 있다." |
+| 3 | `first_combat` | 첫 전투 (= 챕터 1 1층 일반) | HP/MP/게이지, 자동 스킬 발동 | "약하다. 왜 이렇게 약할까…" |
+| 4 | `first_treasure` | 보물 노드 `receiveItem()` (= 챕터 1 2층) | 인벤토리, 아이템 비교 | — |
+| 5 | `first_shop` | 첫 상점 진입 (= 챕터 1 3층) | 구매·판매·새로고침 (속도 안내 X) | — |
+| 6 | **`second_combat`** | **챕터 1 4층 일반 전투** (`ch.chapter === 1 && currentFloor === 3 && floor.type === 'monster'`) | **2배속 잠금 해제 + 안내** | "시간이 조금 가까워진 느낌이다." |
+| 7 | `first_chapter_clear` | **챕터 2 1층 진입** (`ch.chapter === 2 && currentFloor === 0`) | **4배속·자동진입 광고 해금 안내** | "탑은 더 높아진다. 누군가 너를 지켜보는 것 같다." |
+| 8 | `meta_creation` | 사망/클리어 후 첫 캐릭터 생성 (`clearCount + climbCount >= 1`) | 누적 보너스 풀 분배 | "받은 힘이 너의 안에 쌓이고 있다." |
+| 9 | `realboss_clear` | 첫 진짜 보스 결과 화면 (`drainRatio > 0`) | 영구 시작 보너스 | "깊은 곳에서 누군가가 너를 도와주고 있다." |
 
 `first_treasure` 는 일반 몬스터 드랍에서는 발화하지 않음 — 보물 노드를 만나야 학습 시점이 됨.
 
@@ -50,8 +64,8 @@
 
 | 단계 | 보이는 옵션 |
 |---|---|
-| `first_shop` 전 | **1배속만** (`speeds = [1]`) |
-| `first_shop` 후, `first_chapter_clear` 전 | 1·2배속 (`speeds = [1, 2]`) — 자동진입 버튼 숨김 |
+| `second_combat` 전 | **1배속만** (`speeds = [1]`) |
+| `second_combat` 후, `first_chapter_clear` 전 | 1·2배속 (`speeds = [1, 2]`) — 자동진입 버튼 숨김 |
 | `first_chapter_clear` 후 | 1·2·4배속 + 자동진입 (4배속·자동진입은 별도 광고 해금 유지) |
 
 `game.canUseSpeed2x` / `game.canShowSpeed4x` / `game.canShowAutoEnter` 게터로 노출 제어.
@@ -65,6 +79,8 @@
 `loadMeta` 마이그레이션에서 `tutorialSeen` 필드가 없고 (`clearCount > 0` 또는 `climbCount > 0`) 이면 **모든 단계 true 로 마킹** — 이미 플레이 중인 사용자는 갑자기 튜토리얼이 다시 뜨지 않음.
 
 예외: `realboss_clear` 는 `realBossDefeated` 가 false 이면 그대로 false 로 둠 — 옛 사용자가 진짜 보스 처음 깰 때 자연스럽게 나오도록.
+
+새 단계 `second_combat` 도 마이그레이션 시 모든 옛 사용자가 본 것으로 마킹 → 갑작스러운 노출 없음.
 
 ---
 

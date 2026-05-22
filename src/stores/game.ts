@@ -249,10 +249,9 @@ export const useGameStore = defineStore('game', {
       return { rank, bonus, score, eqScore, goldScore, hpScore }
     },
     // ── 튜토리얼 속도 게이팅 ──
-    // first_shop 단계를 보기 전까지는 1배속만. 본 후엔 2배속까지 자유.
-    canUseSpeed2x: (s): boolean => s.meta.tutorialSeen.first_shop,
-    // first_chapter_clear 단계를 보기 전까지는 4배속·자동진입 노출 X.
-    // (광고 시청 자체가 그 시점 이후에야 의미 있음)
+    // 2배속은 second_combat (챕터 1 4층 일반 몬스터 안내) 본 후부터 자유.
+    canUseSpeed2x: (s): boolean => s.meta.tutorialSeen.second_combat,
+    // 4배속·자동진입은 first_chapter_clear (챕터 2 1층 안내) 본 후 노출.
     canShowSpeed4x: (s): boolean => s.meta.tutorialSeen.first_chapter_clear,
     canShowAutoEnter: (s): boolean => s.meta.tutorialSeen.first_chapter_clear,
   },
@@ -394,10 +393,13 @@ export const useGameStore = defineStore('game', {
       applyInstantRewards(character, cctx)
       this.challengeContext = cctx
 
-      // 첫 상점 튜토리얼을 아직 안 본 캐릭터는 챕터 1 의 1·2·3층을
-      // 일반/보물/상점 순으로 강제 (튜토리얼 학습 흐름 보장)
-      const tutorialForceFirstChapter = !this.meta.tutorialSeen.first_shop
-      const run = makeTowerRun(character, { tutorialForceFirstChapter })
+      // 튜토리얼 학습 흐름 보장:
+      //   - 챕터 1 강제 layout (1=일반/2=보물/3=상점/4=일반) → second_combat 학습 전까지
+      //   - 챕터 2 1층 강제 일반 몬스터 → first_chapter_clear 학습 전까지
+      const run = makeTowerRun(character, {
+        tutorialForceCh1Layout: !this.meta.tutorialSeen.second_combat,
+        tutorialForceCh2FirstFloor: !this.meta.tutorialSeen.first_chapter_clear,
+      })
       run.challengeKeys = challengeKeys
       // 선택한 아바타 — run 데이터에 보존 + reactive state
       ;(run as any).avatarKey = this.selectedAvatar
@@ -755,10 +757,8 @@ export const useGameStore = defineStore('game', {
       }
       if (willEndChapter) {
         this.refreshUsedThisChapter = false
-        // 첫 챕터(1) 클리어 시 4배속·자동진입 광고 해금 안내 트리거
-        if (ch.chapter === 1) {
-          this.triggerTutorial('first_chapter_clear')
-        }
+        // first_chapter_clear 트리거는 챕터 2 1층 진입 시점 (Dungeon.vue) 에서 발화.
+        // 챕터 클리어 직후 (advance) 가 아니라 다음 챕터 첫 화면에서 학습하는 게 자연스러움.
       }
 
       if (result.ended) {
@@ -912,8 +912,9 @@ export const useGameStore = defineStore('game', {
     },
 
     setCombatSpeed(speed: number) {
-      // 튜토리얼 게이팅: 2배속은 first_shop 이후, 4배속은 first_chapter_clear 이후만 허용
-      if (speed === 2 && !this.meta.tutorialSeen.first_shop) {
+      // 튜토리얼 게이팅 (강제 조작 방어):
+      //   2배속은 second_combat 학습 후, 4배속은 first_chapter_clear 학습 후만 허용
+      if (speed === 2 && !this.meta.tutorialSeen.second_combat) {
         speed = 1
       }
       if (speed === 4 && !this.meta.tutorialSeen.first_chapter_clear) {
@@ -948,6 +949,7 @@ export const useGameStore = defineStore('game', {
         first_combat: false,
         first_treasure: false,
         first_shop: false,
+        second_combat: false,
         first_chapter_clear: false,
         meta_creation: false,
         realboss_clear: false,

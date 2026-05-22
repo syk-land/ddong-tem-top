@@ -45,6 +45,7 @@ function defaultTutorialSeen(): TutorialSeen {
     first_combat: false,
     first_treasure: false,
     first_shop: false,
+    second_combat: false,
     first_chapter_clear: false,
     meta_creation: false,
     realboss_clear: false,
@@ -60,6 +61,7 @@ function migrateTutorialSeen(t: Partial<TutorialSeen> | undefined): TutorialSeen
     first_combat: !!t.first_combat,
     first_treasure: !!t.first_treasure,
     first_shop: !!t.first_shop,
+    second_combat: !!t.second_combat,
     first_chapter_clear: !!t.first_chapter_clear,
     meta_creation: !!t.meta_creation,
     realboss_clear: !!t.realboss_clear,
@@ -103,6 +105,7 @@ export function loadMeta(): MetaBonuses {
         first_combat: true,
         first_treasure: true,
         first_shop: true,
+        second_combat: true,
         first_chapter_clear: true,
         meta_creation: true,
         realboss_clear: loaded.realBossDefeated,  // 진짜 보스 안 깬 사람만 이거 노출

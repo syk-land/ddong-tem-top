@@ -325,15 +325,20 @@ export interface MetaBonuses {
 
 // 인게임 튜토리얼 — 각 단계는 처음 만날 때 1회만 노출.
 // false → 아직 안 봄 (다음 트리거 시 표시),  true → 이미 봄
+//
+// 첫 캐릭터의 챕터 1 은 [1=일반/2=보물/3=상점/4=일반] 4층까지 강제 배치되며
+// 챕터 2 의 1층은 일반 몬스터로 강제 배치된다. 각 강제 노드마다 학습 단계가
+// 매칭되어 순서가 항상 일정하게 흐른다.
 export interface TutorialSeen {
   creation_intro: boolean       // [1] 첫 캐릭터 생성 진입 시 — 주사위/5스탯/챌린지
   first_node: boolean           // [2] 첫 던전 진입 — 노드 클릭법
-  first_combat: boolean         // [3] 첫 전투 시작 — HP/MP/게이지/자동 스킬
-  first_treasure: boolean       // [4] 첫 드랍/보물 — 인벤토리
-  first_shop: boolean           // [5] 첫 상점 진입 — 구매/판매 + 2배속 잠금 해제
-  first_chapter_clear: boolean  // [6] 첫 챕터 클리어 — 4배속·자동진입 광고 해금 안내
-  meta_creation: boolean        // [7] 첫 사망/클리어 후 캐릭터 생성 — 누적 보너스 분배
-  realboss_clear: boolean       // [8] 첫 진짜 보스 클리어 후 — 영구 시작 보너스
+  first_combat: boolean         // [3] 첫 전투 시작 (= 챕터 1 1층 일반) — HP/MP/게이지/자동 스킬
+  first_treasure: boolean       // [4] 보물 노드 드랍 (= 챕터 1 2층) — 인벤토리·아이템 비교
+  first_shop: boolean           // [5] 첫 상점 진입 (= 챕터 1 3층) — 구매/판매/새로고침
+  second_combat: boolean        // [6] 챕터 1 4층 일반 몬스터 전투 — 2배속 잠금 해제 + 안내
+  first_chapter_clear: boolean  // [7] 챕터 2 1층 진입 — 4배속·자동진입 광고 해금 안내
+  meta_creation: boolean        // [8] 첫 사망/클리어 후 캐릭터 생성 — 누적 보너스 분배
+  realboss_clear: boolean       // [9] 첫 진짜 보스 클리어 후 — 영구 시작 보너스
 }
 
 export type TutorialStep = keyof TutorialSeen

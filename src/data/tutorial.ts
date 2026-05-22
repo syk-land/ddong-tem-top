@@ -79,7 +79,7 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
     ],
   },
 
-  // ── [5] 첫 상점 — 2배속 잠금 해제 동반 ────────────────────
+  // ── [5] 첫 상점 진입 — 구매·판매·새로고침만 (속도는 [6]에서 분리) ─────
   first_shop: {
     step: 'first_shop',
     pages: [
@@ -88,6 +88,13 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
         body:
           '골드로 무기·갑옷을 사고 팔 수 있어요.\n새로고침으로 매물을 갱신할 수도 있습니다.\n원치 않으면 그냥 떠나면 돼요.',
       },
+    ],
+  },
+
+  // ── [6] 챕터 1 4층 일반 몬스터 — 2배속 잠금 해제 + 안내 ──────────
+  second_combat: {
+    step: 'second_combat',
+    pages: [
       {
         title: '2배속 해금!',
         body:
@@ -98,14 +105,14 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
     ],
   },
 
-  // ── [6] 첫 챕터 클리어 ────────────────────────────────────
+  // ── [7] 챕터 2 1층 일반 몬스터 — 4배속·자동진입 광고 해금 안내 ──────
   first_chapter_clear: {
     step: 'first_chapter_clear',
     pages: [
       {
-        title: '챕터 1 클리어!',
+        title: '챕터 2 진입',
         body:
-          '챕터를 클리어할 때마다 HP/MP가 모두 회복됩니다.\n4배속과 자동 진입은 광고를 보면 등반당 1회 해금돼요.\n우측 상단 패널에서 시도해보세요.',
+          '챕터가 바뀌면 HP/MP가 모두 회복돼요.\n4배속과 자동 진입은 광고를 보면 등반당 1회 해금돼요.\n우측 상단 패널에서 시도해보세요.',
         hint: '탑은 더 높아진다. 누군가 너를 지켜보는 것 같다.',
       },
     ],
@@ -145,6 +152,7 @@ export const TUTORIAL_KEYS: TutorialStep[] = [
   'first_combat',
   'first_treasure',
   'first_shop',
+  'second_combat',
   'first_chapter_clear',
   'meta_creation',
   'realboss_clear',

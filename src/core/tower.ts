@@ -10,21 +10,50 @@ export function selectThemes(): ChapterTheme[] {
 }
 
 // 1.2 챕터 이벤트 분배 (10층 셔플)
-//   tutorialForceFirstChapter: 첫 캐릭터(튜토리얼 모드)일 때 챕터 1 의 1·2·3층을
-//   각각 일반 몬스터 / 보물 / 상점 으로 강제 (튜토리얼 트리거 순서와 매칭).
-//   4~9층은 통상 분배, 10층은 보스.
-export function generateChapterFloors(chapterIdx: number, opts: { tutorialForceFirstChapter?: boolean } = {}): FloorEvent[] {
+//   tutorialForceCh1Layout: 첫 캐릭터(튜토리얼 진행 중) 일 때 챕터 1 의 1~4층을
+//     각각 일반 몬스터 / 보물 / 상점 / 일반 몬스터 로 강제. 5~9층은 회복샘 1 +
+//     일반 몬스터 4 셔플. 10층 보스.
+//   tutorialForceCh2FirstFloor: 챕터 2 의 1층을 일반 몬스터로 강제 (4배속·자동진입
+//     안내가 자연스럽게 첫 전투 시점에 발화하도록). 2~9층은 통상 분배.
+export function generateChapterFloors(
+  chapterIdx: number,
+  opts: { tutorialForceCh1Layout?: boolean; tutorialForceCh2FirstFloor?: boolean } = {},
+): FloorEvent[] {
   // 0-indexed chapter -> chapter number (1-10)
   const chapterNum = chapterIdx + 1
 
-  // 튜토리얼 모드 & 챕터 1 이면 1·2·3층 강제 + 나머지 6슬롯(=4~9층) 일반 몬스터 분배
-  if (opts.tutorialForceFirstChapter && chapterIdx === 0) {
-    const forced: FloorEventType[] = ['monster', 'treasure', 'shop']
-    // 4~9층 (6슬롯): 회복샘 1 + 일반 몬스터 5 (특별 이벤트는 첫 챕터에서 끄는 게 안전)
-    const rest: FloorEventType[] = ['healing_spring', 'monster', 'monster', 'monster', 'monster', 'monster']
+  // 챕터 1 (idx 0) 강제 layout: 1=일반/2=보물/3=상점/4=일반
+  if (opts.tutorialForceCh1Layout && chapterIdx === 0) {
+    const forced: FloorEventType[] = ['monster', 'treasure', 'shop', 'monster']
+    // 5~9층 (5슬롯): 회복샘 1 + 일반 몬스터 4 (특별 이벤트는 첫 챕터에서 끄는 게 안전)
+    const rest: FloorEventType[] = ['healing_spring', 'monster', 'monster', 'monster', 'monster']
     const shuffledRest = shuffle(rest)
-    // 4층 이상에만 회복샘 들어가니 그대로 사용 (4~9 = idx 3~8)
     return [...forced, ...shuffledRest, 'boss'].map((type) => ({ type, cleared: false }))
+  }
+
+  // 챕터 2 (idx 1) 1층 강제 일반 몬스터: 1=일반, 2~9 = 통상(회복샘/보물/상점/몬스터 셔플)
+  if (opts.tutorialForceCh2FirstFloor && chapterIdx === 1) {
+    // 2~9층 (8슬롯) — 통상 분배에서 1슬롯이 1층에 빠진 형태
+    const slots: FloorEventType[] = ['shop', 'treasure', 'healing_spring']
+    while (slots.length < 8) slots.push('monster')
+    // 회복샘은 4층 이상 보장 (= shuffled 결과의 idx 2~7. 1층은 이미 강제 monster)
+    let shuffled: FloorEventType[]
+    let tries = 0
+    do {
+      shuffled = shuffle(slots)
+      tries++
+      const hsIdx = shuffled.findIndex((s) => s === 'healing_spring')
+      // 전체 인덱스 기준: shuffled idx 0 = 2층, ... idx 7 = 9층. 4층 이상 = shuffled idx 2 이상
+      if (hsIdx >= 2) break
+      if (tries > 100) {
+        const validIdx = 2 + Math.floor(Math.random() * 6)
+        const orig = shuffled[hsIdx]
+        shuffled[hsIdx] = shuffled[validIdx]
+        shuffled[validIdx] = orig
+        break
+      }
+    } while (true)
+    return [...(['monster'] as FloorEventType[]), ...shuffled, 'boss'].map((type) => ({ type, cleared: false }))
   }
 
   // 1~9층 (마지막 10층은 보스 고정)
@@ -77,7 +106,12 @@ export function generateChapterFloors(chapterIdx: number, opts: { tutorialForceF
   return shuffled.map((type) => ({ type, cleared: false }))
 }
 
-export function makeChapter(chapterIdx: number, theme: ChapterTheme, isHard: boolean, opts: { tutorialForceFirstChapter?: boolean } = {}): ChapterState {
+export type TowerTutorialOpts = {
+  tutorialForceCh1Layout?: boolean       // 챕터 1: 1=일반/2=보물/3=상점/4=일반 강제
+  tutorialForceCh2FirstFloor?: boolean   // 챕터 2: 1층 일반 몬스터 강제
+}
+
+export function makeChapter(chapterIdx: number, theme: ChapterTheme, isHard: boolean, opts: TowerTutorialOpts = {}): ChapterState {
   const themeDef = CHAPTER_THEMES[theme]
   return {
     chapter: chapterIdx + 1,
@@ -90,7 +124,7 @@ export function makeChapter(chapterIdx: number, theme: ChapterTheme, isHard: boo
   }
 }
 
-export function makeTowerRun(character: Character, opts: { tutorialForceFirstChapter?: boolean } = {}): TowerRun {
+export function makeTowerRun(character: Character, opts: TowerTutorialOpts = {}): TowerRun {
   const themes = selectThemes()
   const chapters: ChapterState[] = []
   // 1~5 = base, 6~10 = hard (같은 순서로 매칭)

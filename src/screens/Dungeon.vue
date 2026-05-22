@@ -68,6 +68,12 @@ function tryAutoEnter() {
 onMounted(() => {
   // 첫 던전 진입 — 노드 클릭법 안내. 자동 진입 트리거보다 먼저 발화해야 함.
   game.triggerTutorial('first_node')
+  // 챕터 2 1층 진입 시 4배속·자동진입 광고 해금 안내 트리거
+  // (챕터 1 보스 클리어 직후 = advance 가 아니라 다음 챕터 첫 화면에서 학습)
+  const ch = game.currentChapterState
+  if (ch?.chapter === 2 && ch.currentFloor === 0) {
+    game.triggerTutorial('first_chapter_clear')
+  }
   tryAutoEnter()
 })
 onUnmounted(() => {
