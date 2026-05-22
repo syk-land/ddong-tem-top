@@ -439,6 +439,82 @@ function run() {
   for (const [k, v] of chRanked) {
     console.log(`  ${k.padEnd(20)} ${v.toString().padStart(5)}  ${(v / cleared.length * 100).toFixed(1)}%`)
   }
+
+  // ── 도달 챕터별 breakdown — 챕터 X 도달자 (clear 포함)의 장비 분포 ──
+  console.log(`\n## 도달 챕터별 무기 분포 (top 3 + 마법/활/근접 카테고리 비중)`)
+  const cats: Record<string, string> = {}
+  for (const k of Object.keys(WEAPONS)) {
+    const wb = WEAPONS[k]
+    cats[k] = wb.isMagic ? '마법' : (wb.category === 'ranged' ? '활' : '근접')
+  }
+  console.log(`도달ch | n      | 마법% | 활%   | 근접% | 1위 무기 (비중) | 2위 | 3위`)
+  console.log('-------+--------+-------+-------+-------+-----------------+--------+--------')
+  for (let ch = 1; ch <= 10; ch++) {
+    const recs = results.filter((r) => r.reachedChapter >= ch)
+    if (recs.length === 0) continue
+    const wDist: Record<string, number> = {}
+    const catDist: Record<string, number> = { '마법': 0, '활': 0, '근접': 0 }
+    let n = 0
+    for (const r of recs) {
+      if (!r.finalWeapon) continue
+      wDist[r.finalWeapon.baseKey] = (wDist[r.finalWeapon.baseKey] ?? 0) + 1
+      catDist[cats[r.finalWeapon.baseKey] ?? '근접']++
+      n++
+    }
+    if (n === 0) continue
+    const top = Object.entries(wDist).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    const topStr = top.map(([k, v]) => `${k} ${(v / n * 100).toFixed(1)}%`)
+    console.log(`  ${ch.toString().padStart(2)}  | ${recs.length.toString().padStart(6)} | ${(catDist['마법'] / n * 100).toFixed(1).padStart(5)} | ${(catDist['활'] / n * 100).toFixed(1).padStart(5)} | ${(catDist['근접'] / n * 100).toFixed(1).padStart(5)} | ${(topStr[0] ?? '-').padEnd(15)} | ${(topStr[1] ?? '-').padEnd(7)} | ${topStr[2] ?? '-'}`)
+  }
+
+  console.log(`\n## 도달 챕터별 갑옷 분포 (4 갑옷 비중)`)
+  console.log(`도달ch | n      | 판금%  | 중갑%  | 가죽갑% | 로브%`)
+  console.log('-------+--------+--------+--------+---------+-------')
+  for (let ch = 1; ch <= 10; ch++) {
+    const recs = results.filter((r) => r.reachedChapter >= ch)
+    const aDist: Record<string, number> = { '판금': 0, '중갑': 0, '가죽갑': 0, '로브': 0 }
+    let n = 0
+    for (const r of recs) {
+      if (!r.finalArmor) continue
+      aDist[r.finalArmor.baseKey] = (aDist[r.finalArmor.baseKey] ?? 0) + 1
+      n++
+    }
+    if (n === 0) continue
+    console.log(`  ${ch.toString().padStart(2)}  | ${recs.length.toString().padStart(6)} | ${(aDist['판금'] / n * 100).toFixed(1).padStart(6)} | ${(aDist['중갑'] / n * 100).toFixed(1).padStart(6)} | ${(aDist['가죽갑'] / n * 100).toFixed(1).padStart(7)} | ${(aDist['로브'] / n * 100).toFixed(1).padStart(5)}`)
+  }
+
+  console.log(`\n## 도달 챕터별 무기 등급 분포 (스페셜+레전드 = 고급)`)
+  console.log(`도달ch | n      | 노말%  | 레어%  | 스페셜% | 레전드%`)
+  console.log('-------+--------+--------+--------+---------+--------')
+  for (let ch = 1; ch <= 10; ch++) {
+    const recs = results.filter((r) => r.reachedChapter >= ch)
+    const gDist: Record<string, number> = { '노말': 0, '레어': 0, '스페셜': 0, '레전드': 0 }
+    let n = 0
+    for (const r of recs) {
+      if (!r.finalWeapon) continue
+      gDist[r.finalWeapon.grade] = (gDist[r.finalWeapon.grade] ?? 0) + 1
+      n++
+    }
+    if (n === 0) continue
+    console.log(`  ${ch.toString().padStart(2)}  | ${recs.length.toString().padStart(6)} | ${(gDist['노말'] / n * 100).toFixed(1).padStart(6)} | ${(gDist['레어'] / n * 100).toFixed(1).padStart(6)} | ${(gDist['스페셜'] / n * 100).toFixed(1).padStart(7)} | ${(gDist['레전드'] / n * 100).toFixed(1).padStart(6)}`)
+  }
+
+  console.log(`\n## 무기별 도달 챕터 평균 (각 무기 사용자의 평균 도달 챕터)`)
+  console.log(`무기       | 평균도달 | 클리어률 (해당 무기 가진 캐릭)`)
+  console.log('-----------+----------+--------------------')
+  const wReach: Record<string, { sum: number; n: number; cleared: number }> = {}
+  for (const r of results) {
+    if (!r.finalWeapon) continue
+    const k = r.finalWeapon.baseKey
+    if (!wReach[k]) wReach[k] = { sum: 0, n: 0, cleared: 0 }
+    wReach[k].sum += r.reachedChapter
+    wReach[k].n++
+    if (r.cleared) wReach[k].cleared++
+  }
+  const wReachRanked = Object.entries(wReach).sort((a, b) => (b[1].sum / b[1].n) - (a[1].sum / a[1].n))
+  for (const [k, v] of wReachRanked) {
+    console.log(`${k.padEnd(10)} | ${(v.sum / v.n).toFixed(2).padStart(7)}  | ${(v.cleared / v.n * 100).toFixed(2)}% (${v.cleared}/${v.n})`)
+  }
 }
 
 if (typeof process !== 'undefined' && process.argv?.[1]?.includes('autoplayClear')) {
