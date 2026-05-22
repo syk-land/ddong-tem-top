@@ -115,26 +115,34 @@
   - 화면 중앙 / 모바일은 하단에 정적 카드 (부유 X)
 - 페이지 인디케이터 (단계가 여러 페이지일 때)
 - 본문 + 서사 힌트 (작은 italic, `text-zinc-500`)
-- CTA 버튼: "다음 →" / 마지막 페이지엔 "알겠어요"
-- 우상단 × 닫기 (이 단계만 닫기)
+- CTA 버튼 (마지막 페이지):
+  - 타겟이 클릭 가능한 `<button>` / `<a>` / `role="button"` 이면 **그 버튼 라벨이
+    CTA 로 자동 노출** → 누르면 (1) `completeTutorial()` (2) `target.click()` 위임 →
+    튜토리얼 닫기 + 그 버튼의 원래 동작이 한 번에 실행
+  - 라벨이 너무 길거나 부가 텍스트가 섞여 있으면 타겟에
+    `data-tutorial-cta-label="짧은 라벨"` 속성을 추가해 직접 지정 가능
+  - 타겟이 패널(div) 이거나 없으면 그대로 **"알겠어요"** (위임 없음)
+  - `page.cta` 명시 시 그게 최우선
+- 중간 페이지는 "다음 →"
+- 우상단 × 닫기 (이 단계만 닫기, 위임 없음)
 
 ### 타겟 매핑
 
 각 화면 요소에 `data-tutorial-target="키"` 속성을 마크해서 단계가 가리킬 수 있게 함. **모든 단계가 타겟을 갖도록 매핑됨** → 박동 화살표 + 박동 ring 스포트라이트가 어디서나 일관되게 발동.
 
-| step | target selector | 가리키는 요소 |
-|---|---|---|
-| `menu_start` | `[data-tutorial-target="new-character-btn"]` | MainMenu 의 "새 캐릭터 시작" 버튼 |
-| `creation_intro` (page 1) | `[data-tutorial-target="dice-area"]` | 주사위 패널 |
-| `creation_intro` (page 2) | `[data-tutorial-target="challenge-area"]` | 챌린지 카드 패널 |
-| `first_node` | `[data-tutorial-target="floor-current"]` | Dungeon 의 현재 진입 가능 노드 |
-| `first_combat` | `[data-tutorial-target="combat-bars"]` | Combat 의 HP/MP 바 컨테이너 |
-| `first_treasure` | `[data-tutorial-target="inventory-btn"]` | Dungeon 의 인벤토리 버튼 |
-| `first_shop` | `[data-tutorial-target="shop-slot"]` | Shop 의 매물 리스트 패널 |
-| `second_combat` | `[data-tutorial-target="speed-control"]` | SpeedControl 패널 (좌상단) |
-| `first_chapter_clear` | `[data-tutorial-target="speed-control"]` | SpeedControl 패널 |
-| `meta_creation` | `[data-tutorial-target="bonus-alloc"]` | 누적 보너스 자유 분배 패널 |
-| `realboss_clear` | `[data-tutorial-target="realboss-bonus"]` | RealBossResult 의 보상 카드 (영구 보너스 표시) |
+| step | target selector | 가리키는 요소 | CTA 위임 |
+|---|---|---|---|
+| `menu_start` | `[data-tutorial-target="new-character-btn"]` | "새 캐릭터 시작" 버튼 | ✅ → "새 캐릭터 시작" |
+| `creation_intro` (page 1) | `[data-tutorial-target="dice-area"]` | 주사위 패널 | — (중간 페이지) |
+| `creation_intro` (page 2) | `[data-tutorial-target="challenge-area"]` | 챌린지 패널 (div) | "알겠어요" |
+| `first_node` | `[data-tutorial-target="enter-floor-btn"]` | Dungeon 의 "진입" 버튼 | ✅ → "진입" |
+| `first_combat` | `[data-tutorial-target="combat-bars"]` | HP/MP 바 컨테이너 | "알겠어요" |
+| `first_treasure` | `[data-tutorial-target="inventory-btn"]` | Dungeon 의 "인벤" 버튼 | ✅ → "인벤" |
+| `first_shop` | `[data-tutorial-target="shop-slot"]` | 상점 매물 리스트 (div) | "알겠어요" |
+| `second_combat` | `[data-tutorial-target="speed-control"]` | SpeedControl 패널 (div) | "알겠어요" |
+| `first_chapter_clear` | `[data-tutorial-target="speed-control"]` | SpeedControl 패널 (div) | "알겠어요" |
+| `meta_creation` | `[data-tutorial-target="bonus-alloc"]` | 보너스 분배 패널 (div) | "알겠어요" |
+| `realboss_clear` | `[data-tutorial-target="realboss-bonus"]` | 보상 카드 (div) | "알겠어요" |
 
 ### first_treasure 트리거 지연
 

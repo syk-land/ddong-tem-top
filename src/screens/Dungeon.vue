@@ -201,6 +201,7 @@ const floorAccent = computed(() => {
           <span class="text-base text-white/95 font-bold drop-shadow-md">{{ floorLabel }}</span>
         </div>
         <button
+          data-tutorial-target="enter-floor-btn"
           class="btn-primary px-6 w-full max-w-xs min-h-12 text-base font-bold"
           @click="enter"
         >진입</button>

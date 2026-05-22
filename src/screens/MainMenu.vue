@@ -150,6 +150,7 @@ async function resetMeta() {
       <!-- ── 새 캐릭터 시작 ── -->
       <button
         data-tutorial-target="new-character-btn"
+        data-tutorial-cta-label="새 캐릭터 시작"
         class="btn-primary w-full min-h-12 text-base font-bold"
         @click="startNew"
       >새 캐릭터 시작 <span class="opacity-80 text-sm font-normal ml-1">(3챌린지 선택)</span></button>

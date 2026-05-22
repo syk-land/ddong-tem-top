@@ -61,16 +61,17 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
     ],
   },
 
-  // ── [2] 첫 던전 진입 ──────────────────────────────────────
+  // ── [3] 첫 던전 진입 ──────────────────────────────────────
+  //   target = "진입" 버튼. CTA 라벨 자동으로 "진입" + 누르면 닫기 + 진입 실행.
   first_node: {
     step: 'first_node',
     pages: [
       {
         title: '탑 등반',
         body:
-          '아래 카드를 눌러 진행합니다.\n일반 몬스터·상점·보물·회복샘 등 다양한 노드가 있어요.\n10층마다 보스가 있습니다.',
+          '진입 버튼을 눌러 노드로 들어갑니다.\n일반 몬스터·상점·보물·회복샘 등 다양한 노드가 있어요.\n10층마다 보스가 있습니다.',
         hint: '이 풍경… 어쩐지 익숙하다.',
-        target: '[data-tutorial-target="floor-current"]',
+        target: '[data-tutorial-target="enter-floor-btn"]',
       },
     ],
   },

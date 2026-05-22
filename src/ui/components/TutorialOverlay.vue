@@ -98,6 +98,20 @@ const spotlightStyle = computed(() => {
   }
 })
 
+// 클릭 위임 대상 — 타겟이 자체가 button/a/role=button 이면 그것, 아니면 null.
+// (안쪽 button 자동 탐색은 의도치 않은 클릭을 막기 위해 하지 않음.
+//  버튼 류가 아닌 패널이 타겟일 때는 그냥 "알겠어요" 로 닫기만.)
+const targetActionEl = computed<HTMLElement | null>(() => {
+  if (!targetRect.value) return null  // recompute 후 타겟 못 찾았으면 null
+  const p = currentPage.value
+  if (!p?.target) return null
+  const el = document.querySelector(p.target) as HTMLElement | null
+  if (!el) return null
+  if (el.tagName === 'BUTTON' || el.tagName === 'A') return el
+  if (el.getAttribute('role') === 'button') return el
+  return null
+})
+
 // 다중 페이지일 때 다음 페이지 / 마지막 페이지
 const isLastPage = computed(() => {
   const d = def.value
@@ -107,15 +121,33 @@ const ctaLabel = computed(() => {
   const p = currentPage.value
   if (!p) return ''
   if (!isLastPage.value) return '다음 →'
-  return p.cta ?? '알겠어요'
+  // 마지막 페이지 CTA 라벨 우선순위:
+  //   1. page.cta 명시
+  //   2. 타겟이 클릭 가능 버튼 → data-tutorial-cta-label 속성 또는 buttonText 첫 줄
+  //   3. 그 외 "알겠어요"
+  if (p.cta) return p.cta
+  const action = targetActionEl.value
+  if (action) {
+    const explicit = action.getAttribute('data-tutorial-cta-label')
+    if (explicit) return explicit
+    const text = (action.innerText || action.textContent || '').trim().split('\n')[0].trim()
+    if (text) return text.length > 20 ? text.slice(0, 20) + '…' : text
+  }
+  return '알겠어요'
 })
 
 function advance() {
   if (!def.value) return
   if (!isLastPage.value) {
     pageIdx.value += 1
-  } else {
-    game.completeTutorial()
+    return
+  }
+  // 마지막 페이지: 타겟이 버튼이면 닫기 + 그 버튼 click 위임. 아니면 닫기만.
+  const action = targetActionEl.value
+  game.completeTutorial()
+  if (action) {
+    // completeTutorial 직후 click — paused 가 풀린 상태에서 게임 정상 진행
+    action.click()
   }
 }
 function close() {
