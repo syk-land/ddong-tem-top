@@ -1,27 +1,25 @@
-// 아이템 전투력(공) / 전투력(방) — v9 곱셈 모델 + 게이지 시스템
+// 아이템 전투력(공) / 전투력(방) — v5 공식 (자동플레이 시뮬 검증 AUC 0.982 / Pearson 0.804)
 //
-// 전투력(공) [무기]: 평균 DPS 추정치
+// 종합 점수: atk + def × 50 + maxHp × 0.04
+//   - atk = per-tick DPS (현재 챕터의 일반 몬스터 baseline)
+//   - def = per-tick 데미지 감소량 × DEF_SCALE(=50)
+//   - maxHp 기여 = maxHp × HP_FACTOR(=0.04) → 갑옷의 defValue 에 합산
+//
+// 전투력(공) [무기]: 평균 DPS 추정치 (chapter-relative)
 //   atk = physStat × baseAtk × coef × (1+trait_pct) × 3.0          # 마법: 마력 × ... × 1.5 × magicSynergy
-//     physStat = 힘 (대부분) / 힘 + 민첩×0.3 (ranged)
+//     physStat = 힘 / 힘 + 민첩×0.3 (ranged)
 //     magicSynergy = 1.5 (로브+마법무기) / 1.0 (그 외)
-//   acc = 60 + 무기 + 트레잇 + 민첩×0.5 + 행운×0.1
-//   enemyEva = 5 + 챕터×1
 //   hitRate = clamp((acc - enemyEva)/100, 0, 1)
-//   enemyDef% = 3 + 챕터×1
-//   pen% = 무기 + 트레잇
 //   effDef% = max(0, enemyDef - pen) / 100
-//   평타 = max(1, atk × (1 - effDef%)) × hitRate
-//   스킬 = max(1, atk × mult × (1 - effDef%)) × hitRate
-//   평균 hit = (1-p) × 평타 + p × 스킬           # p = 무기 발동률
-//   크리 보정 = 1 + 크리확률 × (크리배수 - 1)
-//   ticks = round(10 / speedCoef)
-//   gauge/tick = (1 + 민첩/100) × armorSpeedMult
-//   attacks/tick = gauge / ticks
-//   DPS = 평균 hit × 크리 보정 × attacks/tick
+//   평균 hit = (1-p)×평타 + p×스킬 (p = 발동률)
+//   DPS = 평균 hit × 크리보정 × attacks/tick
 //
 // 전투력(방) [갑옷]:
-//   def% = baseDef × coef × (1+trait_pct) + 체력 × 0.3 × coef
-//   회피 +/- 무기 ticks 공속 / 마력 / 저항 / 피격회복 / 반사
+//   defPct = baseDef × coef × (1+trait_pct) + 체력 × 0.3 × coef
+//   적 dmg/tick = enemyAtk × enemyHitRate / enemyTicks
+//   감소량/tick = 적 dmg/tick × defPct
+//   defValue 메인 = 감소량/tick × DEF_SCALE
+//   defValue + maxHp × HP_FACTOR (갑옷 표시값에 합산)
 
 import type { ItemInstance, Character } from '@/types'
 import { WEAPONS } from '@/data/weapons'
@@ -31,17 +29,10 @@ import { WEAPON_TRAITS, ARMOR_TRAITS } from '@/data/traits'
 const DEFAULT_STATS = { 힘: 12, 민첩: 12, 체력: 12, 마력: 12, 행운: 12 }
 const DEFAULT_CHAPTER = 5
 
-// 표시값 → 실측 calibration (1000런 시뮬 기반 — itemValueCalibrate.ts)
-//   k_atk: 표시 atkValue × k_atk ≈ 실측 DPS
-//   k_def: 표시 defValue × k_def ≈ 실측 피해감소%
-//   atkParts / defParts 의 각 항목 value 에 동일 곱 적용
-const CALIB_ATK = 0.603
-const CALIB_DEF = 0.515
-
-function applyCalibration(atkParts: ValuePart[], defParts: ValuePart[]) {
-  for (const p of atkParts) p.value *= CALIB_ATK
-  for (const p of defParts) p.value *= CALIB_DEF
-}
+// v5 공식 상수 (자동플레이 시뮬 검증)
+//   total_score = atk + def × 50 + maxHp × 0.04
+const DEF_SCALE = 50
+const HP_FACTOR = 0.04
 
 // v9 스킬 multiplier — skills.ts 와 동기화
 const SKILL_ATK_MULT: Record<string, { mult: number; magic: boolean; note?: string }> = {
@@ -169,18 +160,19 @@ function computeWeaponValue(
     value: dps,
     note: `atk ${totalAtk.toFixed(0)} × hit ${(hitRate * 100).toFixed(0)}% × ${attacksPerTick.toFixed(3)}/틱${magicSynergy !== 1 ? ' × 로브시너지 1.5' : ''}${base.category === 'ranged' ? ' (활: 힘+민첩×0.3)' : ''}`,
   })
+  // 스킬 가중치 / 크리 보정은 메인 DPS 에 이미 포함되어 있음 — 정보용으로만 value=0
   if (skillInfo) {
     atkParts.push({
-      label: `${skillKey} (×${skillInfo.mult.toFixed(2)}) 가중`,
-      value: procRate * (skillHit - basicHit) * critBoost * attacksPerTick,
-      note: `발동률 ${(procRate * 100).toFixed(0)}%${skillInfo.note ? ' · ' + skillInfo.note : ''}`,
+      label: `${skillKey} (×${skillInfo.mult.toFixed(2)}, 위 DPS 포함)`,
+      value: 0,
+      note: `발동률 ${(procRate * 100).toFixed(0)}%${skillInfo.note ? ' · ' + skillInfo.note : ''} · 마진 ${(procRate * (skillHit - basicHit) * critBoost * attacksPerTick).toFixed(1)}`,
     })
   }
   if (critBoost > 1.01) {
     atkParts.push({
-      label: '크리 보정',
-      value: avgHit * (critBoost - 1) * attacksPerTick,
-      note: `+${((critBoost - 1) * 100).toFixed(1)}% (${(critChance * 100).toFixed(1)}% × ×${critMult.toFixed(2)})`,
+      label: '크리 보정 (위 DPS 포함)',
+      value: 0,
+      note: `+${((critBoost - 1) * 100).toFixed(1)}% (${(critChance * 100).toFixed(1)}% × ×${critMult.toFixed(2)}) · 마진 ${(avgHit * (critBoost - 1) * attacksPerTick).toFixed(1)}`,
     })
   }
 
@@ -201,29 +193,36 @@ function computeWeaponValue(
     if (v) atkParts.push({ label, value: dps * v * 0.4, note: `${(v * 100).toFixed(0)}% × 0.4` })
   }
 
+  // 행운 effect (위 DPS 의 critBoost/명중률에 이미 반영됨) — 정보용 value=0
   const luckEff = w.effects.행운 ?? 0
-  if (luckEff) atkParts.push({ label: '행운 (크리/명중↑)', value: dps * luckEff * 0.01, note: `+${luckEff}` })
+  if (luckEff) atkParts.push({ label: '행운 (위 DPS 포함)', value: 0, note: `+${luckEff}` })
 
+  // 마력 effect (마법무기일 때 stats.마력 외부 보너스 — DPS 식에 직접 추가됨)
   if (base.isMagic) {
     const mpBonus = w.effects.마력 ?? 0
     if (mpBonus) atkParts.push({ label: '마력 (마법공격↑)', value: dps * mpBonus * 0.025, note: `+${mpBonus}` })
   }
 
-  // 무기 trait 의 방어 효과
-  if (w.effects.회피) defParts.push({ label: '회피 (무기 특성)', value: w.effects.회피 * 0.5 })
-  if (w.effects.상태저항) defParts.push({ label: '저항 (무기 특성)', value: w.effects.상태저항 * 0.3 })
+  // 무기 trait 의 방어 효과 (per-tick 단위로 환산)
+  // 회피 1pt ≈ 적 명중률 -1%p → 약 적 dmg/tick × 0.01 만큼 감소 효과
+  if (w.effects.회피) {
+    // 챕터 5 적 dmg/tick 추정: ~0.7
+    defParts.push({ label: '회피 (무기 특성)', value: w.effects.회피 * 0.7 * 0.01 * DEF_SCALE })
+  }
+  if (w.effects.상태저항) {
+    defParts.push({ label: '저항 (무기 특성)', value: w.effects.상태저항 * 0.3 })
+  }
 
-  applyCalibration(atkParts, defParts)
   const atkValue = atkParts.reduce((s, p) => s + p.value, 0)
   const defValue = defParts.reduce((s, p) => s + p.value, 0)
   return { atkValue, defValue, atkParts, defParts }
 }
 
-// 갑옷: v9 % 방어 모델
+// 갑옷: v5 — per-tick 감소량 × DEF_SCALE + maxHp × HP_FACTOR
 function computeArmorValue(
   a: ItemInstance,
   character: Character | null | undefined,
-  _chapter: number,
+  chapter: number,
 ): ItemValueBreakdown {
   const base = ARMORS[a.baseKey as keyof typeof ARMORS]
   const td = ARMOR_TRAITS[a.trait]
@@ -234,22 +233,42 @@ function computeArmorValue(
 
   const stats = character?.stats ?? DEFAULT_STATS
 
-  // ── 방어% (v9.x) ──
-  const defPct = (td.effects.방어력_pct ?? 0) + (td.effects.전스탯_pct ?? 0)
-  const armorDef = base.baseDef * a.coef * (1 + defPct)
+  // 적 baseline (현재 챕터의 일반 몬스터 — stats.ts/data/chapters.ts 와 동일 식)
+  const enemyAtk = 8 + 1.2 * chapter
+  const enemyTicks = 10
+  const enemyAcc = 30 + 3 * chapter
+
+  // ── 방어% 계산 ──
+  const defPctTrait = (td.effects.방어력_pct ?? 0) + (td.effects.전스탯_pct ?? 0)
+  const armorDef = base.baseDef * a.coef * (1 + defPctTrait)
   const hpDef = stats.체력 * 0.3 * a.coef
-  const totalDef = armorDef + hpDef
-  // 피해 감소 점수 = totalDef × 2 (체력 기여 포함)
+  const totalDefPct = clamp(armorDef + hpDef, 0, 99) / 100
+
+  // 회피로 인한 적 명중률 감소 (per-tick 감소량 계산용)
+  const playerEva = 5 + (base.evasion ?? 0) + (a.effects.회피 ?? 0)
+    + stats.민첩 * 0.5 + stats.행운 * 0.1
+  const enemyHitRate = clamp((enemyAcc - playerEva) / 100, 0, 1)
+
+  // 적 per-tick dmg & 감소량
+  const enemyDmgPerTick = enemyAtk * enemyHitRate / enemyTicks
+  const reductionPerTick = enemyDmgPerTick * totalDefPct
+
+  // ── 메인 방어 (per-tick 감소량 × DEF_SCALE) ──
   defParts.push({
-    label: `방어 ${totalDef.toFixed(1)}%`,
-    value: totalDef * 2.0,
-    note: `${base.baseDef} × ${a.coef.toFixed(2)} × (1+${defPct.toFixed(2)})${stats.체력 ? ` + 체력 ${stats.체력} × 0.3 × ${a.coef.toFixed(2)} = ${hpDef.toFixed(1)}%` : ''}`,
+    label: `방어 ${(totalDefPct * 100).toFixed(1)}% (적 ${enemyDmgPerTick.toFixed(2)} dmg/틱)`,
+    value: reductionPerTick * DEF_SCALE,
+    note: `감소 ${reductionPerTick.toFixed(3)}/틱 × ${DEF_SCALE} = baseDef ${base.baseDef} × ${a.coef.toFixed(2)} × (1${defPctTrait >= 0 ? '+' : ''}${defPctTrait.toFixed(2)})${stats.체력 ? ` + 체력 ${stats.체력} × 0.3 × ${a.coef.toFixed(2)}` : ''}`,
   })
 
-  // 회피
-  const evasion = base.evasion + (a.effects.회피 ?? 0)
-  if (evasion) defParts.push({ label: '회피', value: evasion * 0.5, note: `+${evasion}` })
+  // ── 체력 기여 (maxHp × HP_FACTOR) ──
+  const maxHp = stats.체력 * 10 + 50
+  defParts.push({
+    label: `체력 ${stats.체력} → HP ${maxHp}`,
+    value: maxHp * HP_FACTOR,
+    note: `${maxHp} × ${HP_FACTOR}`,
+  })
 
+  // 회피 (메인 reductionPerTick 에 이미 적 hit rate 로 반영됨 — 추가 가시화 X)
   // 상태저항
   const stRes = a.effects.상태저항 ?? 0
   if (stRes) defParts.push({ label: '상태저항', value: stRes * 0.3, note: `+${stRes}` })
@@ -269,63 +288,49 @@ function computeArmorValue(
     defParts.push({ label: '마력 (저항↑)', value: mpBonus * 0.1, note: `+${mpBonus}` })
   }
 
-  // ── 게이지 가속/감속 ──
-  const speedMult = base.speedMult
-  if (Math.abs(speedMult - 1) > 0.001) {
-    // 게이지 ×N → 공격 빈도 × N → DPS × N
-    const charDps = estimateCharDps(character)
-    const speedAtkDelta = (speedMult - 1) * charDps
-    atkParts.push({
-      label: speedMult > 1 ? '게이지 가속' : '게이지 감속',
-      value: speedAtkDelta,
-      note: `×${speedMult.toFixed(2)} (현재 무기 DPS ${charDps.toFixed(1)})`,
-    })
-  }
+  // v5: 게이지 가속 (speedMult) 과 로브+마법 시너지 (×1.5) 는
+  //     computeWeaponValue 의 DPS 계산에 이미 포함되어 중복 카운트 X.
+  //     (이전 calibration 이 보정해줬지만 v5 raw 식에선 두 번 더하면 ↑↑)
 
-  // ── 로브 + 마법무기 시너지 (×1.5, v9.x) ──
-  if (base.key === '로브' && character?.weapon) {
-    const wb = WEAPONS[character.weapon.baseKey]
-    if (wb?.isMagic) {
-      // 시너지 +50% atk
-      const charDps = estimateCharDps(character)
-      atkParts.push({
-        label: '로브 + 마법무기 시너지',
-        value: charDps * 0.5,
-        note: '마법 atk × 1.5',
-      })
-    }
-  }
-
-  // ── 갑옷 자동 반응 점수 (피격 시 발동, v9.x) ──
+  // ── 갑옷 자동 반응 점수 (피격 시 발동) — chapter-aware ──
+  // 발동률 × 적 per-attack 데미지 × per-tick 환산 × DEF_SCALE
   const procChance = 0.10 + stats.행운 * 0.005
-  const estEnemyDmg = 15  // 챕터 평균 적 평타 추정
+  const enemyDmgPerAttack = enemyDmgPerTick * enemyTicks   // 단일 공격 데미지
   if (base.key === '가죽갑') {
     defParts.push({
       label: '자동 회피 (피격 시)',
-      value: estEnemyDmg * procChance * 2.0,
-      note: `발동 ${(procChance * 100).toFixed(0)}% → 데미지 무효`,
+      value: enemyDmgPerTick * procChance * DEF_SCALE,    // 회피 1회당 데미지 무효
+      note: `발동 ${(procChance * 100).toFixed(0)}% → ${enemyDmgPerAttack.toFixed(1)} dmg 무효`,
     })
   } else if (base.key === '로브') {
     defParts.push({
-      label: '자동 방어 (피격 시, MP 흡수)',
-      value: estEnemyDmg * 0.5 * procChance * 2.0,
-      note: `발동 ${(procChance * 100).toFixed(0)}% → 데미지 −50% (MP 소모)`,
+      label: '자동 방어 (피격 시)',
+      value: enemyDmgPerTick * 0.5 * procChance * DEF_SCALE,
+      note: `발동 ${(procChance * 100).toFixed(0)}% → 50% 차감 (MP 소모)`,
     })
   } else if (base.key === '판금') {
     const charDps = estimateCharDps(character)
-    // 카운터: 피격당 평타×0.5 (방어 무시). 평균 가치 = charDps × 0.5 × proc
+    // 카운터: 피격당 평타×0.5 반격 (방어 무시) → 적 ticks 마다 반격 시도
     atkParts.push({
       label: '철벽 카운터 (피격 시)',
-      value: charDps * 0.5 * procChance,
+      value: charDps * 0.5 * procChance / enemyTicks,
       note: `발동 ${(procChance * 100).toFixed(0)}% → 평타×0.5 반격`,
     })
   }
 
-  // 갑옷 trait — 피격회복/반사/저항
+  // 갑옷 trait — 피격회복/반사/저항 (chapter-aware)
   const dmgHeal = a.effects.damage_taken_heal_pct ?? 0
-  if (dmgHeal) defParts.push({ label: '피격 회복', value: dmgHeal * 40, note: `${(dmgHeal * 100).toFixed(0)}%` })
+  if (dmgHeal) defParts.push({
+    label: '피격 회복',
+    value: dmgHeal * enemyDmgPerTick * DEF_SCALE,
+    note: `${(dmgHeal * 100).toFixed(0)}% × 적 dmg/틱 ${enemyDmgPerTick.toFixed(2)}`,
+  })
   const selfDot = a.effects.self_dot_pct ?? 0
-  if (selfDot) defParts.push({ label: '자해 (저주)', value: -selfDot * 80 })
+  if (selfDot) defParts.push({
+    label: '자해 (저주)',
+    value: -selfDot * enemyDmgPerTick * DEF_SCALE * 2,
+    note: `매 10틱 maxHp×${(selfDot*100).toFixed(0)}% 손실`,
+  })
 
   const reflectKeys: Array<[keyof typeof a.effects, string]> = [
     ['reflect_burn', '점화반사'], ['reflect_slow', '둔화반사'], ['reflect_shock', '감전반사'],
@@ -344,18 +349,15 @@ function computeArmorValue(
     if (v) defParts.push({ label, value: v * 5 })
   }
 
-  // 명중 1pt ≈ 명중률 +1%p → 평균 dps +1%. charDps 기반 추정 (이전 × 0.4 가중치 너무 컸음)
+  // 명중/행운 trait — 무기측 DPS 식의 acc + aeffects.명중, 크리/명중률에 이미 반영됨
+  // 정보용 value=0
   if (a.effects.명중) {
-    const charDps = estimateCharDps(character)
-    atkParts.push({ label: '명중 (갑옷 특성)', value: charDps * (a.effects.명중 / 100), note: `+${a.effects.명중.toFixed(0)} (dps ${charDps.toFixed(0)} × ${a.effects.명중.toFixed(0)}%)` })
+    atkParts.push({ label: '명중 (갑옷 특성, 위 DPS 포함)', value: 0, note: `+${a.effects.명중.toFixed(0)}` })
   }
-  // 행운 1pt → 크리 배수 +1%/pt. dps 영향은 크리 확률에 비례 (대략 dps × 0.5%)
   if (a.effects.행운) {
-    const charDps = estimateCharDps(character)
-    atkParts.push({ label: '행운 (갑옷 특성)', value: charDps * a.effects.행운 * 0.005, note: `+${a.effects.행운.toFixed(0)}` })
+    atkParts.push({ label: '행운 (갑옷 특성, 위 DPS 포함)', value: 0, note: `+${a.effects.행운.toFixed(0)}` })
   }
 
-  applyCalibration(atkParts, defParts)
   const atkValue = atkParts.reduce((s, p) => s + p.value, 0)
   const defValue = defParts.reduce((s, p) => s + p.value, 0)
   return { atkValue, defValue, atkParts, defParts }
