@@ -1,119 +1,91 @@
-# 챕터 & 몬스터
+# 챕터 & 탑 구조
 
-코드: `src/data/chapters.ts` (테마/몬스터 정의), `src/core/tower.ts` (탑 생성)
+> 100층 = 10 챕터 × 10층. 11 테마 풀에서 무작위 5 base + 5 hard.
 
----
-
-## 11 테마
-
-| 테마 | 컨셉 | 주요 trait |
-|---|---|---|
-| 고블린 | 빠른 다수 | 회피, 다수 적 출현 |
-| 골렘 | 단단한 방어 | 방어 ↑↑ HP ↑ |
-| 언데드 | 부활/저주 | revive_chance, heal_reduction |
-| 환영 | 회피/명중 페널티 | 환영체, 명중 -페널티 |
-| 흡혈귀 | 흡혈 | 흡혈, blood drain |
-| 심해 | 둔화/광역 | 둔화 부여, 광역 |
-| 기계 | 고방어 + 강공격 | last_stand, 강력 (후반 어려움 ★) |
-| 용암 | 점화 도트 | 점화, 화염 오라 |
-| 암흑 | 명중 -페널티 | blind 부여, 어둠 오라 |
-| 천공 | 회피/원거리 | 회피 ↑, 원거리 공격 (후반 어려움) |
-| 맹독 | 독 도트 | 독, 누적 데미지 |
-
-각 테마는 `ChapterThemeDef`:
-- `normalMonsters: MonsterTemplate[]` (일반 몬스터 풀)
-- `boss: MonsterTemplate` (챕터 1~5 보스)
-- `hardBoss?: MonsterTemplate` (챕터 6~10 강화 보스)
+코드: `src/core/tower.ts`, `src/data/chapters.ts`
 
 ---
 
-## 1런 = 10챕터
+## 탑 구조
 
-`makeTowerRun(character)` (tower.ts):
-1. 11 테마에서 무작위 10개 선택 (셔플).
-2. 챕터 1~5는 `boss` 사용, 챕터 6~10은 `hardBoss` 사용 (있는 경우, 없으면 `boss`).
-3. 각 챕터 = 10층.
+- **10 챕터 × 10층 = 100층**
+- 1~9층: 일반 / 상점 / 보물 / 회복샘 / 특별 이벤트 노드
+- **10층은 항상 보스** (10, 20, …, 100)
+- 매 층 진행 시 HP/MP **+10%**
+- 챕터 클리어 시 HP/MP **+100%** + 상점 새로고침 충전 +1 (최대 2, 부스트 시 3)
 
-```
-챕터 1 (고블린) — 1F ~ 10F
-챕터 2 (심해)   — 1F ~ 10F
-...
-챕터 10 (기계)  — 1F ~ 10F  ← 100층 최종 보스
-```
+### 챕터당 노드 분포 (9 칸)
 
----
-
-## 챕터 = 10층 구성
-
-`tower.ts:makeChapter()` 슬롯 분배:
-
-| 층 | 타입 |
+| 노드 | 수 |
 |---|---|
-| 1~9F | 무작위 (몬스터/상점/보물/회복샘/특별이벤트) |
-| 10F | 챕터 보스 (확정) |
-
-층 풀:
-- `monster` (일반 몬스터, 가장 흔함)
-- `boss` (10F 확정)
-- `shop` (1챕터당 1~2회)
-- `treasure` (미믹 가능)
-- `healing_spring` (1챕터당 최대 1회, 4F 이상)
-- `special_event` (1챕터당 0~2회)
-
-회복샘은 4F 이상에 강제 배치 (저층 셔플 시 재섞임).
+| 일반 몬스터 | 6 |
+| 상점 | 1 |
+| 보물 (미믹 전투) | 1 |
+| 회복샘 | 1 (4층 이상에만 배치) |
+| 특별 이벤트 | 5% 확률 (챕터당 최대 1회) |
 
 ---
 
-## 몬스터 인스턴스 (`MonsterInstance`)
+## 11 챕터 테마 (꿈 몬스터 분류)
 
-`makeMonster(template, chapter, kind)`:
-```ts
-baseline = chapter별 HP/ATK/DEF/ACC/EVA/TICKS (normal / boss / mimic 셋)
-hp  = round(baseline.hp  × template.hpMod)
-atk = baseline.atk × template.atkMod
-def = baseline.def × template.defMod      # v9: % 단위 방어율 (LOL → %)
-speed = template.speedOverride ?? baseline.speed  # deprecated
-ticks = baseline.ticks                    # v9: 게이지 임계값 (일반 10 / 보스 8 / 미믹 12)
-acc = baseline.acc                        # v9: 30 + 챕터×3
-eva = baseline.eva                        # v9: 5 + 챕터×1
+> 서사적으로 이들은 진짜 보스들이 주인공의 꿈공간에 소환한 부하들이다. [DOCS §0](../../DOCS.md#0-게임-서사-진짜-스토리) 참고.
+
+| 테마 | 특징 | 일반 몬스터 패턴 | 하드 보스 특징 |
+|---|---|---|---|
+| 고블린 | 다수 출몰 (2~3) | 소환 (chain) | 미니언 무한 소환 |
+| 골렘 | 단일 (1), 고방어 (def ×1.5~1.8) | — | 마법 면역 95% |
+| 언데드 | 부활 / 첫피 무효 | 첫공 무효 | 최대 HP 저주 (-5% / 50틱) |
+| 환영 | 회피 / 분신 (3분열) | — | 마법 반사 |
+| 흡혈귀 | 흡혈 / 출혈 | 출혈 시 크리 ×1.5 | 출혈 강타 (×2) + 흡혈 100% |
+| 심해 | 선제권 / 속도 디버프 / 결박 | 둔화 강함 | 산소 부족 (-2% / 5틱) |
+| 기계 | 자폭 / 복합공격 / 원소 카운터 | 자폭 빈번 | 드론 소환 (30틱마다, 최대 2) |
+| 용암 | 화염 오라 / 반사 (물리 30% 마법 50%) | 점화 누적 | 전(全) 반사 30% |
+| 암흑 | 암흑 / 침묵 / 골드 저주 | 명중 디버프 | 침묵 강화 (30틱 MP 0) |
+| 천공 | 비행 회피 / 아이템 블록 | — | 뇌우 (광역) |
+| 맹독 | 독 누적 / 회복 역전 | 독 누적 50% (+2 스택) | 회복 → 피해 전환 |
+
+---
+
+## 챕터 선정 로직 (`tower.ts`)
+
+```
+1. 11 테마 풀에서 무작위 5 개 → base 챕터 (1~5)
+2. 같은 풀에서 무작위 5 개 → hard 챕터 (6~10)
+3. 챕터 6+ 는 hardBoss 사용 (강화 패턴)
 ```
 
-`MonsterInstance` 필드 (v9):
-- `template`, `hp`, `maxHp`, `atk`, `def` (% 단위), `speed` (deprecated)
-- `ticks` (게이지 임계값), `acc` (명중), `eva` (회피) — v9 신규
-- `isBoss`, `isMimic`
-- `statuses[]`, `actionGauge`
-- 각종 `_*` 내부 카운터 (피격 횟수, HP 임계 dispatch 여부 등)
+같은 테마가 base + hard 양쪽에 등장 가능.
 
 ---
 
-## 다수 몬스터 (Encounter)
+## 몬스터 스케일링
 
-일반 층 (`monster`)에서 1~5마리 등장 가능. 챕터/층/난이도별 출현 조정.
-- `combat.ts:createCombatContext(player, monsters[])` 다중 적 지원.
-- `currentTarget(ctx)` — 가장 첫 살아있는 적을 타겟.
-- 광역 스킬은 `aliveMonsters(ctx)` 활용.
+`monsters.ts` 와 `tower.ts` 의 챕터 게이팅:
 
----
-
-## 보스 vs 강화 보스
-
-| 챕터 | 보스 | 비고 |
-|---|---|---|
-| 1~5 | `theme.boss` | 입문 |
-| 6~10 | `theme.hardBoss` (있으면) | HP/ATK ↑, 추가 trait |
-
-강화 보스는 hpMod/atkMod/defMod 가 1.5~2.0배. 일부 테마는 hardBoss가 별도 trait를 가짐 (예: 기계 마지막 보스 → last_stand).
-
----
-
-## 진짜 보스 (`realboss.ts`)
-
-도전 시 가장 최근 클리어 캐릭터가 도달한 챕터 테마의 **hardBoss를 추가 증폭**:
 ```
-hp  × 3.0
-atk × 9.0  (v6.1, 기존 1.8 → 9.0 강화)
-def × 1.6
+일반 몬스터:
+  HP  = 50 + 6 × chapter
+  ATK = base + chapter scaling
+  DEF = base + chapter scaling
+
+보스:
+  HP  × 16
+  ATK × 1.7
+  DEF × 1.55
+
+하드 보스 (챕터 6+):
+  추가 trait 활성화 (소환/반사/저주 등)
 ```
 
-자세한 메커니즘은 [meta-bonuses.md](meta-bonuses.md).
+적 acc/eva 도 챕터에 비례 (acc = 30 + 챕터×3, eva = 5 + 챕터×1).
+
+---
+
+## 진짜 보스 (별도 시스템)
+
+진짜 보스는 탑 구조 밖. 챕터 10 하드 보스를 강화한 별도 전투 (`realboss.ts`).
+- HP × 3.0
+- ATK × 9.0
+- DEF × 1.6
+
+자세히: [meta-bonuses.md](meta-bonuses.md) · [../features/realboss.md](../features/realboss.md)

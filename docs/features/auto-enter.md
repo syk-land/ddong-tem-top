@@ -1,40 +1,89 @@
 # 자동 진입
 
-## 개요
-던전에서 "진입" 버튼을 매번 누르지 않아도 되도록 일부 층 타입을 자동으로 진입한다. 전투가 끝나도 자동으로 다음 층으로 넘어가 끊김 없이 진행된다. 상점/보물/특별이벤트는 사용자 결정이 필요해 자동 진입하지 않는다.
+> 광고 1회로 등반당 해금. 일반 몬스터 / 보스 / 회복샘 자동 진입 + 전투 종료 후 자동 다음 층.
 
-## 자동 대상
-| 층 타입 | 자동 진입 | 자동 다음층 |
-| --- | --- | --- |
-| `monster` (일반 몬스터) | O | O (승리 시) |
-| `boss` (보스) | O | O (승리 시) |
-| `healing_spring` (치유샘) | O (알람 모달 스킵) | O |
-| `shop` | X | X |
-| `treasure` | X | X (보물 알람은 그대로) |
-| `special_event` | X | X |
+코드: `src/stores/game.ts` (`autoEnter` / `adAutoEnterUnlocked`), `src/screens/Dungeon.vue`, `src/screens/Combat.vue`, `src/lib/ads.ts`
 
-## 안전 가드
-- **사망**(`combat.victory === false`): 자동 다음층 X — 게임오버 화면에서 사용자 확인
-- **인벤토리 풀 모달**(`pendingPickup`) 떠있으면 자동 진행 대기 → 모달 닫히면 재개
-- **일반 모달**(`dialog / inputDialog / listDialog`) 떠있으면 자동 진입/다음층 모두 차단
-- 도전 모드 보스전(`realBossMonster`)에서도 자동 모달은 결과 화면 라우팅과 별도
+---
 
-## 지연
-- 던전 진입 watch: `max(120ms, 500 / combatSpeed)`
-- 전투 종료 후 다음층: `max(300ms, 900 / combatSpeed)`
-- 속도(1x/2x/4x)가 빠를수록 짧아짐.
+## 동작
 
-## 설정
-- 설정 패널(`SpeedControl.vue`)의 "자동" 토글
-- 저장 키: `localStorage["climetop:autoEnter:v1"]` (`"1"` ON / `"0"` OFF)
-- 접힌 패널에서는 ON일 때 "자" 한 글자 노출
+```
+[Dungeon 화면]
+   ├─ autoEnter = true 인 노드: 일반 몬스터 / 보스 / 회복샘
+   │   → 1초 대기 후 자동 진입 (취소 가능)
+   └─ 수동 노드: 상점 / 보물 / 특별 이벤트
+       → 사용자가 직접 카드 클릭
 
-## 관련 파일
-- `src/stores/game.ts` — `autoEnter` state, `setAutoEnter`, `enterCurrentFloor`(치유샘 알람 분기)
-- `src/screens/Dungeon.vue` — `tryAutoEnter` watcher
-- `src/screens/Combat.vue` — `maybeAutoAdvance` watcher + `pendingPickup` watcher
-- `src/ui/components/SpeedControl.vue` — 토글 버튼
+[Combat 종료]
+   └─ autoEnter 면 자동으로 Dungeon 으로 복귀 → 다음 층 자동 진입
+```
 
-## 제약 / 메모
-- 챌린지 "절대 정수"(치유샘 사용 불가)에서도 자동 진입 시 알람을 건너뛰고 `advance()`만 호출 (동작은 동일, UI만 간략).
-- 자동 진입은 *던전 화면이 활성*인 동안만 동작. 모달/다른 화면으로 전환 시 타이머는 자동 정리.
+---
+
+## 해금 조건 (광고)
+
+```
+adAutoEnterUnlocked = false     // 런 시작 시
+   └─ SpeedControl 의 "자동 진입" 토글
+       ├─ Off → 광고 미시청 상태
+       └─ On 클릭 → 광고 1회 → 시청 완료 시 unlocked = true
+```
+
+- 한 번 unlock 되면 런 끝까지 유지
+- 새 캐릭터 생성 시 다시 false
+- 웹/dev 환경에서는 광고 fallback (즉시 보상)
+
+광고 단위: `PROD_AD_UNIT_AUTO_ENTER` (`src/lib/ads.ts`)
+
+---
+
+## 토글 (`autoEnter`)
+
+```
+localStorage["climetop:autoEnter:v1"] = "1" | "0"
+```
+
+런마다 재설정. 해금 후엔 토글 자유.
+
+---
+
+## 노드별 자동 진입 정책
+
+| 노드 | 자동 진입 |
+|---|---|
+| 일반 몬스터 | ✅ |
+| 보스 | ✅ |
+| 회복샘 | ✅ |
+| 상점 | ❌ (수동 — 구매 결정이 필요) |
+| 보물 | ❌ (수동 — 미믹 위험) |
+| 특별 이벤트 | ❌ (수동 — NPC 선택지) |
+
+전투/회복샘 노드는 그냥 클리어/회복이라 자동화 가능, 나머지는 의사결정 필요.
+
+---
+
+## 4배속과의 관계
+
+`combatSpeed` (1 / 2 / 4) 와 `autoEnter` 는 별개 토글:
+
+- 4배속: 광고 1회 별도 해금 (`adFastSpeedUnlocked`)
+- 자동 진입: 광고 1회 별도 해금 (`adAutoEnterUnlocked`)
+- 둘 다 해금하면 풀 자동 모드 — 사용자가 화면만 보면 알아서 진행
+
+---
+
+## 취소
+
+자동 진입 카운트다운 (1초) 동안:
+- 다른 카드 클릭 → 그쪽 진입
+- 자동 진입 토글 끔 → 취소
+- 뒤로가기 / Esc → 취소
+
+---
+
+## 알려진 제약
+
+- 보스가 너무 강해서 자동 진입하면 사망할 수도 있다 — 사용자 책임
+- 보물 (미믹 전투) 는 자동화 안 됨 — 신중한 선택을 위해
+- 광고 시청 실패 시 (네트워크 오류 등) 토글 활성화 안 됨, 다시 시도 가능

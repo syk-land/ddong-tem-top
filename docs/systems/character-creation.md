@@ -1,91 +1,119 @@
 # 캐릭터 생성
 
-코드: `src/screens/CharacterCreation.vue`, `src/core/character.ts`
+코드: `src/core/character.ts`, `src/screens/CharacterCreation.vue`
 
 ---
 
-## 진입
+## 흐름
 
-`MainMenu` → "🆕 새 캐릭터" 버튼:
-1. `triggerRealBossIfDue` 체크 — 누적 골드 5만 도달 시 도전 모드로 우회.
-2. `startCharacterCreation()`:
-   - 4배속 → 1배속 자동 리셋
-   - 자동 진입 OFF 자동 리셋
-   - 저장된 진행 상태 (loadCreation) 복원 또는 신규 생성:
-     - `pickThreeRandomChallenges()` → 챌린지 3개 (즉시 2 + 리스크 1)
-     - 주사위 3회 초기화
-     - 랜덤 아바타 1개
-   - 화면 → `create`.
-
----
-
-## UI 패널
-
-### 1. 진짜 보스 도전 누적 보상 (조건부)
-`meta.permanentStartBonus > 0` 일 때만:
-- "마지막 도전: 보스 체력 NN/100 깎음"
-- "시작 능력치 총합 50 → (50 + N)pt (+Npt 영구, 5스탯 균등 자동 분배)"
-
-### 2. 주사위
-- 남은 굴림 3회 (소진 시 굴리기 버튼 비활성).
-- 주사위 굴림 → `generateRandomStats()` → 5스탯에 50pt 랜덤 분배 (각 최소 3, 최대 20).
-- 결과 미리보기: 5스탯 카드 + 총합. **영구 보너스가 자동 분배된 최종 값** 표시.
-
-### 3. 챌린지 선택
-- 3개 카드 (즉시 보상형 2 + 리스크 베팅형 1).
-- 카드 클릭 → 토글 (선택/해제).
-- 선택 안 해도 시작 가능.
-
-### 4. 누적 보너스 자유 분배 (조건부)
-`meta.totalBonusStats > 0` 일 때만:
-- 5스탯에 +/- 버튼으로 분배.
-- 길게 누르면 가속 연타 (350ms 시작, ×0.82 가속).
-- 합계 ≤ totalBonusStats 까지만.
-
-### 5. 탑 진입
-`newGame(allocation)` 호출 → `createCharacter` → 첫 챕터 진입.
-
----
-
-## 캐릭터 빌드 흐름 (`createCharacter`)
-
-```ts
-function createCharacter(bonusAllocation, customStats?, pendingStartBonus = 0): Character {
-  stats = customStats ?? uniformStartingStats()  // 5스탯 각 10
-
-  // 1) 메타 보너스 자유 분배 적용
-  for k in bonusAllocation:
-    stats[k] += bonusAllocation[k]
-
-  // 2) 진짜 보스 영구 보너스 자동 분배 (5스탯 균등 + 나머지)
-  if pendingStartBonus > 0:
-    base = floor(pendingStartBonus / 5)
-    rem  = pendingStartBonus - base × 5
-    for k in [힘,민첩,체력,마력,행운]: stats[k] += base
-    for i in 0..rem-1: stats[five[i]] += 1
-
-  return Character {
-    stats, hp: maxHp, maxHp: 10×체력+50, mp/maxMp, weapon: starter, armor: null, gold: 50, ...
-  }
-}
+```
+[CharacterCreation 진입]
+    │
+    ├─ 1. 챌린지 카드 3장 무작위 (즉시 2 + 리스크 1)
+    │     └─ 1개 선택 (또는 스킵)
+    │
+    ├─ 2. 주사위 굴림 (최대 3회)
+    │     └─ 5스탯에 60pt 랜덤 분배
+    │
+    ├─ 3. 누적 보너스 풀 분배 (totalBonusStats)
+    │     └─ 5스탯 버튼으로 자유 분배
+    │
+    ├─ 4. 영구 시작 보너스 자동 분배 (permanentStartBonus)
+    │     └─ 5스탯 균등 + 나머지 힘→민첩→체력→마력→행운
+    │
+    ├─ 5. 자동 아바타 (저장된 것 없으면 21개 중 랜덤)
+    │
+    └─ "시작" → Dungeon
 ```
 
 ---
 
-## 시작 장비
+## 시작 스탯
 
-- 무기: 무작위 물리 무기 (등급 노말, 트레잇 하급).
-- 갑옷: 없음.
-- 골드: 50G + 챌린지 보너스.
+| 항목 | 값 |
+|---|---|
+| 균등 시작 | 12 / 12 / 12 / 12 / 12 (총 60pt) |
+| 주사위 굴림 | 5스탯에 60pt 랜덤 분배 (각 최소 0) |
+| 굴림 횟수 | 캐릭터 생성당 최대 3회 |
+| 시작 골드 | 50 (챌린지 보너스로 +300 가능) |
+| 시작 무기 | 하급 노말 (speedCoef 0.5 ~ 1.0 무작위) |
+| 시작 갑옷 | 없음 (상점에서 획득) |
+
+### 챌린지별 시작 무기 강제 (`character.ts`)
+
+- 굼벵이 전술 → 한방형 (`대검 / 양날도끼 / 할버드`)
+- 마법 혐오증 → 비-마법 무기만
+- 체중감량 → 속도형
+- 강박증 → 같은 등급/특성으로 고정 시작
+- 로브의 길 → 시작 무기 마법 강제 + **시작 갑옷도 로브 강제**
+- 명사수 → 활 (`숏보우 / 롱보우 / 석궁`)
 
 ---
 
-## 저장/복원
+## 주사위 시스템
 
-`localStorage['climetop:creation:v1']` (`saveCreation`):
-- 주사위 굴림 결과 (`rolledStats`)
-- 남은 굴림 (`rollsLeft`)
-- 챌린지 목록 + 선택
-- 선택한 아바타
+```ts
+function rollStats(): Stats {
+  // 60pt 를 5스탯에 랜덤 분배 (각 최소 0)
+}
+```
 
-뒤로가기/새로고침 시 보존되어 같은 상태로 복원.
+- 첫 진입 시 자동 1회 굴림 (= 균등이 아닌 랜덤으로 시작)
+- 결과는 `climetop:creation:v1` 에 보존 — 다음 캐릭터 생성까지 유지
+- "다시 굴리기" 버튼 활성 횟수 = `rollsLeft` (최대 3)
+
+---
+
+## 누적 보너스 분배
+
+- `totalBonusStats` 만큼 5스탯 어디든 자유 분배
+- 풀은 차감 안 됨 — 분배만 결정 (다음 캐릭터도 같은 풀 사용 가능)
+- UI: 5스탯 각 +1 버튼, 분배 합계가 풀 이내로 제한
+
+---
+
+## 영구 시작 보너스 자동 분배
+
+`permanentStartBonus` 가 있을 때:
+
+```ts
+const each = Math.floor(bonus / 5)
+const remainder = bonus % 5
+stats.힘 += each + (remainder >= 1 ? 1 : 0)
+stats.민첩 += each + (remainder >= 2 ? 1 : 0)
+stats.체력 += each + (remainder >= 3 ? 1 : 0)
+stats.마력 += each + (remainder >= 4 ? 1 : 0)
+stats.행운 += each
+```
+
+자동 분배 — 사용자 개입 없음. 보너스는 1회용 (소비 후 0).
+
+**서사**: 진짜 보스에게 깎인 비율만큼 시간의 신이 회귀와 함께 능력치를 부여한 결과.
+
+---
+
+## 자동 아바타
+
+`src/lib/auth.ts` 의 `pickRandomAvatar()`:
+- 저장된 아바타 있으면 유지 (`runAvatar`)
+- 없으면 `USER/` 폴더 21개 중 랜덤 1개 선택
+- 선택 결과는 영구 보존 (런 도중에는 절대 변경 안 됨)
+
+자세히: [../features/auto-avatar.md](../features/auto-avatar.md)
+
+---
+
+## 캐릭터 생성 상태 저장
+
+```
+localStorage["climetop:creation:v1"]:
+  {
+    rollsLeft: number
+    pendingAllocation: Partial<Stats>
+    selectedChallenge: ChallengeId | null
+    rolledStats: Stats | null
+    avatar: string | null
+  }
+```
+
+뒤로가기로 나가도 진행도 유지. "시작" 클릭 시 초기화.

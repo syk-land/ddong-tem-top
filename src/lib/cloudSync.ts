@@ -17,7 +17,8 @@ export interface UserProfile {
   uid: string
   displayName: string | null
   photoURL: string | null
-  email: string | null
+  // email 은 Firestore 에 저장하지 않는다 (보안 — 공개 read 노출 방지).
+  // 필요하면 firebase Auth 에서 직접 user.email 로 접근.
   nickname?: string  // 게임 내 닉네임 (없으면 displayName 사용)
   createdAt?: unknown
   updatedAt?: unknown
@@ -48,11 +49,12 @@ export interface LeaderboardEntry {
 export async function upsertUserProfile(user: User, nickname?: string): Promise<void> {
   const ref = doc(firestore, 'users', user.uid)
   const existing = await getDoc(ref)
+  // 보안: email 은 Firestore 에 저장하지 않는다. Firebase Auth 에 이미 있고,
+  // users/{uid} 는 리더보드용으로 다른 사용자가 read 가능하므로 공개해선 안 됨.
   const base: Partial<UserProfile> = {
     uid: user.uid,
     displayName: user.displayName,
     photoURL: user.photoURL,
-    email: user.email,
     updatedAt: serverTimestamp(),
   }
   if (!existing.exists()) {

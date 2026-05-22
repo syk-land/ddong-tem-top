@@ -10,6 +10,9 @@
     "preview": "vite preview",
     "android": "npm run build && npx cap sync android && npx cap open android",
     "android:build": "npm run build && npx cap sync android",
+    "android:bundle": "npm run android:build && cd android && ./gradlew bundleRelease",
+    "android:bundle:win": "npm run android:build && cd android && gradlew.bat bundleRelease",
+    "android:apk": "npm run android:build && cd android && ./gradlew assembleRelease",
     "cap:init": "npx cap init climetop com.climetop.app --web-dir=dist",
     "sim": "npx tsx src/core/__sim__/runChapter.ts"
   },

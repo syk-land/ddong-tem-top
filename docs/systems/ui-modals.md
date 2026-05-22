@@ -1,112 +1,109 @@
 # UI / 모달 시스템
 
-코드: `src/App.vue` (라우팅), `src/ui/components/*Modal.vue`
+> 화면 라우팅 + 11 종 공통 모달 컴포넌트.
+
+코드: `src/App.vue`, `src/screens/*.vue`, `src/ui/components/*.vue`
 
 ---
 
 ## 화면 라우팅
 
-`App.vue` 의 `currentScreen` 기반 단일 라우터. `game.screen` 값으로 분기:
+`App.vue` 의 `screen` 상태 기반 단일 라우터:
 
-| 값 | 컴포넌트 |
+```
+'splash' | 'menu' | 'create' | 'dungeon' | 'combat' | 'shop'
+| 'victory' | 'gameover' | 'realboss' | 'realboss_result' | 'settings'
+```
+
+| 값 | 컴포넌트 | 진입 |
+|---|---|---|
+| splash | `SplashScreen.vue` | 첫 로드 (클릭 시 닫힘) |
+| menu | `MainMenu.vue` | 기본 |
+| create | `CharacterCreation.vue` | "새 캐릭터" |
+| dungeon | `Dungeon.vue` | 탑 진행 |
+| combat | `Combat.vue` | 전투 노드 진입 |
+| shop | `Shop.vue` | 상점 노드 진입 |
+| victory | `VictoryScreen.vue` | 100층 클리어 |
+| gameover | `GameOver.vue` | HP 0 |
+| realboss | `RealBossChallenge.vue` | 진짜 보스 도전 |
+| realboss_result | `RealBossResult.vue` | 도전 결과 |
+| settings | `SettingsScreen.vue` | 메뉴 → 설정 |
+
+**인트로 만화**: `introVisible` 오버레이 (별도 라우팅 값 아님).
+
+---
+
+## 모달 컴포넌트 (`src/ui/components/`)
+
+### 시스템 모달
+
+| 컴포넌트 | 역할 |
 |---|---|
-| `menu` | `MainMenu.vue` |
-| `create` | `CharacterCreation.vue` |
-| `dungeon` | `Dungeon.vue` |
-| `combat` | `Combat.vue` |
-| `shop` | `Shop.vue` |
-| `victory` | `VictoryScreen.vue` |
-| `gameover` | `GameOver.vue` |
-| `realboss` | `RealBossChallenge.vue` |
-| `realboss_result` | `RealBossResult.vue` |
+| `DialogModal` | alert / confirm 대체 (제목 / 메시지 / 버튼 배열) |
+| `InputModal` | 텍스트 / 숫자 입력 (Enter 제출, Esc 취소) |
+| `ListModal` | 리스트 선택 (NPC 이벤트용, sub 텍스트 지원) |
+| `PickupModal` | 인벤토리 가득 시 슬롯 선택 폐기 또는 신규 포기 |
 
-추가 오버레이:
-- `SplashScreen` (최초 로드 시)
-- `IntroComic` (튜토리얼 만화, introVisible 시)
-- `SpeedControl` (전역, 우하단 토글)
+### 게임 정보 모달
+
+| 컴포넌트 | 역할 |
+|---|---|
+| `InventoryModal` | 착용 중 / 보관함 탭. 장착 / 폐기 / 해제 버튼 |
+| `ItemDetail` | 아이템 전투력 분해 (공격/방어 클릭 시 구성 요소 상세) |
+| `StatusModal` | 5스탯 + 능력치 + 상태이상 + 장착 장비 + 활성 챌린지 |
+| `StatusBadges` | 상태이상 목록 (점화/출혈/독/둔화/암흑/감전) — 아이콘 + 스택 + 지속시간 |
+
+### 게이지 / 패널
+
+| 컴포넌트 | 역할 |
+|---|---|
+| `HpMpBar` | 게이지 바 (25% 이하 깜빡임, 0% 숨김) |
+| `SpeedControl` | 전역 제어판 (속도 1/2/4× / 자동 진입 / 사운드 슬라이더 / 인트로 재생) |
+| `GrowthPenaltyPanel` | 클리어 등급 예상 (6챕터부터 표시) — 다음 회차 보너스 미리보기 |
+| `IntroComic` | 인트로 만화 페이지 (탭 / 클릭 진행) |
+| `ItemName` | 아이템 이름 칩 (등급 색상 + 특성 prefix) |
 
 ---
 
-## 범용 모달 (4종)
+## 모달 우선순위 (뒤로가기 / Esc)
 
-### DialogModal — alert / confirm
+자세히: [../features/back-button.md](../features/back-button.md)
+
+```
+1. PickupModal (인벤토리 풀)   → 신규 포기
+2. DialogModal                   → 취소 / 마지막 버튼
+3. InputModal                    → null 취소
+4. ListModal                     → null 취소
+5. IntroComic                    → 닫기
+6. Shop                          → 다음 층 진입
+7. 모달 없음                     → 기본 동작 (앱 종료 / 페이지 이전)
+```
+
+웹 환경: Esc 키도 동일 처리. 모달 처리 시 `preventDefault()`.
+
+---
+
+## 설정 패널 UX
+
+- `SpeedControl` 패널은 화면 우측 상단 고정
+- 기본 접힘, 클릭 시 펼침
+- 펼침 상태에서 모달 위로 자동 흐려짐 (`settings-panel.md` 참고)
+- 5초 이상 방치 시 자동 접힘
+- 펼침 여부는 `climetop:speedControl:expanded:v2` 에 저장
+
+---
+
+## 데이터 흐름
+
 ```ts
-game.alertModal(message, title?, imageUrl?)
-game.confirmModal(message, { title?, okLabel?, cancelLabel?, danger?, imageUrl? }): boolean
-```
-- `buttons[]` 로 다중 옵션 가능.
-- `imageUrl` 지정 시 상단 NPC 일러스트.
-
-### InputModal — prompt
-```ts
-game.inputModal(message, { title?, defaultValue?, placeholder?, maxValue?, okLabel?, imageUrl? }): string | null
-```
-
-### ListModal — list select
-```ts
-game.listModal({ title?, message?, options: [{ label, value, sub?, class? }], cancelLabel?, imageUrl? }): unknown | null
+// useGameStore 의 상태
+const game = useGameStore()
+game.screen          // 현재 화면
+game.activeModal     // 활성 모달 (ModalDescriptor | null)
+game.showDialog({ title, message, buttons })   // alert/confirm
+game.showInput({ title, placeholder })          // 입력
+game.showList({ items })                        // 선택
+game.showPickup({ inventory, newItem })         // 인벤토리 풀
 ```
 
-### PickupModal — 인벤토리 가득
-신규 아이템 입수 시 슬롯 가득이면 자동 표시:
-- 신규 아이템 미리보기
-- 인벤토리 슬롯 리스트 → 클릭으로 그 슬롯 폐기 + 신규 적재
-- "신규 포기" 버튼
-
----
-
-## 인트로 만화 (`IntroComic`)
-
-3가지 흐름:
-- `first` — 최초 실행 (splash 닫힘 후 자동): main → t1 → t2 → 메뉴
-- `replay` — 설정에서 다시보기: main → t1 → t2 (도전 미완) / + t3 (도전 완료 시)
-- `afterRealBoss` — 진짜 보스 결과 후: t1 → t2 → t3 → 캐릭터 생성
-
-`game.introVisible`, `game.introPage`, `game.introFlow` 상태.
-페이지 클릭 → `nextIntroPage()` → 다음 페이지 or 닫기.
-
-이미지: `/images/TUTORIAL/{page}.png?v=3` (캐시 무효화).
-
----
-
-## 속도 컨트롤 (`SpeedControl`)
-
-전역 우하단 위젯. 펼침/접힘 상태.
-
-- 1x / 2x / 4x 속도 토글
-- 자동 진입 토글 (몬스터/보스/회복샘)
-- 인트로 만화 다시보기 버튼
-- 사운드 ON/OFF (BGM/SFX)
-
-**4배속 / 자동 진입은 광고 시청 확인 모달 필요** (PoC):
-```
-"광고를 보고 4배속을 사용하시겠습니까?" [예 / 아니오]
-```
-
-캐릭터 생성 화면 진입 시 자동으로 1배속 / 자동 OFF 리셋.
-
----
-
-## 안드로이드 뒤로가기
-
-`game.handleBackButton()` 우선순위:
-1. `pendingPickup` → 신규 거부
-2. `dialog/inputDialog/listDialog` → 취소
-3. `introVisible` → 닫음
-4. `screen === 'shop'` → 상점 나가기
-5. (그 외) → false 반환 (앱 종료)
-
-Capacitor `App.addListener('backButton')` 에 연결.
-
----
-
-## 색상 / 스타일 (`ui/colors.ts`)
-
-- `gradeColorClass` — 노말/레어/스페셜/레전드 색상
-- `tierColorClass(tier)` — T1~14 별 색상 (트레잇 티어 매핑)
-- `statColorClass` — 5스탯 색상 (힘/민첩/체력/마력/행운)
-- `themeColorClass` — 챕터 테마별 색상
-- `rankColorClass` — F~EX 등급 색상
-- `formatItemNameHTML(item)` — 아이템 이름 HTML 분해 (특성+등급+베이스)
-
-Tailwind 커스텀 클래스 + CSS 변수 (`styles/main.css`).
+모달은 Promise 기반 — `await game.showDialog(...)` 로 사용.

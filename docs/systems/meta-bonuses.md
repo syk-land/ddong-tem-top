@@ -1,181 +1,144 @@
-# 메타 보너스 & 진짜 보스
+# 메타 보너스 & 진짜 보스 사이클
 
-> 영구사망(permadeath) 게임이지만, 클리어 시 누적 보상이 다음 캐릭터로 이어짐.
+> 시간의 신이 주인공에게 부여하는 능력치의 시스템적 표현. [DOCS §0 서사](../../DOCS.md#0-게임-서사-진짜-스토리) 참고.
 
 코드: `src/core/meta.ts`, `src/core/realboss.ts`
 
-저장: `localStorage['climetop:meta:v1']` (`MetaBonuses` 구조).
-
 ---
 
-## `MetaBonuses` 필드
+## MetaBonuses 스키마
 
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `clearCount` | number | 누적 100층 클리어 횟수 |
-| `totalBonusStats` | number | 누적 자유 분배 포인트 풀 (1~10 + 챌린지) |
-| `allocations` | Partial<Stats> | 직전 캐릭터 분배 기록 (디버그용) |
-| `runsSinceLastChallenge` | number | (옛 시스템 호환용) |
-| `nextChallengeAt` | number | (옛 시스템 호환용) — 항상 5 |
-| `characterHistory` | CharacterRecord[] | 클리어 캐릭터 누적 (최대 50) |
-| `pendingStartBonus` | number | (deprecated) 1회성 보너스 |
-| `permanentStartBonus` | number | 진짜 보스 깎은 비율 × 60 누적 |
-| `lastBossDrainRatio` | 0~1 | 가장 최근 도전에서 깎은 비율 (UI 표시용) |
-| `realBossCompleted` | bool | 진짜 보스전 1회 이상 완료 여부 (튜토리얼 t3 잠금 해제) |
-| `realBossDefeated` | bool | 100% 클리어 여부 (게임 완료) |
-| `totalGoldEarned` | number | 클리어 시점 잔여 골드 누적 (내부 — UI 표시 X). 5만 도달 시 진짜 보스 트리거 |
-
----
-
-## 누적 풀 (`totalBonusStats`)
-
-### 적립
-매 클리어 시 `commitClearBonus(meta, _, pendingBonus)`:
 ```ts
-meta.totalBonusStats += pendingBonus
+interface MetaBonuses {
+  clearCount: number              // 100층 클리어 총 횟수
+  climbCount: number              // 도중 사망 포함 등반 총 횟수
+  totalBonusStats: number         // 누적 보너스 풀 (영구)
+  allocations: Partial<Stats>     // 마지막 분배 기록 (자동 적용 X)
+  totalGoldEarned: number         // 누적 클리어 골드 (진짜 보스 게이트)
+  characterHistory: CharacterRecord[]  // 최대 50건
+  permanentStartBonus: number     // 진짜 보스 보상 (다음 캐릭터 1회 +N)
+  lastBossDrainRatio: number      // 0~1 (UI 표시용)
+  realBossDefeated: boolean       // 인트로 만화 t3 잠금 해제
+  // ... runsSinceLastChallenge / nextChallengeAt 등 보조 필드
+}
 ```
 
-`pendingBonus` = `rank.bonus (1~10)` + `sum(challenge.metaBonus)` (실패 안 한 챌린지).
+저장 위치: localStorage `climetop:meta:v1` (로그인 시 Firestore `meta/{uid}` 미러).
 
-### 분배
-- 캐릭터 생성 화면에서 `bonusAvailable = meta.totalBonusStats` 만큼 5스탯에 자유 분배.
-- v6.1: **분배해도 풀이 차감되지 않음** — 누적은 영구 (`consumeBonusFromPool`은 `allocations` 기록만, 풀 차감 X).
+---
+
+## 누적 보너스 풀 (`totalBonusStats`)
+
+**서사**: 시간의 신이 부여한 영구 능력치.
+
+### 적립 (commitClearBonus)
+```
+클리어 시:
+  bonus = rank.bonus (1~10)         // EX 10pt ~ D 3pt
+        + sum(challenge.metaBonus)  // 챌린지 클리어 시 +1~15pt
+totalBonusStats += bonus            // 영구 누적
+```
+
+### 소비 (consumeBonusFromPool)
+캐릭터 생성에서 5스탯 자유 분배. **풀은 차감되지 않음** — 다음 캐릭터도 같은 풀로 분배 가능.
 
 ### 리셋
-**진짜 보스 도전 종료 시점에 0 리셋** (`finishRealBossCombat`):
-```ts
-meta.totalBonusStats = 0
-meta.allocations = {}
-```
-이전엔 `proceedFromRealBossResult` (결과 화면 버튼 클릭 시점)에서 처리했으나, 새로고침/뒤로가기 등 우회 경로에서 리셋 누락 → v6.1에서 보스전 종료 즉시로 이동.
-
----
-
-## 영구 시작 보너스 (`permanentStartBonus`)
-
-### 적립
-진짜 보스전 종료 시 (`finishRealBossCombat`):
-```ts
-ratio = (initialHp - finalHp) / initialHp  // 0~1
-gain = floor(60 × ratio)
-meta.permanentStartBonus += gain
-```
-
-깎은 비율 36% → 21pt 적립. 100% → 60pt 적립.
-
-### 적용
-다음 캐릭터 생성 시 `createCharacter` 가 자동으로 5스탯 균등 분배:
-```ts
-five = ['힘','민첩','체력','마력','행운']
-base = floor(permanentStartBonus / 5)
-rem  = permanentStartBonus - base × 5
-for k in five: stats[k] += base
-for i in 0..rem-1: stats[five[i]] += 1   // 나머지는 힘→민첩→체력→마력→행운 순
-```
-
-예: 21pt → 5스탯 각 +4 + 힘 +1 = 17/14/14/14/14 (= 50 + 21).
-
-### 리셋
-**`resetMeta()` (데이터 리셋 버튼)** 외에는 리셋 안 됨 — 영구 누적.
-
----
-
-## 진짜 보스 도전
-
-### 트리거
-- 매 100층 클리어 시점에 `accumulateClearGold(meta, character.gold)` → `totalGoldEarned` 적립.
-- **누적 5만 골드 도달 시** `isChallengeDue(meta) === true`.
-- 다음 메인 메뉴 진입 또는 "새 캐릭터" 클릭 시 `startRealBoss()` 자동 발동.
-
-### 시작
-`startRealBoss()`:
-1. `consumeChallengeTrigger(meta)` → `totalGoldEarned = 0` 리셋.
-2. `pickLatestRecord(meta)` — 가장 최근 클리어 캐릭터.
-3. 그 캐릭터의 `lastChapterTheme` 의 hardBoss를 강화:
-   ```
-   inst.maxHp ×= 3.0
-   inst.atk   ×= 9.0    (v6.1, 기존 1.8 → 9.0)
-   inst.def   ×= 1.6
-   ```
-4. 화면 → `realboss`.
-
-### 진행
-- 캐릭터 풀 HP/MP로 부활, 기존 장비 그대로 사용.
-- 전투 종료 (사망/도주/완클) 후 → `finishRealBossCombat`.
-
-### 보상
-- 깎은 비율 × 60 → `permanentStartBonus` 영구 누적.
-- `meta.lastBossDrainRatio` 저장 (다음 캐릭터 생성 패널 표시).
-- 100% (ratio ≥ 0.9999) → `realBossDefeated = true` (게임 클리어, 인트로 만화 t3 잠금 해제).
-- `realBossCompleted = true` (1회 이상 시도 완료).
-
-### 화면 흐름
-```
-[Menu] → triggerRealBossIfDue → [RealBossChallenge] (도전 시작 안내)
-   │
-   ↓ "도전 시작"
-[Combat] (진짜 보스전)
-   │
-   ↓ 종료 → finishRealBossCombat
-[RealBossResult] (깎은 % + 적립 pt 표시)
-   │
-   ↓ "캐릭터 생성하기" → proceedFromRealBossResult
-[IntroComic: afterRealBoss] (t1→t2→t3)
-   │
-   ↓ closeIntroComic
-[CharacterCreation] (다음 캐릭터, permanentStartBonus 적용)
-```
-
----
-
-## 클리어 등급 보너스 표
-
-`character.ts:getClearRank(score)` 매핑 (score = 무기 티어 + 갑옷 티어):
-
-| 점수 | 등급 | 보너스 |
-|---|---|---|
-| ≤ 5  | EX  | 10 |
-| ≤ 8  | SSS | 9 |
-| ≤ 11 | SS  | 8 |
-| ≤ 14 | S   | 7 |
-| ≤ 17 | A   | 6 |
-| ≤ 20 | B   | 5 |
-| ≤ 23 | C   | 4 |
-| ≤ 26 | D   | 3 |
-| ≤ 29 | E   | 2 |
-| 30+  | F   | 1 |
-
-낮은 티어 장비 유지 = 점수 ↓ = 등급 ↑ = 보너스 ↑ = 다음 캐릭터 강해짐. "똥템" 컨셉의 핵심.
+- 진짜 보스 100% 완전 클리어 시 일부 리셋 (`finishRealBossCombat`)
+- 그 외 영구 보존 (사망/스킵 무관)
 
 ---
 
 ## 캐릭터 히스토리 (`characterHistory`)
 
-매 클리어 시 캐릭터 스냅샷 적립 (`pushCharacterHistory`):
 ```ts
-CharacterRecord {
-  stats, score, rank, avatarKey,
-  weapon, armor,         // ItemInstance 깊은 복사
-  gold, hp/maxHp, mp/maxMp,
-  lastChapterTheme,
-  recordedAt: timestamp,
+interface CharacterRecord {
+  recordedAt: number    // timestamp
+  stats: Stats          // 5스탯
+  equipment: { weapon, armor }
+  clearedFloors: number // 도달 층수
+  clearedRanks: string[] // 챌린지 클리어 기록
+  cleared100: boolean
 }
 ```
 
-최대 50개 보존. 진짜 보스 도전 시 `pickLatestRecord` (가장 최근)로 부활.
+- 최대 **50건** (recordedAt 오래된 것부터 제거)
+- 진짜 보스 도전 시 부활 캐릭터 풀로 사용
 
 ---
 
-## 마이그레이션 (v5 → v6)
+## 진짜 보스 사이클
 
-5스탯 통합 (`migrateAllocations`):
-| 옛 키 | 새 키 |
-|---|---|
-| 공격력, 관통 | 힘 |
-| 방어력, 상태저항 | 체력 |
-| 체력 | 체력 |
-| 마력 | 마력 |
-| 속도, 명중률, 회피율 | 민첩 |
-| 행운 | 행운 |
+**서사**: 시간의 신이 누적된 힘으로 현실 통로를 여는 임계.
 
-`loadMeta()`에서 자동 변환.
+### 해금 조건 (`isChallengeDue`)
+```
+totalGoldEarned ≥ 50,000   AND   clearCount ≥ 5
+```
+
+위 조건 충족 시 다음 메인 메뉴 진입 또는 "새 캐릭터" 클릭 시 도전 모드로 전환.
+
+### 부활 캐릭터 선정 (`pickLatestRecord`)
+- `characterHistory` 의 가장 최근 100층 클리어 캐릭터
+- 장비/스탯 그대로 부활 — 가장 강해진 자아를 현실로 끌어냄
+
+### 보스 강화 (`makeRealBoss`)
+- HP × 3.0
+- ATK × 9.0 (v6.1 추가 강화)
+- DEF × 1.6
+- 챕터 10 하드 보스를 기본으로 trait 강화
+
+### 보상 (`computeStartBonusFromDrain`)
+```
+drainRatio = (시작 HP - 끝 HP) / 시작 HP    // 0~1
+영구 시작 보너스 = floor(60 × drainRatio)   // 0~60pt
+```
+
+다음 캐릭터에 5스탯 균등 자동 분배 + 나머지 (`60 % 5 != 0` 시) 힘→민첩→체력→마력→행운 순.
+
+### 완전 클리어 (`drainRatio === 1`)
+```
+realBossDefeated = true
+→ 인트로 만화 t3 잠금 해제 → 진실 공개
+→ 다음 사이클 시작 (totalGoldEarned 리셋)
+```
+
+**게임 클리어** = 진짜 보스를 모두 쓰러뜨려서 시간의 신을 구하는 것.
+
+---
+
+## 적립 흐름
+
+```
+[꿈공간 100층 클리어]
+   │
+   ├─ rank 산정 (티어 합산)
+   ├─ 챌린지 평가 (성공/실패)
+   ├─ commitClearBonus → totalBonusStats += bonus
+   ├─ characterHistory 에 기록 추가
+   ├─ totalGoldEarned += 남은 골드
+   └─ clearCount += 1
+
+[진짜 보스 도전 조건 충족]
+   │
+   └─ 메인 메뉴 진입 시 자동 전환
+
+[진짜 보스 결과]
+   │
+   ├─ drainRatio < 1.0:
+   │   ├─ permanentStartBonus += floor(60 × drainRatio)
+   │   ├─ totalGoldEarned 리셋
+   │   └─ 다음 캐릭터 생성으로
+   │
+   └─ drainRatio = 1.0 (완전 클리어):
+       ├─ realBossDefeated = true
+       ├─ 인트로 만화 t3 표시
+       ├─ totalBonusStats 일부 리셋
+       └─ 다음 진짜 보스를 위한 사이클 재시작
+```
+
+---
+
+## 마이그레이션 (`migrateAllocations`)
+
+옛 10스탯 시스템 (`힘 / 민첩 / 지능 / 체력 / 정신력 / ...`) → 5스탯 (`힘 / 민첩 / 체력 / 마력 / 행운`) 자동 합산.
+누락 필드는 `loadMeta` 가 기본값으로 채움 (`pendingStartBonus = 0`, `characterHistory = []` 등).

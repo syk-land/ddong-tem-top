@@ -1,77 +1,72 @@
-# 상태이상
+# 상태이상 시스템
 
-코드: `src/data/statuses.ts`, `src/core/status.ts`
+코드: `src/core/status.ts` + `src/data/statuses.ts`
 
-`StatusKind` = `'점화' | '둔화' | '감전' | '암흑' | '출혈' | '독' | '침묵'`
-
----
-
-## 효과 표
-
-| 종류 | 효과 | 부여 가능 출처 |
-|---|---|---|
-| 점화 | 매 틱 maxHp × 1% 화상 데미지, 최대 5스택 | 화염구, 용암 trait, 트레잇 burn_chance |
-| 출혈 | 매 틱 maxHp × 0.8% 출혈, 3스택 누적 | 무기 트레잇 bleed_chance |
-| 독 | 매 틱 maxHp × 0.6% 장기 도트 | 맹독 챕터, 트레잇 poison_chance |
-| 둔화 | 속도 × 0.7 (지속 동안) | 빙결의화살, 바위충격, slow_chance |
-| 감전 | 행동 게이지 -10 즉시 + 추가 데미지 | 번개창, shock_chance |
-| 암흑 | 명중 -20 | 그림자일격(적용 시 적), blind_chance |
-| 침묵 | 스킬 사용 불가 (silenceUntilTick 까지) | 일부 보스 trait |
+6종 상태이상 — 점화 / 출혈 / 독 / 둔화 / 암흑 / 감전.
 
 ---
 
-## 부여 (`applyStatus`)
+## 6종 정의
 
-```ts
-applyStatus(target, kind, chance, durationTicks)
+| 상태 | base | 지속(틱) | DoT 간격 | 효과 |
+|---|---|---|---|---|
+| **점화** (burn) | 0.15 | 40 | 10 | DoT = `ATK × 0.15 × stackMult` (10틱마다) |
+| **출혈** (bleed) | 0.20 | 20 | 10 | DoT = `ATK × 0.20 × stackMult` |
+| **독** (poison) | 0.08 | 30 | 10 | DoT = `ATK × 0.08 × stackMult` |
+| **둔화** (slow) | -0.40 | 20 | — | `speedModifier += max(-0.90, -0.40 × stackMult)` |
+| **암흑** (blind) | -25 | 30 | — | `acc += max(-75, -25 × stackMult)` |
+| **감전** (shock) | 0.20 | 20 | — | 받는 피해 `× (1 + min(1.00, 0.20 × stackMult))` |
+
+---
+
+## 스택 메커니즘
+
 ```
-- `chance` 만큼 굴려 성공 시 적용.
-- `target.statuses[]` 에 `StatusEntry` push.
-- 동종 누적은 스택 가산 (점화/출혈/독), 회피 가능 (행운/마력 기반 저항).
-
-### 저항 (`stRes`)
-- 체력 × 0.5 + 마력 × 0.5 + 행운 × 0.3 + 트레잇 상태저항 가산.
-- `rollStatusResist(stRes)` 으로 회피 굴림.
-
-### 반사 (트레잇)
-갑옷 트레잇의 `reflect_burn` 등으로 부여자를 거꾸로 점화/둔화 등 부여 가능.
-
----
-
-## 매 틱 처리 (`tickStatuses`)
-
-`advanceTick` 매 호출 시 각 액터에 대해:
-1. 각 상태이상의 잔여 틱 -1.
-2. 도트형(점화/출혈/독)은 데미지 누적.
-3. 만료된 상태 제거.
-
-```ts
-return {
-  damageTaken: number,   // 이번 틱 총 도트 데미지
-  dotEvents: { kind, stacks, dmg }[],  // 로그 표시용
-}
+MAX_STACKS = 5
+stackMultiplier = 1.3 ^ (stack − 1)
+                = [1.0, 1.3, 1.69, 2.197, 2.856]   // 1~5스택
 ```
 
+- 같은 상태이상이 재적용되면:
+  - 지속시간 갱신 (덮어쓰기)
+  - 스택 +1 (최대 5)
+  - 스냅샷 ATK 는 **최대값 보존** (스택 추가 시 약한 공격자에게 깎이지 않음)
+
+### 클램프
+
+| 상태 | 클램프 |
+|---|---|
+| 둔화 | 속도 모디파이어 하한 -0.90 (속도 최저 10%) |
+| 암흑 | 명중 페널티 하한 -75 |
+| 감전 | 피해 증가 상한 +100% |
+
 ---
 
-## 정화 (`purgeDebuffs`)
+## 적용 / 해제
 
-`정화의광선` 스킬 사용 시 플레이어의 디버프(점화/둔화/감전/암흑/출혈/독) 모두 제거.
-
-```ts
-purged = purgeDebuffs(player) → 제거된 상태 수 반환
-```
+- **적용** (`applyStatus`): 무기 특성, 스킬, 몬스터 trait 모두 호출 가능
+- **저항**: 상태저항 = `CON × 0.5 + MAG × 0.5 + LUCK × 0.3` + 갑옷 특성(`상태저항`)
+  - 적용 굴림 vs 저항 — 저항이 높으면 적용 안 됨
+- **정화**: `정화의광선` 스킬은 자기 디버프 정화
+- **자연 해제**: 지속시간 0 → 제거
 
 ---
 
-## 트레잇과 상태이상
+## 무기/갑옷 시너지
 
-무기 트레잇이 상태이상 부여:
-- `burn_chance` (점화), `bleed_chance` (출혈), `poison_chance` (독)
-- `slow_chance` (둔화), `blind_chance` (암흑), `shock_chance` (감전)
+### 무기 — `원소의` 특성 (특별 티어)
+6종 상태이상 5% 확률 독립 발동 → 평타·스킬 모두 트리거. 전체 any-status 발동률 ≈ 26%.
 
-평타/스킬 적중 시 굴림 → 성공하면 적에게 적용.
+### 갑옷 — `원소저항의` 특성 (특별 티어)
+6종 상태 모두 저항 +30%.
 
-갑옷 트레잇은 저항/반사:
-- `resist_*` — 받을 확률 감소
-- `reflect_*` — 부여자에게 거꾸로 부여
+---
+
+## 몬스터 trait 와의 연계
+
+- `bleed_chance` / `poison_chance` 등: 평타에 자동 적용
+- `burn_aura` (용암 보스): 5틱마다 점화 부여
+- `silence_pulse` (암흑 보스): 30틱마다 MP 0 (스킬 봉인 — 상태이상 아님)
+- `vision_block` (천공 보스): 40틱 암흑 ×4 부여
+
+자세한 내용은 [monster-traits.md](monster-traits.md).

@@ -1,33 +1,86 @@
 # 인트로 만화
 
-## 개요
-스플래시를 닫은 직후 보여주는 4컷 만화 형태의 세계관 인트로. 최초 1회만 자동으로 뜨고, 설정 패널의 책 버튼으로 언제든 다시 볼 수 있다. 진짜 보스 도전 모드를 처음 완료하면 마지막 컷(튜토리얼 3)이 잠금 해제되어 다시보기에 추가로 노출된다.
+> 게임 서사를 전달하는 4 컷 정적 만화. 첫 플레이는 표면 컨셉만, **진짜 보스 클리어 후 진실 공개**.
 
-## 사용자 흐름
-| 진입 경로 | 표시 순서 |
-| --- | --- |
-| 최초 실행 (스플래시 직후 자동) | `main` → `튜토리얼 1` → `튜토리얼 2` → 메인 메뉴 |
-| 진짜 보스 도전 종료 후 | `튜토리얼 1` → `튜토리얼 2` → `튜토리얼 3` → 캐릭터 생성 |
-| 설정 → 인트로 만화 다시 보기 (도전 미완료) | `main` → `튜토리얼 1` → `튜토리얼 2` → 원래 화면 |
-| 설정 → 인트로 만화 다시 보기 (도전 1회 이상 완료) | `main` → `튜토리얼 1` → `튜토리얼 2` → `튜토리얼 3` → 원래 화면 |
+코드: `src/ui/components/IntroComic.vue`, `src/stores/game.ts` (introFlow / introPage / nextIntroPage)
+이미지: `public/images/TUTORIAL/1.png`, `2.png`, `3.png` + `public/images/main.png`
 
-각 페이지 하단의 라벨은 다음 페이지가 있으면 "다음 페이지로", 마지막 페이지면 "시작하기". 화면 어디든 탭/클릭하면 다음 페이지로 진행.
+---
 
-## 관련 파일
-- `src/ui/components/IntroComic.vue` — 만화 페이지 컴포넌트
-- `src/stores/game.ts` — `openIntroComic / nextIntroPage / closeIntroComic / autoShowIntroIfFirstTime`
-- `src/App.vue` — 스플래시 닫힌 직후 자동 호출
-- `src/ui/components/SpeedControl.vue` — 책(📖) 버튼
-- `src/ui/images.ts` — `tutorialImageUrl()`
-- `public/images/main.png`, `public/images/TUTORIAL/{1,2,3}.png`
+## 4 페이지 구성
 
-## 저장 키
-- `localStorage["climetop:tutorialSeen:v1"]` — 최초 시청 완료 여부 (`"1"`이면 자동 재표시 안 함)
-- `meta.realBossCompleted` — 도전 1회 완료 여부 (다시보기에 튜토리얼 3 노출 결정)
+| page | 이미지 | 내용 (서사) |
+|---|---|---|
+| 0 | `main.png` | 메인 일러스트 — 주인공이 탑을 올려다보는 표지 |
+| 1 | `TUTORIAL/1.png` | 1컷 — 똥템 탑 등반 / 시간의 신 첫 등장 |
+| 2 | `TUTORIAL/2.png` | 2컷 — 100층 도달 후 시간의 신과 조우 |
+| 3 | `TUTORIAL/3.png` | 3컷 — **진실 공개**: 진짜 보스들이 시간의 신을 공격 중, 현실로 나가야 함 |
 
-## 데이터 리셋 동작
-메인 메뉴의 "데이터 리셋"은 `climetop:tutorialSeen:v1`을 함께 비우므로 리셋 후 다시 최초 1회 자동 표시된다.
+---
 
-## 제약 / 메모
-- 컷 사이는 페이드 없이 즉시 전환. 이미지가 로딩 안 되면 빈 박스로 보일 수 있어 사전 로딩이 보장된 환경(같은 도메인의 public 자원)을 가정한다.
-- 안드로이드 뒤로가기로 만화 종료 가능 (`handleBackButton`).
+## 흐름 (`introFlow`)
+
+`introFlow` 는 3가지 시퀀스:
+
+### `first` — 최초 플레이
+```
+page: 0 (main) → 1 (t1) → 2 (t2) → menu
+```
+**t3 (3컷) 은 표시 안 됨.** 표면 컨셉만 전달.
+
+### `afterRealBoss` — 진짜 보스 1차 클리어 직후
+```
+page: 1 (t1) → 2 (t2) → 3 (t3) → create
+```
+**t3 잠금 해제** → 진실 공개. 곧장 다음 캐릭터 생성으로.
+
+### `replay` — 설정에서 다시 보기
+```
+page: 0 → 1 → 2 → (3, realBossDefeated 시에만) → menu
+```
+본인이 본 만큼만 다시 재생. t3 는 `meta.realBossDefeated === true` 일 때만.
+
+---
+
+## 진입 트리거
+
+| 트리거 | flow | 진입 위치 |
+|---|---|---|
+| 첫 실행 (`tutorialSeen` 없음) | `first` | 앱 시작 → 메인 메뉴 직전 |
+| `RealBossResult` 에서 완전 클리어 (`drainRatio === 1`) | `afterRealBoss` | RealBossResult → 자동 |
+| `SettingsScreen` 의 "인트로 다시 보기" | `replay` | 사용자 클릭 |
+
+---
+
+## 상호작용
+
+- 화면 어디든 클릭/탭 → 다음 페이지
+- 마지막 페이지 → "시작하기" CTA
+- 중간 페이지 → "다음 페이지로 (터치)" 안내
+- 뒤로가기 / Esc → 만화 닫기 (현재 페이지에서 종료)
+- 페이지 사이는 즉시 전환 (페이드 없음 — 향후 개선 여지)
+
+---
+
+## 저장
+
+```ts
+localStorage["climetop:tutorialSeen:v1"] = "1"
+```
+
+`SettingsScreen` 의 "모든 데이터 리셋" 시 같이 삭제 → 인트로 만화 재표시.
+
+---
+
+## 서사 ↔ 시스템 연결
+
+t3 잠금 해제는 단순 미관 보상이 아니라 **게임의 진짜 목적을 드러내는 장치**:
+
+| 시점 | 플레이어가 아는 것 |
+|---|---|
+| `first` 직후 | "100층 똥템으로 등반하면 보너스 받음" |
+| 첫 진짜 보스 도전 (t3 못 봄) | "어? 갑자기 진짜 보스라는 게 등장" — 미스터리 |
+| `afterRealBoss` t3 공개 | "사실 탑은 꿈이었고, 진짜 보스를 모두 잡는 게 목적" |
+| 두 번째 진짜 보스 ~ | 진실을 알고 다시 사이클 시작 |
+
+자세한 서사: [DOCS §0](../../DOCS.md#0-게임-서사-진짜-스토리)

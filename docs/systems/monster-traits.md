@@ -1,112 +1,114 @@
-# 몬스터 trait 시스템
+# 몬스터 트레이트 시스템
 
-> 몬스터별 고유 행동/패시브. 매 틱/피격/사망/HP 임계마다 발동.
+> 31 종 trait — 매 틱 / 피격 / 사망 / HP 임계마다 발동. 챕터 테마별로 묶임.
 
-코드: `src/core/monsterTraits.ts` — `MONSTER_TRAITS: Record<string, TraitDef>`
+코드: `src/core/monsterTraits.ts` (906줄)
 
 ---
 
-## TraitDef 구조
+## 발동 시점 (이벤트 훅)
+
+| 훅 | 호출 시점 |
+|---|---|
+| `onSpawn` | 몬스터 생성 시 (HP/스탯 보정, 분신 분열 등) |
+| `onTick` | 매 틱 (오라, 자폭 카운터 등) |
+| `onTakeDamage` | 피격 시 (반사, 부활, 강타 등) |
+| `onDealDamage` | 데미지 가할 때 (흡혈, 상태이상 부여 등) |
+| `onHpThreshold` | HP %P 도달 시 (광폭화, 자폭 등) |
+| `onPlayerHeal` | 플레이어 회복 시도 시 (간섭) |
+| `onDeath` | 사망 시 (소환물 동반 처리 등) |
+
+---
+
+## A 티어 — 상태이상 / 회피
+
+| trait | 효과 |
+|---|---|
+| 회피 (30%) | 받는 공격 30% 무효 |
+| 비행 회피 (20%) | 비행체, 근접 공격에 20% 회피 |
+| 크리 면역 (40%) | 크리 데미지 40% 환원 (일반 데미지로 처리) |
+| 선제권 | 첫 액션 게이지 100% 시작 |
+| 첫피 무효 | 첫 받은 공격 무시 |
+| 첫공 무효 | 첫 가한 공격 빗나감 |
+| 명중 디버프 (암흑 30%) | 평타로 암흑 부여 |
+| 둔화 (30%) | 평타로 둔화 부여 |
+| 출혈 (35%) | 평타로 출혈 부여 |
+| 흡혈 (40%) | 가한 데미지의 40% 회복 |
+| 감전 (30%) | 평타로 감전 부여 |
+| 독 누적 (50%) | 평타로 독 +2 스택 |
+| 자폭 | HP ≤ 30% 시 ATK × 2.5 광역 폭발 후 사망 |
+
+---
+
+## B 티어 — 반사 / 조건부
+
+| trait | 효과 |
+|---|---|
+| 물리 반사 (30%) | 받은 물리 데미지 30% 반사 |
+| 화염 반사 (50%) | 받은 마법 데미지 50% 반사 |
+| 원소 카운터 (30%) | 마법 공격에 30% 카운터 |
+| 출혈 시 크리 (×1.5) | 출혈 상태인 적에게 ×1.5 크리 |
+| 복합공격 (50%) | 50% 확률로 2회 공격 |
+
+---
+
+## 보스 전용 trait
+
+| trait | 효과 |
+|---|---|
+| 미니언 소환 | 50% HP 도달 시 새 몬스터 2기 (최대) |
+| 마법 면역 (95%) | 마법 데미지 95% 감소 |
+| 부활 | 사망 시 1회 부활 (HP 50%) |
+| 최대 HP 저주 | 50틱마다 플레이어 최대 HP -5% |
+| 3 분열 | HP 33% / 66% 에서 새 몬스터 1기 분열 (HP 1/3) |
+| 마법 반사 (3분열 후) | 분열 후 마법 반사 활성 |
+| 결박 | 둔화 +3 스택 부여 |
+| 결박 + 산소 | 결박 + 5틱마다 -2% HP |
+| 레이저 차징 | 30틱마다 ATK × 1.8 강타 |
+| 드론 소환 | 30틱마다 미니언, 최대 2 기 |
+| 화염 오라 | 5틱마다 점화 부여 |
+| 전(全) 반사 | 받은 모든 데미지 30% 반사 |
+| 시야 차단 | 40틱마다 암흑 ×4 부여 |
+| 침묵 펄스 | 30틱마다 플레이어 MP 0 |
+| 출혈 강타 | 평타 ×2 + 흡혈 100% |
+| 강화 강타 | 평타 ×3 |
+
+---
+
+## 회복 간섭 trait
+
+| trait | 효과 |
+|---|---|
+| `heal_reduction` (구울) | 플레이어 회복 × 0.5 |
+| `heal_pollution` (역병 쥐) | 플레이어 회복 × 0.3 |
+| `heal_reverse` (맹독 보스) | 플레이어 회복이 피해로 전환 (× -1) |
+
+---
+
+## 광폭화 / 임계 발동
+
+```
+last_stand: HP ≤ threshold 시 ATK × 1.5 ~ × 2.5
+```
+
+대표: 골렘 (HP 30% → ATK × 1.5), 자폭형 (HP 30% → ATK × 2.5 + 광역).
+
+---
+
+## 챕터 테마별 trait 매핑
+
+[chapters.md](chapters.md#11-챕터-테마-꿈-몬스터-분류) 참고. 각 테마는 base / hard 보스에 trait 묶음이 다름.
+
+---
+
+## 코드 구조 (`monsterTraits.ts`)
 
 ```ts
-interface TraitDef {
-  isMagic?: boolean   // 마법 공격자 여부 (방어 무력화 등)
-  onSpawn?: (p) => void
-  onTickStart?: (p) => void
-  onAfterAttacked?: (p) => void  // 피격 직후 (반사/카운터)
-  onHpThreshold?: (p) => void    // HP 임계 통과 (광폭화/부활)
-  onDeath?: (p) => { revived?: boolean }  // 부활 가능
+export const MONSTER_TRAITS: Record<TraitId, MonsterTraitDef> = {
+  evasion_30: { onAttacked: ... },
+  reflect_phys_30: { onTakeDamage: ... },
+  ...
 }
 ```
 
-`p` = `TraitParams { ctx, monster, damage?, isMagic?, isPhysical? }`.
-
----
-
-## 대표 trait
-
-### 회복 간섭
-| trait | 효과 |
-|---|---|
-| `heal_reduction` | 플레이어 회복 × 0.5 (구울) |
-| `heal_pollution` | 플레이어 회복 × 0.3 (역병 쥐) |
-| `heal_reverse` | 플레이어 회복이 피해로 전환 (보스급) |
-
-### 부활
-| trait | 효과 |
-|---|---|
-| `revive_chance` | 사망 시 30~50% 확률로 HP 일부 복구 후 재기동 (좀비) |
-
-### 광폭화
-| trait | 효과 |
-|---|---|
-| `last_stand` | HP 30% 이하 시 공격력 × 1.5 + 속도 × 1.3 (기계 보스) |
-| `berserk_low_hp` | HP 50% 이하 시 광폭화 |
-
-### 카운터/반사
-| trait | 효과 |
-|---|---|
-| `dispel_buff` | 피격 시 플레이어 활성 버프 1개 정화 |
-| `counter_attack` | 피격 시 즉시 반격 (속도 우회) |
-| `thorns` | 받은 피해의 N% 반사 |
-
-### 광역/지속
-| trait | 효과 |
-|---|---|
-| `aura_burn` | 매 틱 플레이어에게 점화 굴림 (용암 챕터) |
-| `aura_blind` | 매 틱 암흑 굴림 (암흑 챕터) |
-| `aura_poison` | 매 틱 독 굴림 (맹독 챕터) |
-| `aura_slow` | 매 틱 둔화 굴림 (심해 챕터) |
-
-### 회피/방어
-| trait | 효과 |
-|---|---|
-| `phantom_dodge` | 일정 확률로 공격 무효 (환영) |
-| `armored` | 받는 피해 -N% |
-| `magic_resist` | 마법 피해 -N% |
-
-### 드랍/보상 조작
-| trait | 효과 |
-|---|---|
-| `item_block` | 보스/몬스터 처치 시 아이템 드랍 차단 (그리폰) |
-| `gold_thief` | 사망 시 플레이어 골드 일부 탈취 |
-
----
-
-## 디스패치
-
-`combat.ts` 에서 적절한 시점에 호출:
-
-| 시점 | 호출 |
-|---|---|
-| `createCombatContext` 시작 시 | `dispatchOnSpawn` |
-| `advanceTick` 매 틱 | `dispatchOnTickStart` (각 몬스터별) |
-| 피격 후 | `dispatchOnAfterAttacked(ctx, target, dmg, {isMagic, isPhysical})` |
-| HP 임계 통과 | `dispatchOnHpThreshold(ctx, target)` |
-| 사망 직전 | `dispatchOnDeath(ctx, monster)` → `{revived?: boolean}` |
-
----
-
-## 마법 공격자 (`isMagic: true`)
-
-몬스터의 공격이 마법 판정이면:
-- 플레이어 방어력 절반만 적용
-- 플레이어의 마법 저항 트레잇 (`magic_resist`) 적용
-
-각 보스/주술사 계열에 `isMagic: true` 설정.
-
----
-
-## 보스 trait 확장
-
-후반 챕터(7~10) 강화 보스는 여러 trait 동시 보유 가능:
-- 기계 마지막: `last_stand` + `armored` + `magic_resist`
-- 천공 마지막: `phantom_dodge` + `aura_blind` + `counter_attack`
-
-`data/chapters.ts` 의 `MonsterTemplate.trait` 필드로 지정.
-
----
-
-## 검증
-
-`validateMonsterTraitKeys(allTraitKeys)` — chapters.ts 에서 사용하는 모든 trait 키가 MONSTER_TRAITS 에 등록돼 있는지 검사. 누락 시 missing[] 반환 (dev 모드에서 호출측이 처리).
+각 trait 은 훅 함수 모음을 정의하며, 몬스터 정의에서 `traits: [...]` 배열로 조합한다.

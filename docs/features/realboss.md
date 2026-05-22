@@ -1,68 +1,133 @@
 # 진짜 보스 도전 모드
 
-## 개요
-탑 등반(클리어/사망 모두 1회로 카운트)을 5~10회 마다 발동되는 미니 이벤트. 지금까지 등반한 캐릭터 중 가장 낮은 클리어 점수를 기록한 캐릭터를 그 시점 스탯/체력 그대로 되살려 진짜 보스 1체와 1:1 PVE 대전을 시킨다. 보스 HP를 깎은 비율 만큼 다음 캐릭터 1회의 시작 능력치가 늘어난다 (60pt → 최대 120pt).
+> 시간의 신이 현실로 통로를 여는 임계. 누적된 가장 강한 자아를 현실로 끌어내 진짜 보스와 싸운다.
 
-## 카운터
-- `meta.runsSinceLastChallenge` — 등반 횟수
-- `meta.nextChallengeAt` — 발동 임계값 (`5 + randInt(0,5)`, 도전 한 번 끝날 때마다 재추첨)
-- 클리어 시(`handleTowerClear`) / 사망 시(`handleCombatEnd` 패배 분기) `incrementRunCounter` 호출
+코드: `src/core/realboss.ts`, `src/screens/RealBossChallenge.vue`, `src/screens/RealBossResult.vue`
 
-## 발동 위치
-1. 메인 메뉴 진입 시 (`MainMenu.vue` `onMounted`)
-2. 메인 메뉴에서 "새 캐릭터" 버튼 누를 때 (`startNew`)
-3. 클리어 직후 보너스 분배 확정 시 (`confirmClearBonus` 끝)
+---
 
-위 세 시점에서 `isChallengeDue(meta)` 이면 `startRealBoss()` 호출.
+## 서사
 
-## 흐름
-```
-isChallengeDue → startRealBoss
-  consumeChallengeTrigger  (카운터 리셋 + nextChallengeAt 재추첨)
-  pickWeakestRecord        (history 최저 score, 동률은 가장 오래된 것)
-  makeRealBoss(theme)      (그 캐릭터가 도달한 마지막 챕터의 hardBoss 또는 boss, 챕터 10 강도)
+**똥템 탑은 주인공의 꿈공간이고, 진짜 보스가 있는 쪽이 현실이다.** 자세한 배경: [DOCS §0](../../DOCS.md#0-게임-서사-진짜-스토리)
 
-→ RealBossChallenge.vue
-  ┌─ 인트로 (모험가 / 보스 비교)
-  ├─ "도전 시작" → enterRealBossCombat (Combat 화면)
-  └─ "나중에" → 메인 메뉴 (도전은 소모됨)
+- 진짜 보스들이 시간의 신을 공격 중
+- 시간의 신은 자기 힘을 깎아 주인공에게 능력을 부여
+- 누적 골드 5만 = 시간의 신이 통로를 여는 임계
+- 도전 실패 시 시간의 신이 주인공을 회귀시키고 능력치 추가 부여
+- 게임 클리어 = 모든 진짜 보스 격파
 
-→ Combat (1:1 전투. 부활한 캐릭터 = 풀 HP, 장비 없음, 스탯만 적용)
-→ handleCombatEnd → realBossMonster 감지 → finishRealBossCombat
-  ratio = (initialMaxHp - finalHp) / initialMaxHp
-  meta.lastBossDrainRatio = ratio
-  meta.pendingStartBonus = floor(60 * ratio)
-  meta.realBossCompleted = true
-→ RealBossResult.vue (결과 화면)
-  "캐릭터 생성하기" → proceedFromRealBossResult
-→ openIntroComic('afterRealBoss')  (튜토리얼 1→2→3)
-→ closeIntroComic → startCharacterCreation
+---
+
+## 해금 조건 (`isChallengeDue`)
+
+```ts
+totalGoldEarned >= 50000 && clearCount >= 5
 ```
 
-## 보너스 적용
-- 캐릭터 생성 화면(`CharacterCreation.vue`)에 "탑의 빚 +Npt" 패널 표시 (자동 분배 예고)
-- `createCharacter(bonusAllocation, customStats, pendingStartBonus)` — 4스탯(공/방/체/마)에 균등 분배, 나머지는 공격력에
-- 사용 후 `pendingStartBonus = 0`으로 소진
+| 조건 | 의미 |
+|---|---|
+| `totalGoldEarned >= 50,000` | 누적 클리어 골드 5만 (시간의 신의 임계) |
+| `clearCount >= 5` | 100층 클리어 5회 이상 (충분한 자아 축적) |
 
-## 보스 이미지
-- 11개 챕터 테마 ↔ 보스 일러스트 1:1 매핑
-- `public/images/REALBOSS/{고블린|골렘|언데드|환영|흡혈귀|심해|기계|용암|암흑|천공|맹독}.png`
-- `realBossImageUrl(theme)` 헬퍼
+위 조건 충족 시:
+- 다음 메인 메뉴 진입 또는 "새 캐릭터" 클릭 시 도전 모드 자동 전환
+- `RealBossChallenge` 화면으로 이동
 
-## 캐릭터 히스토리
-- 클리어 시점에 `pushCharacterHistory(meta, character, score, rank, avatarKey, theme)` 호출
-- 최대 50개로 캡 (오래된 것부터 자동 제거)
-- 저장 항목: 4스탯 스냅샷, score, rank, avatarKey, 무기/갑옷 정보, hp/maxHp/mp/maxMp, gold, 마지막 챕터 테마, 기록 시각
+---
 
-## 관련 파일
-- `src/core/realboss.ts` — `isChallengeDue / pickWeakestRecord / makeRealBoss / computeStartBonusFromDrain`
-- `src/core/meta.ts` — `pushCharacterHistory / incrementRunCounter / consumeChallengeTrigger / rollNextChallengeAt`
-- `src/screens/RealBossChallenge.vue` — 인트로 화면
-- `src/screens/RealBossResult.vue` — 결과 화면
-- `src/stores/game.ts` — `triggerRealBossIfDue / startRealBoss / enterRealBossCombat / finishRealBossCombat / proceedFromRealBossResult`
-- `src/types/index.ts` — `MetaBonuses`(`runsSinceLastChallenge / nextChallengeAt / characterHistory / pendingStartBonus / lastBossDrainRatio / realBossCompleted`), `CharacterRecord`
+## 부활 캐릭터 선정 (`pickLatestRecord`)
 
-## 제약 / 메모
-- 사망한 캐릭터는 히스토리에 적재되지 않는다 (현 구현). 사망도 카운터는 증가.
-- 도전을 거절(`나중에`)해도 카운터는 소진된다 — 매번 묻지 않기 위함.
-- 도전 시 부활 캐릭터는 장비 없이 스탯만 사용. 보스는 챕터 10 강도라 약한 캐릭터는 거의 못 깎을 수도 있다 (그게 의도된 핸디캡).
+```ts
+characterHistory.filter(r => r.cleared100).slice(-1)[0]
+```
+
+- `characterHistory` 의 **가장 최근 100층 클리어 캐릭터** 부활
+- 장비 / 스탯 / 챌린지 보너스 그대로 보존 — 가장 강해진 자아
+
+사망/미클리어 캐릭터는 풀에서 제외.
+
+---
+
+## 보스 강화 (`makeRealBoss`)
+
+```ts
+base = (마지막 클리어한 챕터의 hardBoss 또는 챕터 10 보스)
+realBoss = {
+  ...base,
+  hp:  base.hp  * 3.0,
+  atk: base.atk * 9.0,    // v6.1 추가 강화
+  def: base.def * 1.6,
+}
+```
+
+- 챕터 10 하드 보스의 trait 묶음 그대로 (소환/반사/저주 등)
+- 일러스트: `public/images/REALBOSS/{테마}.png`
+
+---
+
+## 전투
+
+`RealBossChallenge.vue` → `Combat.vue` (단, mode = realboss):
+
+- 도주 불가
+- 다중 몬스터 없음 (1:1)
+- 진행 중 자동 진입 / 4배속 동일 적용
+- 광고 부활 불가 (도전이라 한 번뿐)
+- 전투 종료 → `RealBossResult.vue`
+
+---
+
+## 보상 (`computeStartBonusFromDrain`)
+
+```ts
+drainRatio = (startHp - endHp) / startHp     // 0 ~ 1
+permanentBonus = floor(60 * drainRatio)      // 0 ~ 60
+```
+
+| drainRatio | permanentBonus | 결과 |
+|---|---|---|
+| 0.0 | 0 | 보스에 한 대도 못 깎음 — 그래도 회귀 |
+| 0.5 | 30 | 절반 깎음 — 30pt 영구 보너스 |
+| 0.99 | 59 | 거의 다 깎음 — 59pt |
+| 1.0 | 60 | 완전 클리어 — `realBossDefeated = true` 추가 |
+
+**서사**: 깎은 비율만큼 시간의 신이 능력치를 부여한다 (= 회귀의 대가).
+
+`permanentStartBonus` 는 다음 캐릭터 생성에 5스탯 균등 자동 분배 + 나머지 (`60 % 5 != 0`) 힘→민첩→체력→마력→행운 순.
+
+---
+
+## 완전 클리어 (`drainRatio === 1`)
+
+```
+meta.realBossDefeated = true
+meta.totalGoldEarned = 0          // 다음 사이클 시작
+introFlow = 'afterRealBoss'        // 인트로 t3 표시
+screen = 'create'                  // 다음 캐릭터 생성으로
+```
+
+t3 (3번째 인트로 컷)가 잠금 해제되며 **진실이 공개**된다 — 진짜 보스가 시간의 신을 공격 중이고, 게임 클리어 = 모두 격파.
+
+---
+
+## 사이클 반복
+
+```
+1차 진짜 보스 격파
+  → realBossDefeated = true (서사 진행)
+  → totalGoldEarned 리셋
+  → 다음 100층 등반 사이클
+  → 또 5만 누적 → 2차 진짜 보스 등장
+  → ...
+모두 격파 → 게임 클리어
+```
+
+각 진짜 보스마다 시간의 신을 공격하는 다른 적이며, 모두 처치 시 시간의 신을 구할 수 있다.
+
+---
+
+## 알려진 제약
+
+- **사망 캐릭터 풀 미포함**: 현재 100층 클리어 캐릭터만 부활 가능 — 사망 케이스 추후 결정
+- **광고 부활 불가**: 진짜 보스는 도전 모드라 한 번뿐
+- **2차 이후 보스의 외형 차이 없음**: 같은 챕터 테마 이미지 재사용 (향후 작업)

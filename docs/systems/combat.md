@@ -1,6 +1,6 @@
-# 전투 시스템 (v9)
+# 전투 시스템 (v9.x)
 
-> 게이지 누적 자동 턴제. 1 ms = 1 tick.
+> 게이지 누적 자동 턴제. 1 tick = 가장 작은 시간 단위.
 
 코드: `src/core/combat.ts`, `src/core/skills.ts`
 
@@ -16,18 +16,19 @@
    │
    ↓
 [매 틱 (advanceTick)]
-   ├─ 플레이어 상태이상 처리 (점화/출혈 등 DoT)
-   ├─ 각 몬스터 상태이상 + tick-trait
-   ├─ 자해 (저주 특성, 매 10틱)
+   ├─ 상태이상 처리 (DoT, 모디파이어 적용)
+   ├─ 자해 (저주 특성 매 10틱)
    ├─ 버프 만료 카운트
-   ├─ 게이지 누적 (플레이어 + 몬스터)
+   ├─ 게이지 누적
    ├─ 사망 체크
    ↓
 [Action Ready (게이지 ≥ 무기 ticks)]
    ├─ 각 ready 몬스터 행동 (monsterAttack)
    ├─ 플레이어 자동 행동 (playerAutoAct)
    ↓
-[종료]
+[종료 조건]
+   ├─ 플레이어 사망 → GameOver
+   └─ 모든 몬스터 사망 → 보상 → Dungeon
 ```
 
 ---
@@ -35,151 +36,109 @@
 ## 게이지 시스템 (v9)
 
 ```
-player.actionGauge/tick = 1 × (1 + 민첩/100) × armorSpeedMult × speedModifier(player)
-monster.actionGauge/tick = 1 × speedModifier(monster)
-
-발동 임계값:
-- 플레이어 = 무기 ticks (검 10 / 건틀릿 7 / 할버드 15 / ...)
-- 몬스터 = m.ticks (일반 10 / 보스 8 / 미믹 12)
-
-consumeAction(actor, threshold) → 게이지 -threshold (오버플로 보존)
+plr 누적/틱 = 1 × (1 + AGI/100) × armorSpeedMult × speedModifier(plr)
+mon 누적/틱 = 1 × speedModifier(mon)
+공격 발동: 게이지 ≥ weaponTicks
+  • 적 일반: 10틱
+  • 적 보스: 8틱
+  • 미믹:    12틱
+발동 후: 게이지 -= weaponTicks
 ```
 
-`speedModifier` = 둔화/감전 상태이상 곱셈 (둔화 ×0.7 등).
+`speedModifier` 는 둔화 상태이상 등으로 변동 (≥ 0.10).
 
 ---
 
-## 명중 (v9)
+## 데미지 공식 (곱셈 모델, v9)
+
+### 공격력
 
 ```
-플레이어 acc = 60 + 무기 + 트레잇 + 민첩×0.5 + 행운×0.1
-플레이어 eva = 5  + 무기 + 트레잇 + 갑옷 evasion + 민첩×0.5 + 행운×0.1
-적 acc = 30 + 챕터×3
-적 eva = 5  + 챕터×1
+물리 atk = physStat × baseAtk × coef × (1 + trait_atk_pct) × ATK_K_PHYS
+마법 atk = MAG      × baseAtk × coef × (1 + trait_atk_pct) × ATK_K_MAGIC × magicSynergy
 
-성공률 = clamp((acc − eva) / 100, 0, 1.0)
+physStat = STR                       // 대부분 무기
+         = STR + AGI × 0.3           // ranged (활)
+
+ATK_K_PHYS   = 3.0
+ATK_K_MAGIC  = 1.5
+magicSynergy = (로브 + isMagic 무기) ? 1.5 : 1.0
 ```
 
-명중/회피는 성공률만 결정. 데미지에는 영향 없음.
+### 방어 & 피해
+
+```
+방어% = baseDef × coef × (1 + trait_def_pct) + CON × 0.3 × armorCoef
+실효방어% = max(0, 방어% − 관통%)
+받는 데미지 = max(1, atk × (1 − 실효방어% / 100))
+```
+
+상한 없음. 최소 데미지 1 보장.
+
+### 명중률 / 크리
+
+[stats.md](stats.md) 참고.
+
+```
+명중률      = clamp((acc − eva) / 100, 0, 1.0)
+크리 확률   = clamp(AGI × 0.003, 0, 1.0)
+크리 배수   = 1.3 + LUCK / 100
+```
 
 ---
 
-## 데미지 계산 (v9)
+## 갑옷 자동 반응 (피격 시)
 
-`computeDamage({공격력, 민첩, 행운, 관통}, {방어%}, opts)`:
-
-```
-실효방어% = max(0, 방어% − 관통%)   # 관통은 절대값 차감
-hit = max(1, atk × multiplier × (1 − 실효방어%/100))
-
-크리 굴림:
-  확률 = clamp(민첩 × 0.003, 0, 1.0)
-  배수 = 1.3 + 행운/100
-  발동 시 dmg = round(hit × 배수)
-```
-
-옵션:
-- `multiplier` — 스킬 배율 (스매쉬 2.0, 화염구 6.5, ...)
-- `penBoost` — 관통 배율 (피어스 ×2.0)
-- `ignoreCrit` — 크리 굴림 건너뜀
-
----
-
-## 공격력 (v9.x 곱셈 모델)
+피격 직후 굴림 — 별도 게이지 없음. 무기 액티브 스킬 슬롯을 차지하지 않는다.
 
 ```
-물리 atk = physStat × baseAtk × coef × (1 + trait_atk_pct) × 3.0
-마법 atk = 마력     × baseAtk × coef × (1 + trait_atk_pct) × 1.5 × magicSynergy
-
-physStat:
-- 대부분 무기 = 힘
-- ranged (숏보우/롱보우/석궁) = 힘 + 민첩 × 0.3   ← v9.x
-
-magicSynergy:
-- 마법무기 + 로브 = 1.5   ← v9.x (기존 1.7)
-- 그 외 = 1.0
+발동률 = 0.10 + LUCK × 0.005      // 행운 20 → 20% / 행운 40 → 30%
 ```
-
-마법 스킬 사용 시 `eff.마법공격력` 적용. 마법 공격자(적)는 플레이어 방어 절반만 적용.
-
----
-
-## 방어% (v9.x)
-
-```
-방어% = baseDef × coef × (1 + trait_def_pct) + 체력 × 0.3 × coef   ← v9.x
-받는 dmg = max(1, atk × (1 − 실효방어%/100))
-```
-
-상한 없음. 최소 데미지 1 보장. 갑옷 자동 반응이 추가 변형 가함(아래).
-
----
-
-## 갑옷 자동 반응 (v9.x — 피격 시 발동)
-
-`monsterAttack` 내 명중 굴림 성공 직후, 데미지 적용 전에 굴림.
-
-```
-발동률 = 0.10 + 행운 × 0.005
-```
-
-발동 시 갑옷 종류별 효과:
 
 | 갑옷 | 효과 |
 |---|---|
-| 가죽갑 | 데미지 0 무효 (완전 회피, 로그 'miss') |
-| 로브 | 데미지 50% 차감, 차감량만큼 MP 소모 (부족 시 부분 차감) |
-| 판금 | 데미지 그대로 받음 + 평타 atk × 0.5 카운터 (방어 무시) |
-| 중갑 | 자동 반응 없음 (speedMult 1.00 으로 보상) |
+| **가죽갑** (회피) | 데미지 0 무효 (완전 회피) |
+| **로브** (방어) | 데미지 50% 차감 + 차감량만큼 MP 소모 (MP 부족 시 가능한 만큼만) |
+| **판금** (철벽) | 데미지 그대로 받음 + 공격자에게 `평타 atk × 0.5` 카운터 반사 (방어 무시) |
+| **중갑** | 자동 반응 없음 — 대신 `speedMult` 가 1.00 (페널티 없음) |
 
-게이지 사이클의 무기 액티브 스킬과 별개 슬롯. 챌린지 `noActiveSkills` 와 무관하게 작동.
-
----
-
-## 자동 행동 (playerAutoAct)
-
-1. `pickAutoAction(ctx, opts)` 호출:
-   - 무기/갑옷의 자동 스킬을 발동률에 따라 시도
-   - 챌린지 `noActiveSkills` 면 평타 강제
-   - 챌린지 `onlyActiveSkills` 면 스킬 강제
-2. 스킬 발동 → `useSkill(ctx, key)`
-3. 실패 시 fallback → 평타 `playerBasicAttack`
+챌린지 `noActiveSkills` 와 무관하게 작동 (피격 반응형).
 
 ---
 
-## 흡혈
+## 흡혈 / 자해 / 회복 간섭
 
-장비 특성 `lifesteal` (%) 보유 시:
-```
-heal = applyHealing(ctx, round(dmg × lifesteal))
-player.hp += heal
-```
-
-`applyHealing`은 적의 회복 간섭 trait (heal_reduction/pollution/reverse) 반영.
-
----
-
-## 회복 간섭 (적 trait)
-
-| trait | 효과 |
-|---|---|
-| `heal_reduction` (구울) | 회복 ×0.5 |
-| `heal_pollution` (역병 쥐) | 회복 ×0.3 |
-| `heal_reverse` (보스) | 회복이 피해로 전환 (×-1) |
-
-여러 적이 동시에 가지면 곱셈 누적.
+- **흡혈** (`lifesteal`): `회복 = max(1, 데미지 × lifesteal)` — 특성/보스 trait
+- **자해** (`self_dot_pct`): 매 10틱마다 `maxHp × self_dot_pct` 자기 피해
+- **회복 간섭** (몬스터 trait):
+  - `heal_reduction` (구울): 회복 ×0.5
+  - `heal_pollution` (역병 쥐): 회복 ×0.3
+  - `heal_reverse` (맹독 보스): 회복이 피해로 전환
 
 ---
 
-## 종료 처리
+## 행동 우선순위 (Action Ready 시)
 
-`handleCombatEnd`:
-1. 진짜 보스 모드 → `finishRealBossCombat` (결과 화면)
-2. 일반 사망 → 게임 오버
-3. 일반 승리 → 골드/드랍 → `advance()` (다음 층)
+플레이어 `playerAutoAct`:
+1. 무기 액티브 스킬 발동 굴림 (`buildBalance.ts`)
+   - MP 부족 / 챌린지 `noActiveSkills` → 평타로 폴백
+2. 굴림 실패 → 평타
+
+몬스터 `monsterAttack`:
+1. trait 우선 (소환/차징/특수 공격)
+2. 평타
+
+플레이어 공격 시 `currentTarget` (살아있는 적 중 첫 번째) 자동 선택.
+다중 몬스터는 배열로 관리되며 일부 스킬(화염구/바위충격)은 광역 스플래시.
 
 ---
 
-## 도주 (fleeCombat)
+## 상태이상 적용 / 처리
 
-`도주했다...` 로그 + `combat.ended=true / victory=false`. 미믹 도주는 챌린지 위반 가능 (`trackKillAllMimics`).
+매 틱 `tickStatuses` 가 각 상태에 대해:
+
+1. DoT 간격 도달 시 데미지 산정 → 가해
+2. 지속시간 -1
+3. 0 도달 시 제거
+
+자세한 수치는 [status-effects.md](status-effects.md).

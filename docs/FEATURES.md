@@ -1,6 +1,6 @@
 # Climetop 기능 통합 문서
 
-이 세션에서 추가/개편된 기능들을 한눈에 보기 위한 인덱스. 각 항목은 `docs/features/*.md`의 독립 문서를 가지며, 여기엔 핵심 요약 + 주요 저장 키 + 관련 파일만 담겼다. 자세한 흐름은 각 항목 링크.
+게임 시스템보다 한 단계 위 — 사용자에게 노출되는 UX·인프라 단위 기능의 인덱스. 각 항목은 `docs/features/*.md`의 독립 문서를 가집니다.
 
 ---
 
@@ -8,56 +8,68 @@
 
 | # | 기능 | 한 줄 요약 |
 | --- | --- | --- |
-| 1 | [인트로 만화](./features/intro-comic.md) | 최초 1회 자동 만화 + 설정에서 다시보기, 도전 1회 클리어 후 마지막 컷 잠금 해제 |
-| 2 | [진짜 보스 도전 모드](./features/realboss.md) | 등반 5~10회 마다 최약 캐릭터 부활 → 보스 도전 → 깎은 비율만큼 다음 캐릭터 +스탯 |
-| 3 | [캐릭터 외형 자동 랜덤](./features/auto-avatar.md) | 4명 중 선택 UI 제거 → 진입 시 자동 1개 추첨, 던전 화면 하단에 표시 |
-| 4 | [자동 진입](./features/auto-enter.md) | 일반 몬스터 / 보스 / 치유샘만 자동 진입 + 전투 종료 자동 다음 층 |
-| 5 | [설정 패널 UX](./features/settings-panel.md) | 기본 접힘 + 5초 자동 접힘 + 모달 위에서 더 흐려짐 |
+| 1 | [인트로 만화](./features/intro-comic.md) | 최초 1회 자동 만화 4컷 + 설정에서 다시보기, 진짜 보스 클리어 시 마지막 컷 잠금 해제 |
+| 2 | [진짜 보스 도전 모드](./features/realboss.md) | 누적 골드 5만 + 5회 클리어 시 최근 캐릭터 부활 → 강화 보스 도전 → 깎은 비율만큼 영구 시작 스탯 |
+| 3 | [캐릭터 외형 자동 랜덤](./features/auto-avatar.md) | 캐릭터 생성 시 21개 아바타에서 자동 추첨, 진행 중 런의 아바타는 영구 보존 |
+| 4 | [자동 진입](./features/auto-enter.md) | 광고 1회로 등반당 해금, 일반 몬스터 / 보스 / 회복샘 자동 진입 |
+| 5 | [설정 패널 UX](./features/settings-panel.md) | 사운드 / 클라우드 / 인트로 / 데이터 리셋 — 기본 접힘, 모달 위에서 자동 흐려짐 |
 | 6 | [안드로이드 뒤로가기 = 취소](./features/back-button.md) | Capacitor backButton → 모달/상점 우선 닫기, 데스크탑 ESC 동일 |
 | 7 | [안드로이드 릴리스 서명](./features/release-signing.md) | `keystore.properties` 분리 + `versionCode` 매뉴얼 +1로 덮어쓰기 설치 가능 |
-| 8 | [빈 슬롯 자동 장착](./features/auto-equip.md) | 슬롯 비었고 인벤토리에 같은 종류 있으면 tier 가장 높은 것 자동 장착 |
-| 9 | [데이터 리셋](./features/data-reset.md) | 4개 키 비우고 새로고침 — 인트로 만화도 재표시 |
+| 8 | [자동 장착](./features/auto-equip.md) | 현재 비활성 — 모든 장비는 수동 선택 |
+| 9 | [데이터 리셋](./features/data-reset.md) | 모든 localStorage 키 비우고 새로고침 — 인트로 만화도 재표시 |
 | 10 | [이미지 워터마크 제거](./features/watermark-removal.md) | Pillow + clone stamp 인페인트, 노란 박스 마킹 검출 지원 |
 | 11 | [Firebase Google 로그인 + 클라우드 저장](./features/firebase-auth.md) | Firestore 진행도 동기화 + 리더보드. 웹 popup / 안드 네이티브 자동 분기 |
-| 12 | [모바일 UI 전체 정비](./features/ui-overhaul.md) | 색 액센트 톤 통일(rose/cyan/amber/emerald/pink/purple) + 카드 위계 + 탭 모달 + 전투력 % 비교 (캐릭터 총합 기준) |
+| 12 | [모바일 UI 전체 정비](./features/ui-overhaul.md) | 색 액센트 톤 통일 + 카드 위계 + 탭 모달 + 전투력 % 비교 |
 
 ---
 
-## 신규 스크린 / 컴포넌트
+## 신규 스크린 / 컴포넌트 (현재 소스 기준)
 
 | 파일 | 역할 |
 | --- | --- |
-| `src/screens/RealBossChallenge.vue` | 도전 인트로 + 부활 캐릭터/보스 대치 화면 |
-| `src/screens/RealBossResult.vue` | 도전 종료 후 비율/보너스 표시 |
-| `src/ui/components/IntroComic.vue` | 만화 페이지 컴포넌트 (탭/클릭 진행) |
+| `src/screens/SplashScreen.vue` | 초기 로딩 스플래시 (클릭 시 닫힘) |
+| `src/screens/MainMenu.vue` | 메인 메뉴 (이어하기/새 캐릭터/설정/로그인) |
+| `src/screens/CharacterCreation.vue` | 주사위 3회 + 챌린지 1개 선택 + 누적 보너스 분배 |
+| `src/screens/Dungeon.vue` | 층 카드 선택 화면 |
+| `src/screens/Combat.vue` | 전투 화면 (스킬 / 자동 진입 / 속도 조절) |
+| `src/screens/Shop.vue` | 상점 (구매/판매/장비 강화) |
+| `src/screens/SettingsScreen.vue` | 설정 (사운드/클라우드/인트로/리셋) |
+| `src/screens/GameOver.vue` | 사망 화면 (광고 부활 옵션) |
+| `src/screens/VictoryScreen.vue` | 100층 클리어 화면 |
+| `src/screens/RealBossChallenge.vue` | 진짜 보스 도전 대치 화면 |
+| `src/screens/RealBossResult.vue` | 진짜 보스 결과 (깎은 비율/보너스) |
+| `src/ui/components/IntroComic.vue` | 인트로 만화 (탭/클릭 진행) |
+| `src/ui/components/*Modal.vue` | 8종 공통 모달 (Dialog/Input/List/Pickup/Inventory/Status/ItemDetail/Status) |
+| `src/ui/components/HpMpBar.vue`, `SpeedControl.vue`, `StatusBadges.vue`, `GrowthPenaltyPanel.vue` | 게이지 / 속도 패널 / 상태 뱃지 / 등급 미리보기 |
 
 ## 신규 코어 모듈
 
 | 파일 | 역할 |
 | --- | --- |
-| `src/core/realboss.ts` | `isChallengeDue / pickWeakestRecord / makeRealBoss / computeStartBonusFromDrain` |
-| `src/lib/firebase.ts` | Firebase 앱/Auth/Firestore 초기화 |
-| `src/lib/auth.ts` | `signInWithGoogle / signOut / onAuthChange` — Capacitor 네이티브/웹 popup 자동 분기 |
-| `src/lib/cloudSync.ts` | Firestore CRUD — 프로필/메타/리더보드 |
+| `src/core/realboss.ts` | `isChallengeDue / pickLatestRecord / makeRealBoss / computeStartBonusFromDrain` |
+| `src/lib/firebase.ts` | Firebase 앱 / Auth / Firestore 초기화 |
+| `src/lib/auth.ts` | `signInWithGoogle / signOut / onAuthChange` — Capacitor 네이티브 / 웹 popup 자동 분기 |
+| `src/lib/cloudSync.ts` | Firestore CRUD — 프로필 / 메타 / 리더보드 |
+| `src/lib/ads.ts` | AdMob 보상형 광고 (revive / fastSpeed / autoEnter) |
 | `src/stores/auth.ts` | Pinia auth store — 로그인 시 자동 머지 + 동기화 + 리더보드 제출 |
 
-## 스키마 변경 — `MetaBonuses`
+## 스키마 — `MetaBonuses`
 
 ```ts
 interface MetaBonuses {
-  clearCount: number
-  totalBonusStats: number
-  allocations: Partial<Stats>
-  // 도전 모드
-  runsSinceLastChallenge: number
-  nextChallengeAt: number              // 5~10 랜덤
-  characterHistory: CharacterRecord[]  // 최대 50
-  pendingStartBonus: number            // 다음 캐릭터 1회 +N
-  lastBossDrainRatio: number           // 0~1 (UI)
-  realBossCompleted: boolean           // 인트로 만화 다시보기에 t3 잠금 해제용
+  clearCount: number             // 100층 클리어 총 횟수
+  climbCount: number             // 도중 사망 포함 총 등반 횟수
+  totalBonusStats: number        // 누적 보너스 풀 (영구)
+  allocations: Partial<Stats>    // 마지막 분배 기록 (자동 적용 X)
+  totalGoldEarned: number        // 누적 클리어 골드 (진짜 보스 게이트)
+  characterHistory: CharacterRecord[]  // 최대 50건
+  permanentStartBonus: number    // 진짜 보스 보상 (다음 캐릭터 1회 +N)
+  lastBossDrainRatio: number     // 0~1 (UI 표시용)
+  realBossDefeated: boolean      // 인트로 만화 t3 잠금 해제
 }
 ```
-`loadMeta` 마이그레이션이 누락 필드를 기본값으로 채움.
+
+`loadMeta` 마이그레이션이 누락 필드를 기본값으로 채움 + 옛 10스탯 → 5스탯 변환 (`migrateAllocations`).
 
 ## 저장 키 일람
 
@@ -71,49 +83,45 @@ interface MetaBonuses {
 | `climetop:speed:v1` | 게임 속도 1/2/4 |
 | `climetop:autoEnter:v1` | 자동 진입 토글 |
 | `climetop:speedControl:expanded:v2` | 설정 패널 펼침 상태 |
-| (사운드 모듈 내부) | 효과음/배경음 ON·볼륨 |
+| `climetop:sound:v1` | 사운드 ON·볼륨 |
 
 ### 클라우드 Firestore (로그인 시)
 | 컬렉션/문서 | 내용 |
 | --- | --- |
 | `users/{uid}` | 프로필 (displayName/photoURL/email/nickname) |
-| `meta/{uid}` | 게임 진행도 (clearCount/totalBonusStats/permanentStartBonus/realBoss\*/characterHistory) |
+| `meta/{uid}` | 게임 진행도 (`MetaBonuses` 전체) |
 | `leaderboard/{uid}` | 본인 최고 점수 + nickname + clearCount |
 
-자세한 동기화 정책은 [firebase-auth](./features/firebase-auth.md) 참조.
-리셋 동작은 [data-reset](./features/data-reset.md) 참조.
+자세한 규칙: [`firestore.rules`](../firestore.rules). 동기화 정책: [firebase-auth](./features/firebase-auth.md).
 
-## 신규 화면 라우팅 값
+## 화면 라우팅 값
 
-`Screen` 타입에 추가됨:
+`Screen` 타입:
 ```
-'intro' | 'realboss' | 'realboss_result'
+'splash' | 'menu' | 'create' | 'dungeon' | 'combat' | 'shop'
+| 'victory' | 'gameover' | 'realboss' | 'realboss_result' | 'settings'
 ```
-- `intro`는 현재 `introVisible` 오버레이 방식으로 처리되어 실제 라우팅 값으로는 안 쓰임 (예약).
-- `realboss` → `RealBossChallenge.vue`
-- `realboss_result` → `RealBossResult.vue`
+
+인트로 만화는 `introVisible` 오버레이 방식 (라우팅 값 아님).
 
 ## 안드로이드 빌드 흐름 요약
 
-### CI 디버그 빌드 (현재 주력)
-1. main 브랜치에 push → GitHub Actions `Android APK Build` 자동 실행
+### CI 디버그 빌드 (테스트용)
+1. main 브랜치 push → GitHub Actions 자동 실행
 2. `android/app/debug.keystore` 로 안정 서명 (= Firebase 등록된 SHA-1 과 일치)
-3. Artifacts 에서 `climetop-debug-apk` 다운로드 → 폰에 설치
-4. 이전 빌드 위에 그냥 덮어쓰기 가능 (동일 keystore)
+3. Artifacts 에서 디버그 APK 다운로드 → 폰 설치
 
-### 릴리스 빌드 (Play Store 용)
+### 릴리스 빌드 (Play Store 용 AAB)
 1. (1회만) [release-signing](./features/release-signing.md) 셋업
 2. `keystore.properties`에서 `VERSION_CODE` +1
-3. Android Studio 또는 `gradlew.bat assembleRelease`
-4. `app-release.apk` 폰에 설치 (디버그 빌드 제거 후 1회만)
-5. release SHA-1 도 Firebase 콘솔에 추가 등록 필요 (Google 로그인 동작용)
+3. `npm run android:bundle` 또는 Android Studio "Generate Signed Bundle"
+4. `android/app/build/outputs/bundle/release/app-release.aab` → Play Console 업로드
+5. release SHA-1 도 Firebase 콘솔에 추가 등록 필요 (Google 로그인 동작)
 
 ## 알려진 제약 / 향후 작업
 
-- **t1/t2 인페인트 잔여 흔적 가능**: 자국이 보이면 노란 박스 다시 표시해 `images/튜토리얼 N mark.png`로 두면 자동 재처리 가능 ([watermark-removal](./features/watermark-removal.md))
-- **사망 캐릭터 히스토리 미적재**: 도전 모드의 최약 캐릭터 풀에 사망 케이스를 포함할지는 추후 결정
-- **안드로이드 디폴트 종료 확인**: 게임 진행 중 뒤로가기 → 모달 없을 때 디폴트 종료 → "정말 종료할까요?" 확인 추가 여지
-- **인트로 만화 페이드 효과**: 컷 사이가 즉시 전환이라 페이드 추가 시 자연스러워질 수 있음
+- **인트로 만화 페이드 효과 없음**: 컷 사이가 즉시 전환
 - **리더보드 UI 미작성**: `cloudSync.fetchTopLeaderboard()` 는 구현됐지만 표시 화면 없음
 - **닉네임 편집 UI 미작성**: 현재 Google `displayName` 그대로 사용
-- **익명 로그인 미지원**: 게스트 클라우드 저장이 필요하면 `signInAnonymously` 추가
+- **익명 로그인 미지원**: 게스트 클라우드 저장 필요 시 `signInAnonymously` 추가 가능
+- **자동 장착 미구현**: 모든 장비는 수동 선택만 — 자동 장착이 필요하면 `auto-equip.md` 의 정책 결정 필요

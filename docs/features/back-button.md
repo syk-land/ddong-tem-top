@@ -1,27 +1,98 @@
-# 안드로이드 뒤로가기 = 취소 버튼
+# 안드로이드 뒤로가기 / Esc
 
-## 개요
-Capacitor 환경(안드로이드 빌드)에서 하드웨어/제스처 뒤로가기를 누르면 떠있는 모달/오버레이를 우선순위로 닫는다. 닫을 게 없을 때만 디폴트(앱 종료) 동작.
+> Capacitor `backButton` → 모달 / 상점 우선 닫기. 데스크탑 Esc 동일.
+
+코드: `src/main.ts` (`CapApp.addListener('backButton')`), `src/stores/game.ts` (`handleBackButton`)
+
+---
 
 ## 우선순위
-1. **`pendingPickup` 모달** — 신규 아이템 거부 (`resolvePickupRefuse`)
-2. **`dialog`** (alert/confirm) — 취소 버튼 value(`false`) 또는 마지막 버튼 value로 닫음
-3. **`inputDialog`** (prompt) — `null`
-4. **`listDialog`** — `null`
-5. **인트로 만화** — `closeIntroComic`
-6. **상점 화면**(`screen === 'shop'`) — `leaveShop` (다음 층으로 이동)
-7. 위 모두 없으면 `false` 반환 → `canGoBack=false`일 경우 `CapApp.exitApp()`
 
-## 등록 위치
-`src/main.ts`의 부팅 직후 IIFE:
-- 동적 `import('@capacitor/app')` 성공 시 `CapApp.addListener('backButton', ...)` 연결
-- 실패(웹/데스크탑) 시 `keydown Escape`를 동일 처리에 연결
+```
+1. PickupModal (인벤토리 풀) → 신규 포기
+2. DialogModal (alert/confirm) → 취소 / 마지막 버튼
+3. InputModal (텍스트/숫자 입력) → null 취소
+4. ListModal (리스트 선택) → null 취소
+5. IntroComic (인트로 만화) → 닫기 (현재 페이지에서 종료)
+6. Shop (상점) → 다음 층 진입
+7. 처리된 모달 없음 → 기본 동작 (앱 종료 / 페이지 이전)
+```
 
-## 관련 파일
-- `src/main.ts` — 리스너 등록
-- `src/stores/game.ts` — `handleBackButton()` 액션
-- `package.json` — `@capacitor/app ^6.0.3`
+---
 
-## 제약 / 메모
-- 데스크탑에서 ESC가 인풋 포커스를 빼앗는 다른 UI와 충돌하지 않도록 `handleBackButton` 이 true 반환할 때만 `preventDefault()` 호출.
-- 모달/상점 외 화면에서는 뒤로가기를 막지 않아 안드로이드 디폴트(앱 종료)가 동작한다 — 게임 중 실수로 종료될 수 있으니 향후 "정말 종료할까요?" 확인을 추가할 여지가 있다.
+## 등록
+
+### 안드로이드 (Capacitor)
+
+`src/main.ts`:
+```ts
+import { App as CapApp } from '@capacitor/app'
+
+CapApp.addListener('backButton', () => {
+  const handled = game.handleBackButton()
+  if (!handled) {
+    CapApp.exitApp()   // 또는 기본 동작
+  }
+})
+```
+
+### 데스크탑 (브라우저)
+
+`App.vue` 또는 `main.ts`:
+```ts
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const handled = game.handleBackButton()
+    if (handled) e.preventDefault()
+  }
+})
+```
+
+---
+
+## handleBackButton 로직
+
+```ts
+function handleBackButton(): boolean {
+  // 1. 인벤토리 풀 모달
+  if (this.pickupModal) {
+    this.dismissPickup()
+    return true
+  }
+  // 2. Dialog 모달
+  if (this.dialogModal) {
+    this.resolveDialog(this.dialogModal.cancelValue)
+    return true
+  }
+  // 3. Input 모달
+  if (this.inputModal) {
+    this.resolveInput(null)
+    return true
+  }
+  // 4. List 모달
+  if (this.listModal) {
+    this.resolveList(null)
+    return true
+  }
+  // 5. 인트로 만화
+  if (this.introVisible) {
+    this.closeIntro()
+    return true
+  }
+  // 6. 상점
+  if (this.screen === 'shop') {
+    this.leaveShop()
+    return true
+  }
+  // 7. 처리 안 됨 — 기본 동작
+  return false
+}
+```
+
+---
+
+## 알려진 제약
+
+- **앱 종료 확인 없음**: 게임 진행 중 모달 없이 뒤로가기 → 즉시 종료 → "정말 종료할까요?" 확인 추가 여지
+- 전투 화면에서 뒤로가기는 처리 안 됨 (자동 전투라 그대로 진행)
+- 진짜 보스 화면도 뒤로가기로 나갈 수 없음 (도전 모드)

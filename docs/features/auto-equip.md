@@ -1,35 +1,44 @@
-# 빈 장비 슬롯 자동 장착
+# 자동 장착
 
-## 개요
-무기 또는 갑옷 슬롯이 비어있고 인벤토리에 같은 종류 아이템이 있으면 자동으로 가장 좋은 것(`tier` 우선)을 장착한다.
+> **현재 비활성** — 모든 장비는 수동 선택만 지원.
 
-## 호출 시점
-- **상점에서 장착품 판매**(`sellEquipped`) — 슬롯이 막 빈 직후
-- **드랍/구매로 인벤토리 적재**(`receiveItem`) — 적재 후 빈 슬롯에 자동 이동
-- `unequipToInventory`는 트리거 안 함 (사용자가 명시적으로 슬롯을 비웠으므로 의도 충돌)
+코드: 해당 없음 (정책 결정 대기 중)
 
-## 알고리즘
+---
+
+## 현 상태 (2026-05)
+
+소스 코드를 보면 자동 장착 로직은 구현되어 있지 않다:
+
+- 상점 구매 시: `PickupModal` 로 사용자가 직접 결정 (교체 / 신규 포기)
+- 드랍 픽업 시: 같은 `PickupModal` 흐름
+- 인벤토리 풀: 슬롯 선택 폐기 또는 신규 포기 (수동)
+
+자동 평가 점수(`itemValue.ts` 의 `공/방 N.N`)는 표시되지만, 자동으로 장착되지는 않는다.
+
+---
+
+## 향후 정책 검토안
+
+만약 자동 장착이 필요하다면, `itemValue` 점수 기반 정책이 자연스러움:
+
 ```
-for slot in [weapon, armor]:
-    if 슬롯 비어있음:
-        후보 = 인벤토리에서 kind=슬롯 + 챌린지 canEquipItem OK
-        bestIdx = 후보 중 tier 가장 큰 (동률은 인벤토리 앞쪽)
-        bestIdx 있으면:
-            character[slot] = item
-            challengeContext.onEquipItem(item, null)
-            inventory.splice(bestIdx, 1)
-            changed = true
-if changed: recomputeDerivedStats()
+규칙 (검토안):
+1. 슬롯이 비어 있고 인벤토리에 같은 종류 아이템이 있을 때만 트리거
+2. 같은 종류 중 `value` 가 가장 높은 것 자동 장착
+3. 무기/갑옷 각각 별도 슬롯
+4. 챌린지 `forbidMagicWeapon` 등 제약 위반 시 스킵
+5. 토글로 ON/OFF (SettingsScreen)
 ```
 
-## 챌린지 호환
-- `canEquipItem(item, challengeContext)`로 거부되는 아이템은 자동 장착 후보에서 제외
-- "저주의 동반자" 같은 추적형 챌린지의 `onEquipItem` 훅도 정상 호출
+**구현 안 한 이유 (추측)**:
+- 똥템 클리어가 게임의 핵심 — 자동 장착이 점수↑ 방향으로 동작하면 의도와 충돌
+- 사용자가 어떤 아이템을 의도적으로 유지할지 선택의 여지가 필요
 
-## 관련 파일
-- `src/stores/game.ts` — `autoEquipFromInventory / sellEquipped / receiveItem`
-- `src/core/challengeRuntime.ts` — `canEquipItem / onEquipItem`
+---
 
-## 제약 / 메모
-- 미니멀리스트 챌린지(인벤토리 0칸)에서는 `receiveItem` 자체가 적재 안 함 → 자동 장착도 트리거 안 됨 (정상).
-- 자동 장착으로 떠난 아이템은 인벤토리에서 빠지므로, 곧바로 같은 슬롯에 새 아이템이 들어와도 충돌 없음.
+## 관련
+
+- 수동 장착: [../systems/ui-modals.md](../systems/ui-modals.md#모달-컴포넌트-srcuicomponents) — `InventoryModal`
+- 자동 평가: [../systems/items.md](../systems/items.md#아이템-가치-itemvaluets)
+- 클리어 점수: [../../BALANCE.md §13](../../BALANCE.md#13-등급-임계값)
