@@ -12,6 +12,7 @@ import VictoryScreen from './screens/VictoryScreen.vue'
 import SplashScreen from './screens/SplashScreen.vue'
 import RealBossChallenge from './screens/RealBossChallenge.vue'
 import RealBossResult from './screens/RealBossResult.vue'
+import SettingsScreen from './screens/SettingsScreen.vue'
 import IntroComic from './ui/components/IntroComic.vue'
 import PickupModal from './ui/components/PickupModal.vue'
 import DialogModal from './ui/components/DialogModal.vue'
@@ -109,6 +110,7 @@ onUnmounted(() => {
     <VictoryScreen v-else-if="currentScreen === 'victory'" />
     <RealBossChallenge v-else-if="currentScreen === 'realboss'" />
     <RealBossResult v-else-if="currentScreen === 'realboss_result'" />
+    <SettingsScreen v-else-if="currentScreen === 'settings'" />
     <!-- 인트로 만화 (스플래시 후 자동/설정 다시보기) -->
     <IntroComic v-if="game.introVisible" />
     <!-- 인벤토리 풀 알림 모달 (모든 화면 위에 오버레이) -->

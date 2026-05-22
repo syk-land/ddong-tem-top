@@ -31,6 +31,7 @@ function onKey(e: KeyboardEvent) {
 </script>
 
 <template>
+  <Teleport to="body">
   <div
     v-if="dialog"
     class="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4"
@@ -47,7 +48,7 @@ function onKey(e: KeyboardEvent) {
         class="w-full bg-bg-tertiary border border-slate-700 rounded px-3 py-2 text-sm text-gray-100 font-mono"
         @keydown="onKey"
       />
-      <div v-if="dialog.maxValue !== undefined" class="text-[10px] text-gray-500">
+      <div v-if="dialog.maxValue !== undefined" class="text-xs text-gray-500">
         최대 {{ dialog.maxValue }}
       </div>
       <div class="flex gap-2 justify-end">
@@ -58,4 +59,5 @@ function onKey(e: KeyboardEvent) {
       </div>
     </div>
   </div>
+  </Teleport>
 </template>

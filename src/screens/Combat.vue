@@ -290,7 +290,7 @@ watch(
               <span v-if="isRealBoss">⚔ 도전 보스</span>
               <span v-else>⚔ 적 {{ aliveMonsterCount }} / {{ monsters.length }}</span>
             </span>
-            <span class="text-[11px] text-rose-200/60">
+            <span class="text-xs text-rose-200/60">
               {{ isRealBoss ? '진짜 보스전' : (combat.ended ? '전투 종료' : '진행 중') }}
             </span>
           </div>
@@ -352,7 +352,7 @@ watch(
               <HpMpBar :current="m.hp" :max="m.maxHp" kind="hp" />
               <!-- 액션 게이지: HP 와 시각적 분리 — 얇은 라인 + 다른 색 -->
               <div class="flex items-center gap-1.5">
-                <span class="text-[10px] text-rose-300/70 font-mono w-8">행동</span>
+                <span class="text-xs text-rose-300/70 font-mono w-8">행동</span>
                 <div class="flex-1 h-[3px] bg-slate-900/70 rounded-full overflow-hidden">
                   <div class="h-full bg-rose-400/80 transition-all" :style="{ width: Math.min(100, m.actionGauge) + '%' }" />
                 </div>
@@ -400,7 +400,7 @@ watch(
 
             <!-- 플레이어 액션 게이지 — 적과 다른 색(cyan) + 얇은 라인 -->
             <div class="flex items-center gap-1.5">
-              <span class="text-[10px] text-cyan-300/70 font-mono w-8">행동</span>
+              <span class="text-xs text-cyan-300/70 font-mono w-8">행동</span>
               <div class="flex-1 h-[3px] bg-slate-900/70 rounded-full overflow-hidden">
                 <div class="h-full bg-cyan-400/80 transition-all" :style="{ width: playerGauge + '%' }" />
               </div>
@@ -408,7 +408,7 @@ watch(
 
             <!-- 자동 발동 스킬 — 칩 (탭하면 상세 모달) -->
             <div v-if="skillKeys.length > 0" class="flex flex-wrap items-center gap-1.5 text-xs pt-0.5">
-              <span class="text-cyan-300/80 text-[11px]">자동</span>
+              <span class="text-cyan-300/80 text-xs">자동</span>
               <button
                 v-for="key in skillKeys"
                 :key="key"
@@ -469,7 +469,7 @@ watch(
             style="height: 200px"
           >
             <div v-for="(l, i) in log" :key="i" :class="['log-line', logColorClass[l.kind]]">
-              <span class="text-gray-500 text-[10px] mr-1">[{{ l.tick }}t]</span>
+              <span class="text-gray-500 text-xs mr-1">[{{ l.tick }}t]</span>
               <span class="mr-1 opacity-80">{{ logPrefix[l.kind] }}</span>
               {{ l.text }}
             </div>
@@ -481,6 +481,7 @@ watch(
     <!-- ====================================================== -->
     <!-- 스킬 상세 모달                                            -->
     <!-- ====================================================== -->
+    <Teleport to="body">
     <div
       v-if="selectedSkillDef"
       class="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm animate-fadein"
@@ -497,7 +498,7 @@ watch(
           />
           <div class="flex-1 min-w-0">
             <div class="text-base font-bold text-cyan-200 truncate">{{ selectedSkillDef.name }}</div>
-            <div class="text-[11px] flex items-center gap-1.5 flex-wrap">
+            <div class="text-xs flex items-center gap-1.5 flex-wrap">
               <span :class="skillKindColor[selectedSkillDef.kind]">{{ skillKindLabel[selectedSkillDef.kind] }}</span>
               <span v-if="selectedSkillDef.element" class="text-gray-400">· {{ selectedSkillDef.element }}</span>
             </div>
@@ -520,11 +521,13 @@ watch(
         </div>
       </div>
     </div>
+    </Teleport>
 
     <!-- ====================================================== -->
     <!-- 승리 모달 (fixed overlay)                                -->
     <!-- - 패배는 GameOver 화면으로 자동 전환되므로 모달 없음       -->
     <!-- ====================================================== -->
+    <Teleport to="body">
     <div
       v-if="combat.ended && combat.victory"
       class="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm animate-fadein"
@@ -533,14 +536,15 @@ watch(
       <div
         class="w-full max-w-sm rounded-xl border-2 border-amber-400/70 bg-bg-secondary/95 shadow-[0_0_40px_rgba(251,191,36,0.45)] p-6 space-y-4 text-center"
       >
-        <div class="text-4xl">🏆</div>
-        <div class="text-log-reward text-3xl font-bold tracking-wide">승리!</div>
+        <!-- 큰 한글만 — GameOver "사망" / Victory "탑 클리어" 와 동일 톤 -->
+        <div class="text-amber-300 text-5xl font-bold tracking-widest leading-tight">승리</div>
         <button
           class="btn-primary w-full min-h-12 text-base font-bold"
           @click="closeAndAdvance"
         >다음 층으로</button>
       </div>
     </div>
+    </Teleport>
   </section>
 </template>
 

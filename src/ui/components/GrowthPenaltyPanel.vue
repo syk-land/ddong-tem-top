@@ -27,7 +27,7 @@ const rankIcon = computed(() =>
       <span class="text-gray-500">·</span>
       <span class="text-log-reward font-semibold">+{{ projection.bonus }} pt</span>
     </div>
-    <div class="flex items-center gap-3 text-[10px]">
+    <div class="flex items-center gap-3 text-xs">
       <span class="text-stat-util">티어 합계 <span class="text-gray-200 font-mono">{{ projection.score }}</span></span>
       <span class="text-gray-500">·</span>
       <span class="text-gray-400">낮을수록 등급 ↑</span>

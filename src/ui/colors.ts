@@ -154,7 +154,7 @@ export function itemKindAccent(kind: 'weapon' | 'armor'): string {
 // "낡은 노말 단검" 형식의 표시명에서 특성/등급/무기 부분을 색상 분리
 export function formatItemNameHTML(item: ItemInstance | null): { trait: string; traitClass: string; grade: string; gradeClass: string; base: string; baseClass: string } {
   if (!item) {
-    return { trait: '', traitClass: '', grade: '', gradeClass: '', base: '맨손', baseClass: 'text-gray-500' }
+    return { trait: '', traitClass: '', grade: '', gradeClass: '', base: '미 착용', baseClass: 'text-gray-500' }
   }
   // 특성 색상은 tier 기반, grade 색상은 grade 기반
   return {

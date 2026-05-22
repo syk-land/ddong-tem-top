@@ -54,7 +54,7 @@ function breakdownAtk(): Breakdown[] {
   const s = c.value.stats
   const w = c.value.weapon
   const wb = w ? WEAPONS[w.baseKey] : null
-  if (!w || !wb) return [{ from: '맨손', value: 0, note: '무기 없음' }]
+  if (!w || !wb) return [{ from: '미 착용', value: 0, note: '무기 없음' }]
   const t = WEAPON_TRAITS[w.trait]?.effects ?? {}
   const pct = (t.공격력_pct ?? 0) + (t.전스탯_pct ?? 0)
   const total = s.힘 * wb.baseAtk * w.coef * (1 + pct) * 3.0
@@ -220,7 +220,7 @@ function breakdownStat힘(): Breakdown[] {
         note: `힘 ${s.힘} × 무기공격 ${wb.baseAtk} × 등급 ${w.coef.toFixed(2)} × (1${pct >= 0 ? '+' : ''}공격% ${(pct * 100).toFixed(0)}%) × 3.0` },
     ]
   }
-  return [{ from: '공격력', value: 0, note: '무기 없음 — 맨손' }]
+  return [{ from: '공격력', value: 0, note: '무기 없음 — 미 착용' }]
 }
 function breakdownStat민첩(): Breakdown[] {
   const s = c.value.stats
@@ -297,6 +297,7 @@ function showSkillDetail(key: string) {
 </script>
 
 <template>
+  <Teleport to="body">
   <div
     v-if="props.open"
     class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-3 py-6"
@@ -311,15 +312,15 @@ function showSkillDetail(key: string) {
       <!-- HP / MP / Gold -->
       <div class="grid grid-cols-3 gap-2 text-xs font-mono">
         <div class="bg-bg-tertiary rounded px-2 py-1.5">
-          <div class="text-[10px] text-stat-hp">체력</div>
+          <div class="text-xs text-stat-hp">체력</div>
           <div>{{ c.hp }} / {{ c.maxHp }}</div>
         </div>
         <div class="bg-bg-tertiary rounded px-2 py-1.5">
-          <div class="text-[10px] text-stat-mp">마력</div>
+          <div class="text-xs text-stat-mp">마력</div>
           <div>{{ c.mp }} / {{ c.maxMp }}</div>
         </div>
         <div class="bg-bg-tertiary rounded px-2 py-1.5">
-          <div class="text-[10px] text-stat-luck">골드</div>
+          <div class="text-xs text-stat-luck">골드</div>
           <div>{{ c.gold }}G</div>
         </div>
       </div>
@@ -437,7 +438,7 @@ function showSkillDetail(key: string) {
           <div class="text-xs text-gray-400">무기</div>
           <button
             v-if="c.weapon"
-            class="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-gray-300 hover:bg-slate-600"
+            class="text-xs px-2 py-0.5 rounded bg-slate-700 text-gray-300 hover:bg-slate-600"
             @click="unequipSlot('weapon')"
           >해제</button>
         </div>
@@ -445,18 +446,18 @@ function showSkillDetail(key: string) {
           <div :class="[tierColorClass(c.weapon.tier), 'font-mono text-sm']">
             <ItemName :item="c.weapon" />
           </div>
-          <div class="text-[10px] text-gray-500">
+          <div class="text-xs text-gray-500">
             T{{ c.weapon.tier }} ·
             <span :class="gradeColorClass[c.weapon.grade]">{{ c.weapon.grade }}</span>
             · 등급계수 {{ c.weapon.coef.toFixed(2) }}
           </div>
-          <div v-if="effectEntries(c.weapon as any).length > 0" class="mt-1 text-[10px] grid grid-cols-2 gap-x-3 font-mono">
+          <div v-if="effectEntries(c.weapon as any).length > 0" class="mt-1 text-xs grid grid-cols-2 gap-x-3 font-mono">
             <div v-for="[k, v] in effectEntries(c.weapon as any)" :key="k" class="text-gray-300">
               <span class="text-gray-500">{{ k }}:</span> <span class="text-log-skill">{{ formatValue(v as number) }}</span>
             </div>
           </div>
         </div>
-        <div v-else class="text-xs text-gray-600">맨손</div>
+        <div v-else class="text-xs text-gray-600">미 착용</div>
       </div>
 
       <!-- 장착 갑옷 -->
@@ -465,7 +466,7 @@ function showSkillDetail(key: string) {
           <div class="text-xs text-gray-400">갑옷</div>
           <button
             v-if="c.armor"
-            class="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-gray-300 hover:bg-slate-600"
+            class="text-xs px-2 py-0.5 rounded bg-slate-700 text-gray-300 hover:bg-slate-600"
             @click="unequipSlot('armor')"
           >해제</button>
         </div>
@@ -473,12 +474,12 @@ function showSkillDetail(key: string) {
           <div :class="[tierColorClass(c.armor.tier), 'font-mono text-sm']">
             <ItemName :item="c.armor" />
           </div>
-          <div class="text-[10px] text-gray-500">
+          <div class="text-xs text-gray-500">
             T{{ c.armor.tier }} ·
             <span :class="gradeColorClass[c.armor.grade]">{{ c.armor.grade }}</span>
             · 등급계수 {{ c.armor.coef.toFixed(2) }}
           </div>
-          <div v-if="effectEntries(c.armor as any).length > 0" class="mt-1 text-[10px] grid grid-cols-2 gap-x-3 font-mono">
+          <div v-if="effectEntries(c.armor as any).length > 0" class="mt-1 text-xs grid grid-cols-2 gap-x-3 font-mono">
             <div v-for="[k, v] in effectEntries(c.armor as any)" :key="k" class="text-gray-300">
               <span class="text-gray-500">{{ k }}:</span> <span class="text-log-skill">{{ formatValue(v as number) }}</span>
             </div>
@@ -496,11 +497,11 @@ function showSkillDetail(key: string) {
                @click="showSkillDetail(key)">
             <span>
               <span class="text-log-skill">{{ SKILLS[key]?.name ?? key }}</span>
-              <span class="text-gray-500 ml-2 text-[10px]">{{ SKILLS[key]?.description }}</span>
+              <span class="text-gray-500 ml-2 text-xs">{{ SKILLS[key]?.description }}</span>
             </span>
             <span v-if="SKILLS[key]?.kind === 'physical_atk' || SKILLS[key]?.kind === 'magic_atk'"
                   class="text-stat-util font-mono">{{ weaponProcPct }}%</span>
-            <span v-else class="text-[10px] text-gray-600">조건부</span>
+            <span v-else class="text-xs text-gray-600">조건부</span>
           </div>
         </div>
       </div>
@@ -511,14 +512,14 @@ function showSkillDetail(key: string) {
         <div
           v-for="{ ac, def } in activeChallenges"
           :key="ac.key"
-          class="space-y-0.5 text-[11px]"
+          class="space-y-0.5 text-xs"
         >
           <div class="flex items-center justify-between">
             <span :class="ac.failed ? 'text-gray-500 line-through' : 'text-trait-special font-bold'">
               {{ def.name }}
             </span>
             <span
-              class="text-[10px] px-1.5 py-0.5 rounded"
+              class="text-xs px-1.5 py-0.5 rounded"
               :class="ac.failed
                 ? 'bg-status-burn/30 text-status-burn'
                 : (def.category === 'risk' ? 'bg-grade-special/30 text-grade-special' : 'bg-log-skill/30 text-log-skill')"
@@ -526,12 +527,12 @@ function showSkillDetail(key: string) {
               {{ ac.failed ? '실패' : (def.category === 'risk' ? '리스크' : '즉시') }}
             </span>
           </div>
-          <div class="text-[10px] text-gray-400">{{ def.description }}</div>
-          <div class="text-[10px]">
+          <div class="text-xs text-gray-400">{{ def.description }}</div>
+          <div class="text-xs">
             <span class="text-gray-500">보상: </span>
             <span class="text-log-reward">{{ def.reward }}</span>
           </div>
-          <div class="text-[10px]">
+          <div class="text-xs">
             <span class="text-gray-500">조건: </span>
             <span class="text-status-burn">{{ def.penalty }}</span>
           </div>
@@ -558,7 +559,7 @@ function showSkillDetail(key: string) {
                class="bg-bg-tertiary rounded px-2 py-1.5 flex items-baseline justify-between">
             <div>
               <div class="text-gray-200">{{ e.from }}</div>
-              <div v-if="e.note" class="text-[10px] text-gray-500">{{ e.note }}</div>
+              <div v-if="e.note" class="text-xs text-gray-500">{{ e.note }}</div>
             </div>
             <div class="font-mono font-bold text-log-skill">
               {{ e.value >= 0 ? '+' : '' }}{{ e.value.toFixed(2) }}
@@ -569,4 +570,5 @@ function showSkillDetail(key: string) {
       </div>
     </div>
   </div>
+  </Teleport>
 </template>

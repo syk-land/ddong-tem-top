@@ -249,7 +249,7 @@ watch(
     @mouseenter="bumpActivity"
   >
     <!-- 접힘 상태: 햄버거(설정 펼침) + 속도/자동 표시 + 스피커(전체 사운드 토글, 별도 버튼) -->
-    <div v-if="!expanded" class="flex items-center text-[10px] rounded-md overflow-hidden">
+    <div v-if="!expanded" class="flex items-center text-xs rounded-md overflow-hidden">
       <button
         type="button"
         class="flex items-center gap-1 pl-2 pr-1.5 py-1 hover:bg-slate-800/60"
@@ -280,11 +280,11 @@ watch(
         >
           ×
         </button>
-        <span class="text-[10px] text-gray-300">속도</span>
+        <span class="text-xs text-gray-300">속도</span>
         <button
           v-for="s in speeds"
           :key="s"
-          class="px-2 py-0.5 rounded text-[11px] transition-all"
+          class="px-2 py-0.5 rounded text-xs transition-all"
           :class="game.combatSpeed === s
             ? 'bg-log-skill text-black font-bold ring-2 ring-cyan-200 shadow-[0_0_8px_rgba(34,211,238,0.7)]'
             : 'bg-slate-800/70 text-gray-200 hover:bg-slate-700'"
@@ -293,7 +293,7 @@ watch(
           {{ s }}x
         </button>
         <button
-          class="px-2 py-0.5 rounded text-[11px] transition-all ml-1"
+          class="px-2 py-0.5 rounded text-xs transition-all ml-1"
           :class="game.autoEnter
             ? 'bg-log-reward text-black font-bold ring-2 ring-amber-200 shadow-[0_0_8px_rgba(251,191,36,0.7)]'
             : 'bg-slate-800/70 text-gray-200 hover:bg-slate-700'"
@@ -307,7 +307,7 @@ watch(
 
       <!-- 사운드 슬라이더 + 책 버튼 -->
       <div class="border-t border-slate-700/50 px-2 py-1.5 space-y-1">
-        <div class="flex items-center gap-1.5 text-[10px]">
+        <div class="flex items-center gap-1.5 text-xs">
           <span class="w-10 shrink-0 text-gray-300">효과음</span>
           <input
             type="range" min="0" max="1" step="0.01"
@@ -321,7 +321,7 @@ watch(
           </label>
         </div>
 
-        <div class="flex items-center gap-1.5 text-[10px]">
+        <div class="flex items-center gap-1.5 text-xs">
           <span class="w-10 shrink-0 text-gray-300">배경음</span>
           <input
             type="range" min="0" max="1" step="0.01"
@@ -337,7 +337,7 @@ watch(
 
         <div class="flex items-center justify-center pt-0.5">
           <button
-            class="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-gray-300 hover:bg-slate-700"
+            class="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-gray-300 hover:bg-slate-700"
             title="인트로 만화 다시 보기"
             @click="openIntro"
           >

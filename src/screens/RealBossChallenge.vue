@@ -28,68 +28,82 @@ function decline() {
 <template>
   <section
     v-if="weak && boss && theme"
-    class="flex-1 flex flex-col px-4 py-4 max-w-2xl mx-auto w-full bg-cover bg-center"
+    class="flex-1 flex flex-col px-3 py-4 sm:px-4 max-w-2xl mx-auto w-full bg-cover bg-center gap-3"
     :style="{ backgroundImage: `linear-gradient(rgba(10,14,26,0.78), rgba(10,14,26,0.92)), url(${bgUrl})` }"
   >
-    <div class="panel text-center space-y-3 mb-4">
-      <h1 class="text-2xl font-bold text-trait-special">탑의 부름</h1>
-      <p class="text-sm text-gray-300">
+    <!-- 헤더 — 큰 한글 + rose glow (GameOver/Victory 패턴) -->
+    <div
+      class="rounded-xl border-2 border-rose-400/70 bg-bg-secondary/95 shadow-[0_0_30px_rgba(244,63,94,0.30)] p-5 text-center space-y-2 animate-fadein"
+    >
+      <div class="text-rose-300 text-4xl font-bold tracking-widest leading-tight">탑의 부름</div>
+      <p class="text-sm text-gray-200 leading-snug">
         탑이 가장 빛바랜 영혼을 불러냈다.<br />
-        진짜 보스에 도전해 깎은 비율만큼 다음 캐릭터의 힘이 된다.
+        진짜 보스에 도전해 깎은 비율만큼<br />
+        다음 캐릭터의 힘이 된다.
       </p>
     </div>
 
-    <!-- 부활한 캐릭터 + 보스 대치 -->
-    <div class="panel grid grid-cols-2 gap-4 items-center">
-      <!-- 부활한 캐릭터 -->
-      <div class="text-center space-y-2">
-        <div class="text-xs text-grade-legend">▼ 부활한 영혼</div>
+    <!-- 대치 카드 — 좌 영혼 (grade-legend) / 우 보스 (rose) -->
+    <div class="grid grid-cols-2 gap-2 sm:gap-3">
+      <!-- 부활한 영혼 -->
+      <div class="rounded-lg border-2 border-grade-legend/40 bg-grade-legend/5 p-3 space-y-2 text-center">
+        <div class="text-xs text-grade-legend font-bold">부활한 영혼</div>
         <img
           :src="playerImageUrl(weak.avatarKey)"
           alt="weak character"
-          class="w-32 h-32 object-cover mx-auto rounded-lg border border-slate-700"
+          class="w-28 h-28 object-cover mx-auto rounded-lg border-2 border-grade-legend/50 shadow-[0_0_18px_rgba(168,85,247,0.25)]"
         />
-        <div class="text-[11px] text-gray-300">
-          <span class="text-rank-low">최종 등급</span>
-          <span class="text-grade-legend font-bold ml-1">{{ weak.rank }}</span>
-          <span class="text-gray-500 ml-2">점수 {{ weak.score }}</span>
+        <div class="text-xs">
+          <span class="text-grade-legend font-bold">{{ weak.rank }}</span>
+          <span class="ml-1 font-mono">{{ weak.score }}점</span>
         </div>
-        <div class="grid grid-cols-2 text-[10px] gap-1 text-gray-400">
-          <div>HP {{ weak.maxHp }}</div>
-          <div>MP {{ weak.maxMp }}</div>
-          <div>힘 {{ weak.stats.힘 }}</div>
-          <div>체력 {{ weak.stats.체력 }}</div>
-          <div>민첩 {{ weak.stats.민첩 }}</div>
-          <div>행운 {{ weak.stats.행운 }}</div>
+        <div class="grid grid-cols-2 text-xs gap-x-2 gap-y-0.5 font-mono">
+          <div><span class="text-stat-hp">HP</span> {{ weak.maxHp }}</div>
+          <div><span class="text-stat-mp">MP</span> {{ weak.maxMp }}</div>
+          <div><span class="text-stat-phys_atk">힘</span> {{ weak.stats.힘 }}</div>
+          <div><span class="text-stat-phys_def">체력</span> {{ weak.stats.체력 }}</div>
+          <div><span class="text-stat-util">민첩</span> {{ weak.stats.민첩 }}</div>
+          <div><span class="text-stat-luck">행운</span> {{ weak.stats.행운 }}</div>
         </div>
       </div>
 
-      <!-- 보스 -->
-      <div class="text-center space-y-2">
-        <div class="text-xs text-status-bleed">▼ 진짜 보스</div>
+      <!-- 진짜 보스 -->
+      <div class="rounded-lg border-2 border-rose-500/50 bg-rose-950/20 p-3 space-y-2 text-center shadow-[0_0_18px_rgba(244,63,94,0.25)]">
+        <div class="text-xs text-rose-300 font-bold">진짜 보스</div>
         <img
           :src="realBossImageUrl(theme)"
           :alt="boss.template.name"
-          class="w-32 h-32 object-cover mx-auto rounded-lg border border-rose-900"
+          class="w-28 h-28 object-cover mx-auto rounded-lg border-2 border-rose-500/60 shadow-[0_0_18px_rgba(244,63,94,0.35)]"
           @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
         />
-        <div class="text-sm text-status-bleed font-bold">{{ boss.template.name }}</div>
-        <div class="grid grid-cols-2 text-[10px] gap-1 text-gray-400">
-          <div>HP {{ boss.maxHp }}</div>
-          <div>속도 {{ boss.speed }}</div>
-          <div>공 {{ boss.atk }}</div>
-          <div>방 {{ boss.def }}</div>
+        <div class="text-sm text-rose-200 font-bold">{{ boss.template.name }}</div>
+        <div class="grid grid-cols-2 text-xs gap-x-2 gap-y-0.5 font-mono">
+          <div><span class="text-stat-hp">HP</span> {{ boss.maxHp }}</div>
+          <div><span class="text-stat-util">속도</span> {{ boss.speed }}</div>
+          <div><span class="text-stat-phys_atk">공</span> {{ boss.atk }}</div>
+          <div><span class="text-stat-phys_def">방</span> {{ boss.def }}</div>
         </div>
       </div>
     </div>
 
-    <div class="text-center text-[11px] text-gray-500 mt-3">
-      깎은 비율 × 60pt = 다음 캐릭터 시작 능력치 보너스 (최대 +60pt)
+    <!-- 보상 안내 -->
+    <div class="rounded-lg border border-amber-400/40 bg-amber-950/20 px-3 py-2 text-center">
+      <div class="text-xs text-amber-300 font-bold">보상</div>
+      <div class="text-sm mt-0.5">깎은 비율 × 60pt = 다음 캐릭터 시작 능력치 보너스 <span class="text-amber-200 font-bold">(최대 +60pt)</span></div>
     </div>
 
-    <div class="grid grid-cols-2 gap-2 mt-4">
-      <button class="btn-secondary" @click="decline">나중에</button>
-      <button class="btn-primary" @click="start">도전 시작</button>
+    <!-- 액션 (하단 sticky) -->
+    <div class="grid grid-cols-2 gap-2 mt-auto sticky bottom-0 pt-2 pb-1 bg-gradient-to-t from-bg-primary/95 to-bg-primary/0">
+      <button class="btn-secondary min-h-12 font-bold" @click="decline">나중에</button>
+      <button class="btn-primary min-h-12 font-bold tracking-wide" @click="start">도전 시작</button>
     </div>
   </section>
 </template>
+
+<style scoped>
+@keyframes fadein {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fadein { animation: fadein 280ms ease-out; }
+</style>

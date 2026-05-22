@@ -72,16 +72,29 @@ async function resetMeta() {
     :style="{ backgroundImage: `linear-gradient(rgba(10,14,26,0.65), rgba(10,14,26,0.85)), url(${bgUrl})` }"
   >
     <div class="max-w-md w-full space-y-3">
-      <!-- ── 누적 통계 칩 카드 (상단) ── -->
-      <div class="grid grid-cols-2 gap-2">
-        <div class="rounded-lg border border-amber-400/40 bg-amber-950/30 backdrop-blur-sm px-3 py-2">
-          <div class="text-[11px] text-amber-300 font-bold">🏆 클리어</div>
-          <div class="text-lg font-mono font-bold text-log-reward tabular-nums">{{ game.meta.clearCount }}<span class="text-sm text-gray-400 ml-1">회</span></div>
+      <!-- ── 상단: 통계 칩 + 설정 버튼 ── -->
+      <div class="flex items-stretch gap-2">
+        <div class="flex-1 grid grid-cols-3 gap-2">
+          <div class="rounded-lg border border-amber-400/40 bg-amber-950/30 backdrop-blur-sm px-2 py-2">
+            <div class="text-xs text-amber-300 font-bold">🏆 클리어</div>
+            <div class="text-lg font-mono font-bold text-log-reward tabular-nums leading-tight">{{ game.meta.clearCount }}<span class="text-xs text-gray-400 ml-1">회</span></div>
+          </div>
+          <div class="rounded-lg border border-emerald-400/40 bg-emerald-950/30 backdrop-blur-sm px-2 py-2">
+            <div class="text-xs text-emerald-300 font-bold">⛰ 등반</div>
+            <div class="text-lg font-mono font-bold text-emerald-200 tabular-nums leading-tight">{{ game.meta.climbCount ?? 0 }}<span class="text-xs text-gray-400 ml-1">회</span></div>
+          </div>
+          <div class="rounded-lg border border-cyan-400/40 bg-cyan-950/30 backdrop-blur-sm px-2 py-2">
+            <div class="text-xs text-cyan-300 font-bold">⚡ 보너스</div>
+            <div class="text-lg font-mono font-bold text-log-skill tabular-nums leading-tight">+{{ game.meta.totalBonusStats }}<span class="text-xs text-gray-400 ml-1">pt</span></div>
+          </div>
         </div>
-        <div class="rounded-lg border border-cyan-400/40 bg-cyan-950/30 backdrop-blur-sm px-3 py-2">
-          <div class="text-[11px] text-cyan-300 font-bold">⚡ 보너스</div>
-          <div class="text-lg font-mono font-bold text-log-skill tabular-nums">+{{ game.meta.totalBonusStats }}<span class="text-sm text-gray-400 ml-1">pt</span></div>
-        </div>
+        <button
+          class="shrink-0 w-12 rounded-lg border border-slate-600/60 bg-bg-secondary/70 hover:bg-bg-hover backdrop-blur-sm flex items-center justify-center transition active:scale-95"
+          title="설정"
+          @click="game.setScreen('settings')"
+        >
+          <span class="text-xl leading-none">⚙</span>
+        </button>
       </div>
 
       <!-- ── 헤더 (제목) ── -->

@@ -17,6 +17,7 @@ function refuse() {
 </script>
 
 <template>
+  <Teleport to="body">
   <div
     v-if="pending"
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
@@ -29,11 +30,11 @@ function refuse() {
 
       <!-- 신규 입수 -->
       <div class="bg-grade-legend/10 border border-grade-legend/40 rounded p-3 space-y-1">
-        <div class="text-[10px] text-grade-legend font-bold">신규 입수</div>
+        <div class="text-xs text-grade-legend font-bold">신규 입수</div>
         <div :class="[tierColorClass(pending.tier), 'font-mono text-sm']">
           <ItemName :item="pending" />
         </div>
-        <div class="text-[10px] text-gray-500">
+        <div class="text-xs text-gray-500">
           T{{ pending.tier }} ·
           <span :class="gradeColorClass[pending.grade]">{{ pending.grade }}</span>
           · 등급계수 {{ pending.coef.toFixed(2) }}
@@ -54,13 +55,13 @@ function refuse() {
               <div :class="[tierColorClass(slot.tier), 'text-xs font-mono truncate']">
                 <ItemName :item="slot" compact />
               </div>
-              <div class="text-[10px] text-gray-500">
+              <div class="text-xs text-gray-500">
                 T{{ slot.tier }} ·
                 <span :class="gradeColorClass[slot.grade]">{{ slot.grade }}</span>
                 · 등급계수 {{ slot.coef.toFixed(2) }}
               </div>
             </div>
-            <span class="text-[10px] text-status-burn ml-2">✕ 폐기</span>
+            <span class="text-xs text-status-burn ml-2">✕ 폐기</span>
           </button>
         </div>
       </div>
@@ -71,4 +72,5 @@ function refuse() {
       </button>
     </div>
   </div>
+  </Teleport>
 </template>

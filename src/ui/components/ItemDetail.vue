@@ -9,9 +9,25 @@ import { tierColorClass, gradeColorClass, gradeBorderClass } from '@/ui/colors'
 import { computeWeaponSkillProc } from '@/core/buildBalance'
 import { getClearRank } from '@/core/character'
 import { useGameStore } from '@/stores/game'
-import { itemImageUrl } from '@/ui/images'
+import { itemImageUrl, skillIconUrl } from '@/ui/images'
 import { computeItemValue, type ValuePart } from '@/core/itemValue'
+import { getDangerTier, getChapterThreshold } from '@/core/scoreThresholds'
+import { canEquipItem } from '@/core/challengeRuntime'
 import ItemName from './ItemName.vue'
+
+// Combat 의 스킬 카드와 동일한 라벨/색 매핑
+const skillKindLabel: Record<string, string> = {
+  physical_atk: '물리 공격',
+  physical_def: '물리 방어',
+  magic_atk: '마법 공격',
+  magic_def: '마법 방어',
+}
+const skillKindColor: Record<string, string> = {
+  physical_atk: 'text-stat-phys_atk',
+  physical_def: 'text-stat-phys_def',
+  magic_atk: 'text-stat-mag_atk',
+  magic_def: 'text-stat-mag_def',
+}
 
 const game = useGameStore()
 const currentChapter = computed(() => game.currentChapterState?.chapter ?? 1)
@@ -75,6 +91,111 @@ const defPct = computed<number | null>(() => {
   if (Math.abs(cur) < 0.05) return null
   return Math.max(-100, (defDelta.value / cur) * 100)
 })
+
+// 스킬 상세 모달
+const skillModalOpen = ref(false)
+function openSkillModal() { if (skill.value && skillKey.value) skillModalOpen.value = true }
+function closeSkillModal() { skillModalOpen.value = false }
+
+// 정보 모달 — 특성 / 등급 / 베이스 클릭 시 표시
+interface InfoLine { label: string; value?: string; note?: string }
+const infoModal = ref<{
+  kind: 'trait' | 'grade' | 'base'
+  title: string
+  subtitle?: string
+  lines: InfoLine[]
+} | null>(null)
+
+function fmtPct(n: number): string {
+  return (n >= 0 ? '+' : '') + (n * 100).toFixed(0) + '%'
+}
+function fmtFlat(n: number): string {
+  return (n >= 0 ? '+' : '') + n.toFixed(0)
+}
+
+function openTraitInfo() {
+  const td = traitDef.value
+  if (!td) return
+  const lines: InfoLine[] = []
+  const e = td.effects
+  if (e.공격력_pct !== undefined && e.공격력_pct !== 0) lines.push({ label: '공격력', value: fmtPct(e.공격력_pct) })
+  if (e.방어력_pct !== undefined && e.방어력_pct !== 0) lines.push({ label: '방어력', value: fmtPct(e.방어력_pct) })
+  if (e.전스탯_pct !== undefined && e.전스탯_pct !== 0) lines.push({ label: '전스탯', value: fmtPct(e.전스탯_pct) })
+  if (e.속도_pct !== undefined && e.속도_pct !== 0) lines.push({ label: '속도', value: fmtPct(e.속도_pct) })
+  if (e.명중 !== undefined && e.명중 !== 0) lines.push({ label: '명중', value: fmtFlat(e.명중) })
+  if (e.회피 !== undefined && e.회피 !== 0) lines.push({ label: '회피', value: fmtFlat(e.회피) })
+  if (e.관통 !== undefined && e.관통 !== 0) lines.push({ label: '관통', value: fmtFlat(e.관통) })
+  if (e.행운 !== undefined && e.행운 !== 0) lines.push({ label: '행운', value: fmtFlat(e.행운) })
+  if (e.마력 !== undefined && e.마력 !== 0) lines.push({ label: '마력', value: fmtFlat(e.마력) })
+  if (e.상태저항 !== undefined && e.상태저항 !== 0) lines.push({ label: '상태저항', value: fmtFlat(e.상태저항) })
+  if (e.lifesteal !== undefined) lines.push({ label: '흡혈', value: fmtPct(e.lifesteal) })
+  if (e.vs_undead_pct !== undefined) lines.push({ label: '대언데드', value: fmtPct(e.vs_undead_pct) })
+  if (e.self_dot_pct !== undefined) lines.push({ label: '자해 (DoT)', value: fmtPct(e.self_dot_pct) })
+  if (e.damage_taken_heal_pct !== undefined) lines.push({ label: '피격 회복', value: fmtPct(e.damage_taken_heal_pct) })
+  // 상태이상 chance 류
+  const statusEffects: Array<[string, string]> = [
+    ['burn_chance', '점화'], ['bleed_chance', '출혈'], ['poison_chance', '독'],
+    ['slow_chance', '둔화'], ['blind_chance', '암흑'], ['shock_chance', '감전'],
+  ]
+  for (const [k, label] of statusEffects) {
+    const v = (e as Record<string, number | undefined>)[k]
+    if (v) lines.push({ label, value: fmtPct(v) })
+  }
+  infoModal.value = {
+    kind: 'trait',
+    title: `${props.item.trait} (특성)`,
+    subtitle: `${props.item.tier <= 4 ? '하급' : props.item.tier <= 8 ? '보통' : props.item.tier <= 12 ? '희귀' : '특별'} 특성`,
+    lines: lines.length > 0 ? lines : [{ label: '효과 없음', value: '—' }],
+  }
+}
+
+function openGradeInfo() {
+  const coef = props.item.coef
+  const grade = props.item.grade
+  infoModal.value = {
+    kind: 'grade',
+    title: `${grade} 등급`,
+    subtitle: `등급계수 ${coef.toFixed(2)}`,
+    lines: [
+      { label: '등급계수', value: coef.toFixed(2), note: '무기 공격력·갑옷 방어력에 곱셈 적용 (특성 효과에도 적용)' },
+      { label: '현재 티어', value: `T${props.item.tier}` },
+      { label: '판매가', value: `${props.item.sellPrice}G`, note: '인벤토리 / 장착 중 판매 시' },
+      { label: '구매가 (상점)', value: `${props.item.buyPrice}G` },
+    ],
+  }
+}
+
+function openBaseInfo() {
+  const lines: InfoLine[] = []
+  if (weaponBase.value) {
+    const w = weaponBase.value
+    lines.push({ label: '카테고리', value: w.category === 'magic' ? '마법' : w.category === 'ranged' ? '원거리' : '근접' })
+    lines.push({ label: '기본 공격력', value: w.baseAtk.toFixed(2), note: '힘(또는 마력) × 무기공격 × 등급계수' })
+    const ticks = Math.round(10 / w.speedCoef)
+    lines.push({ label: '공격주기', value: `${ticks}틱`, note: `속도계수 ${w.speedCoef.toFixed(2)}` })
+    if (w.accBonus) lines.push({ label: '명중 보너스', value: fmtFlat(w.accBonus) })
+    if (w.evaBonus) lines.push({ label: '회피 보너스', value: fmtFlat(w.evaBonus) })
+    if (w.penBonus) lines.push({ label: '관통', value: fmtFlat(w.penBonus) })
+    if (w.magicPenBonus) lines.push({ label: '마법 관통', value: fmtFlat(w.magicPenBonus) })
+    if (w.mpBonus) lines.push({ label: 'MP 보정', value: fmtFlat(w.mpBonus) })
+    if (w.autoSkill) lines.push({ label: '자동 스킬', value: w.autoSkill })
+    if (w.isMagic) lines.push({ label: '마법무기', value: '예', note: '마력 스탯 사용, 로브와 시너지 ×1.5' })
+  } else if (armorBase.value) {
+    const a = armorBase.value
+    lines.push({ label: '기본 방어력', value: `${a.baseDef}%`, note: '체력 × 0.3 × 등급계수 추가' })
+    if (a.speedMult && a.speedMult !== 1) lines.push({ label: '게이지 배수', value: `×${a.speedMult.toFixed(2)}` })
+    if (a.evasion) lines.push({ label: '회피', value: fmtFlat(a.evasion) })
+    if (a.mpBonus) lines.push({ label: 'MP 보정', value: fmtFlat(a.mpBonus) })
+    if (a.autoSkill) lines.push({ label: '자동 발동', value: a.autoSkill, note: '피격 시 자동 발동' })
+  }
+  infoModal.value = {
+    kind: 'base',
+    title: props.item.baseKey,
+    subtitle: weaponBase.value ? '무기 베이스' : '갑옷 베이스',
+    lines: lines.length > 0 ? lines : [{ label: '정보 없음', value: '—' }],
+  }
+}
+function closeInfoModal() { infoModal.value = null }
 
 // 분해 모달 — 총량 = 이 아이템 + 다른 슬롯, 클릭 시 상세 분해 표시
 const valueModal = ref<{
@@ -148,8 +269,8 @@ const baseSpecLines = computed(() => {
   return lines
 })
 
-// 자동 스킬 한 줄
-const skillKey = computed(() => weaponBase.value?.autoSkill ?? armorBase.value?.autoSkill ?? null)
+// 자동 스킬 — 무기 스킬만 표시 (갑옷의 자동 발동 효과는 표시값 계산에 반영되어 있어 별도 카드 X)
+const skillKey = computed(() => weaponBase.value?.autoSkill ?? null)
 const skill = computed(() => skillKey.value ? SKILLS[skillKey.value] : null)
 const skillProcPct = computed(() => {
   if (!isWeapon.value || !props.character) return null
@@ -245,6 +366,19 @@ const itemCoef = computed(() => ({
 }))
 
 const totalScore = computed(() => itemCoef.value.atk + itemCoef.value.def)
+
+// ── 챕터별 통과 가능성 색상 (착용 시 총합 score 기준) ──
+//   3-tier: 빨강(위험) / 노랑(적정) / 초록(여유)
+//   character 가 있을 때만 적용, 없으면 등급 테두리 fallback (gradeBorderClass)
+const totalNewScore = computed(() => totalNew.value.atk + totalNew.value.def)
+const dangerTier = computed(() => getDangerTier(currentChapter.value, totalNewScore.value))
+const chapterThreshold = computed(() => getChapterThreshold(currentChapter.value))
+
+// ── 챌린지 제약으로 못 쓰는 아이템 — 벨류·테두리 표시 안 함 ──
+const isLocked = computed(() => {
+  if (!game.challengeContext) return false
+  return !canEquipItem(props.item, game.challengeContext).ok
+})
 
 // 장착 시 기본 능력치 변동 — 다중 항목 (v4)
 //   무기: 공격력(종합 × 공속)
@@ -349,7 +483,17 @@ const rankLine = computed(() => {
 </script>
 
 <template>
-  <div :class="['space-y-0.5 text-[11px] font-mono leading-tight border-2 rounded p-1.5', gradeBorderClass[item.grade]]">
+  <div
+    :class="[
+      'space-y-0.5 text-xs font-mono leading-tight border-2 rounded p-1.5',
+      isLocked
+        ? 'border-slate-700/50 opacity-70'
+        : character ? dangerTier.borderClass : gradeBorderClass[item.grade],
+    ]"
+    :title="isLocked
+      ? '챌린지로 사용 불가'
+      : character ? `현재 ch${currentChapter} 통과 — ${dangerTier.label} (합계 ${totalNewScore.toFixed(1)}, 임계 운빨≥${chapterThreshold.p25.toFixed(1)} / 여유≥${chapterThreshold.p75.toFixed(1)})` : undefined"
+  >
     <!-- 헤더 (아이콘 + 이름) -->
     <div class="flex items-center gap-2">
       <img
@@ -361,16 +505,19 @@ const rankLine = computed(() => {
       />
       <div class="flex-1 min-w-0">
         <div :class="[tierColorClass(item.tier), 'text-sm']">
-          <ItemName :item="item" />
-        </div>
-        <div class="text-gray-600 text-[10px]">
-          티어 {{ item.tier }} · <span :class="gradeColorClass[item.grade]">{{ item.grade }}</span> · 등급계수 {{ item.coef.toFixed(2) }}
+          <ItemName
+            :item="item"
+            clickable
+            @clickTrait="openTraitInfo"
+            @clickGrade="openGradeInfo"
+            @clickBase="openBaseInfo"
+          />
         </div>
         <!-- 전투력 — 공/방 표시
              장착 중: 착용중(공벨류) / 착용중(방벨류)
              보유/판매: 착용시 총량(변화량 ±N) / 착용시 총량(변화량 ±N)
              총량 부분 클릭 → 계산 이유 모달 -->
-        <div class="flex items-center gap-1.5 mt-0.5 text-[11px] font-bold flex-wrap">
+        <div v-if="!isLocked" class="flex items-center gap-1.5 mt-0.5 text-xs font-bold flex-wrap">
           <!-- 공 -->
           <button
             v-if="Math.abs(totalNew.atk) > 0.05 || Math.abs(itemValue.atkValue) > 0.05"
@@ -378,17 +525,17 @@ const rankLine = computed(() => {
             @click.stop="openValueModal('atk')"
             :title="character && !isSameAsEquipped ? `착용 시 공 ${totalNew.atk.toFixed(1)} (${atkDelta >= 0 ? '+' : ''}${atkDelta.toFixed(1)})` : '전투력(공) 상세'"
           >
-            <span class="text-stat-phys_atk text-[10px] opacity-80">공</span>
+            <span class="text-stat-phys_atk text-xs opacity-80">공</span>
             <template v-if="character && isSameAsEquipped">
               <!-- 장착 중 — 단일 총량만 -->
-              <span class="text-gray-400 text-[10px]">착용중</span>
+              <span class="text-gray-400 text-xs">착용중</span>
               <span class="text-stat-phys_atk text-sm">{{ totalNew.atk.toFixed(1) }}</span>
             </template>
             <template v-else-if="character">
               <!-- 보유/판매 — 총량 (변화량) -->
               <span class="text-stat-phys_atk text-sm">{{ totalNew.atk.toFixed(1) }}</span>
               <span
-                :class="[atkDelta > 0.05 ? 'text-log-reward' : atkDelta < -0.05 ? 'text-status-burn' : 'text-gray-500', 'text-[10px]']"
+                :class="[atkDelta > 0.05 ? 'text-log-reward' : atkDelta < -0.05 ? 'text-status-burn' : 'text-gray-500', 'text-xs']"
               >
                 (<template v-if="Math.abs(atkDelta) < 0.05">0</template><template v-else>{{ atkDelta >= 0 ? '+' : '' }}{{ atkDelta.toFixed(1) }}</template>)
               </span>
@@ -406,15 +553,15 @@ const rankLine = computed(() => {
             @click.stop="openValueModal('def')"
             :title="character && !isSameAsEquipped ? `착용 시 방 ${totalNew.def.toFixed(1)} (${defDelta >= 0 ? '+' : ''}${defDelta.toFixed(1)})` : '전투력(방) 상세'"
           >
-            <span class="text-stat-phys_def text-[10px] opacity-80">방</span>
+            <span class="text-stat-phys_def text-xs opacity-80">방</span>
             <template v-if="character && isSameAsEquipped">
-              <span class="text-gray-400 text-[10px]">착용중</span>
+              <span class="text-gray-400 text-xs">착용중</span>
               <span class="text-stat-phys_def text-sm">{{ totalNew.def.toFixed(1) }}</span>
             </template>
             <template v-else-if="character">
               <span class="text-stat-phys_def text-sm">{{ totalNew.def.toFixed(1) }}</span>
               <span
-                :class="[defDelta > 0.05 ? 'text-log-reward' : defDelta < -0.05 ? 'text-status-burn' : 'text-gray-500', 'text-[10px]']"
+                :class="[defDelta > 0.05 ? 'text-log-reward' : defDelta < -0.05 ? 'text-status-burn' : 'text-gray-500', 'text-xs']"
               >
                 (<template v-if="Math.abs(defDelta) < 0.05">0</template><template v-else>{{ defDelta >= 0 ? '+' : '' }}{{ defDelta.toFixed(1) }}</template>)
               </span>
@@ -424,75 +571,31 @@ const rankLine = computed(() => {
             </template>
           </button>
         </div>
-        <div v-if="equipChanges.length" class="text-[10px] mt-0.5 leading-tight">
-          <template v-for="(ch, i) in equipChanges" :key="i">
-            <span
-              :class="[
-                ch.kind === 'atk' ? 'text-stat-phys_atk' : ch.kind === 'def' ? 'text-stat-phys_def' : 'text-gray-300',
-                'font-bold',
-                i > 0 ? 'ml-1' : '',
-              ]"
-            >
-              {{ ch.label }}
-              <template v-if="ch.mult !== undefined">×{{ ch.mult.toFixed(2) }}</template>
-              <template v-else-if="ch.amount !== undefined">{{ ch.amount >= 0 ? '+' : '' }}{{ ch.amount.toFixed(2) }}</template>
-            </span>
-            <span
-              v-if="ch.pct !== undefined"
-              :class="[ch.pct >= 0 ? 'text-log-reward' : 'text-status-burn', 'ml-0.5']"
-            >
-              ({{ ch.pct >= 0 ? '+' : '' }}{{ ch.pct.toFixed(0) }}%)
-            </span>
-            <span v-if="i < equipChanges.length - 1" class="text-gray-600 mx-0.5">·</span>
-          </template>
-        </div>
-        <!-- 현재 장착품과의 교체 비교 (Δ 표시) -->
-        <div v-if="compareChanges.length" class="text-[10px] mt-0.5 leading-tight border-t border-gray-700/50 pt-0.5">
-          <span class="text-gray-500">교체 시 Δ:</span>
-          <template v-for="(ch, i) in compareChanges" :key="`cmp-${i}`">
-            <span
-              :class="[
-                ch.delta >= 0 ? 'text-log-reward' : 'text-status-burn',
-                'font-bold ml-1',
-              ]"
-            >
-              {{ ch.label }}
-              {{ ch.delta >= 0 ? '+' : '' }}{{ ch.delta.toFixed(2) }}
-            </span>
-            <span
-              v-if="ch.pctDelta !== undefined"
-              :class="[ch.pctDelta >= 0 ? 'text-log-reward' : 'text-status-burn']"
-            >
-              ({{ ch.pctDelta >= 0 ? '+' : '' }}{{ ch.pctDelta.toFixed(0) }}%)
-            </span>
-            <span v-if="i < compareChanges.length - 1" class="text-gray-600 mx-0.5">·</span>
-          </template>
-        </div>
       </div>
     </div>
 
-    <!-- 스킬 -->
-    <div v-if="skillLine">
-      <span class="text-gray-500">스킬:</span>
-      <span class="text-log-skill ml-1">{{ skillLine }}</span>
-    </div>
+    <!-- 스킬 인라인 칩 — 클릭 시 상세 모달
+         좌측: 아이콘 + 스킬명 (발동확률%) / 우측: MP 소모량 -->
+    <button
+      v-if="skill && skillKey"
+      type="button"
+      class="mt-0.5 w-full text-left flex items-center gap-1.5 px-2 py-1 rounded-md bg-cyan-950/30 hover:bg-cyan-950/50 active:scale-[0.99] transition border border-cyan-500/30"
+      @click.stop="openSkillModal"
+    >
+      <img
+        :src="skillIconUrl(skillKey)"
+        :alt="skill.name"
+        class="w-6 h-6 object-contain drop-shadow flex-shrink-0"
+        @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+      />
+      <span class="text-cyan-200 font-bold text-xs">{{ skill.name }}</span>
+      <span v-if="skillProcPct !== null" class="text-stat-util font-mono font-bold text-xs">({{ skillProcPct }}%)</span>
+      <span class="ml-auto text-stat-mp font-mono font-bold text-xs">{{ skill.mp }} MP</span>
+    </button>
 
-    <!-- 특수 효과 -->
-    <div v-if="specialLine">
-      <span class="text-gray-500">특수:</span>
-      <span class="text-trait-special ml-1">{{ specialLine }}</span>
-    </div>
 
-    <!-- 던전 등급 변화 -->
-    <div v-if="rankLine">
-      <span class="text-gray-500">등급변화:</span>
-      <span
-        :class="rankLine.bonusDelta > 0 ? 'text-log-reward' : rankLine.bonusDelta < 0 ? 'text-status-burn' : 'text-gray-300'"
-        class="ml-1"
-      >{{ rankLine.text }}</span>
-    </div>
-
-    <!-- 벨류 분해 모달 -->
+    <!-- 벨류 분해 모달 — Teleport 로 body 직속에 부착 (부모 backdrop-blur 가 fixed containing block 을 변경하는 문제 회피) -->
+    <Teleport to="body">
     <div
       v-if="valueModal"
       class="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 px-3 py-6"
@@ -505,36 +608,36 @@ const rankLine = computed(() => {
             <span v-if="valueModal.kind === 'atk'" class="text-stat-phys_atk">전투력(공) 총량 분해</span>
             <span v-else class="text-stat-phys_def">전투력(방) 총량 분해</span>
           </div>
-          <button class="text-gray-400 hover:text-white text-xl leading-none" @click="valueModal = null">✕</button>
+          <button class="text-base leading-none hover:bg-slate-700 rounded w-7 h-7 flex items-center justify-center" @click="valueModal = null">✕</button>
         </div>
 
         <!-- 총량 + 변화량 헤더 -->
         <div class="bg-bg-tertiary/60 rounded px-3 py-2">
           <div class="flex items-baseline justify-between mb-1">
-            <span class="text-xs text-gray-400">착용 시 총량</span>
+            <span class="text-xs">착용 시 총량</span>
             <div>
               <span class="text-2xl font-mono font-bold text-log-reward">{{ valueModal.totalIfEquipped.toFixed(1) }}</span>
               <span
                 v-if="character && !isSameAsEquipped"
-                :class="[valueModal.delta > 0.05 ? 'text-log-reward' : valueModal.delta < -0.05 ? 'text-status-burn' : 'text-gray-400', 'ml-1.5 text-sm font-mono']"
+                :class="[valueModal.delta > 0.05 ? 'text-log-reward' : valueModal.delta < -0.05 ? 'text-status-burn' : 'text-gray-100', 'ml-1.5 text-sm font-mono']"
               >
                 ({{ valueModal.delta >= 0 ? '+' : '' }}{{ valueModal.delta.toFixed(1) }})
               </span>
             </div>
           </div>
-          <div class="text-[10px] text-gray-500 space-y-0.5">
-            <div>= 이 아이템 <span class="text-gray-300 font-mono">{{ valueModal.itemContribution.toFixed(1) }}</span>
-                 + 다른 슬롯 <span class="text-gray-300 font-mono">{{ valueModal.otherContribution.toFixed(1) }}</span></div>
+          <div class="text-xs space-y-0.5">
+            <div>= 이 아이템 <span class="font-mono font-bold">{{ valueModal.itemContribution.toFixed(1) }}</span>
+                 + 다른 슬롯 <span class="font-mono font-bold">{{ valueModal.otherContribution.toFixed(1) }}</span></div>
             <div v-if="character && !isSameAsEquipped">
-              현재 총량: <span class="font-mono">{{ valueModal.currentTotal.toFixed(1) }}</span>
+              현재 총량 <span class="font-mono">{{ valueModal.currentTotal.toFixed(1) }}</span>
               → 변화량 {{ valueModal.delta >= 0 ? '+' : '' }}{{ valueModal.delta.toFixed(1) }}
             </div>
           </div>
         </div>
 
         <!-- 이 아이템의 기여 분해 -->
-        <div class="text-[11px] text-gray-400 mt-1">이 아이템의 기여 ({{ valueModal.itemContribution.toFixed(1) }})</div>
-        <div v-if="valueModal.parts.length === 0" class="text-xs text-gray-500 text-center py-2">기여 없음</div>
+        <div class="text-xs mt-1 font-bold">이 아이템의 기여 ({{ valueModal.itemContribution.toFixed(1) }})</div>
+        <div v-if="valueModal.parts.length === 0" class="text-xs text-center py-2">기여 없음</div>
         <div v-else class="space-y-1 text-xs">
           <div
             v-for="(p, i) in valueModal.parts"
@@ -542,16 +645,98 @@ const rankLine = computed(() => {
             class="bg-bg-tertiary rounded px-2 py-1.5 flex items-baseline justify-between"
           >
             <div class="flex-1 min-w-0">
-              <div class="text-gray-200 truncate">{{ p.label }}</div>
-              <div v-if="p.note" class="text-[10px] text-gray-500 truncate">{{ p.note }}</div>
+              <div class="truncate">{{ p.label }}</div>
+              <div v-if="p.note" class="text-xs truncate opacity-80">{{ p.note }}</div>
             </div>
             <div :class="[p.value >= 0 ? 'text-log-skill' : 'text-status-burn', 'font-mono font-bold ml-2 shrink-0']">
               {{ p.value >= 0 ? '+' : '' }}{{ p.value.toFixed(2) }}
             </div>
           </div>
         </div>
-        <button class="btn-secondary w-full text-xs" @click="valueModal = null">닫기</button>
+        <button class="btn-secondary w-full text-xs min-h-9" @click="valueModal = null">닫기</button>
       </div>
     </div>
+    </Teleport>
+
+    <!-- 스킬 상세 모달 — Combat 의 스킬 모달과 동일 패턴 -->
+    <Teleport to="body">
+    <div
+      v-if="skillModalOpen && skill && skillKey"
+      class="fixed inset-0 z-[80] flex items-center justify-center px-4 bg-black/70 backdrop-blur-sm"
+      @click.self="closeSkillModal"
+    >
+      <div class="w-full max-w-xs rounded-xl border-2 border-cyan-400/60 bg-bg-secondary/95 shadow-[0_0_30px_rgba(34,211,238,0.35)] overflow-hidden">
+        <!-- 헤더 -->
+        <div class="px-4 py-3 bg-cyan-950/40 border-b border-cyan-500/30 flex items-center gap-3">
+          <img
+            :src="skillIconUrl(skillKey)"
+            :alt="skill.name"
+            class="w-10 h-10 object-contain drop-shadow"
+            @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+          />
+          <div class="flex-1 min-w-0">
+            <div class="text-base font-bold text-cyan-200 truncate">{{ skill.name }}</div>
+            <div class="text-xs flex items-center gap-1.5 flex-wrap">
+              <span :class="skillKindColor[skill.kind]">{{ skillKindLabel[skill.kind] }}</span>
+              <span v-if="skill.element">· {{ skill.element }}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="w-7 h-7 flex items-center justify-center rounded text-base hover:bg-slate-700"
+            @click="closeSkillModal"
+            aria-label="닫기"
+          >✕</button>
+        </div>
+        <!-- 본문 -->
+        <div class="px-4 py-3 pb-4 space-y-2 text-sm">
+          <p class="leading-relaxed">{{ skill.description }}</p>
+          <div class="flex items-center justify-between pt-2 border-t border-slate-700/60 text-xs">
+            <span class="text-stat-mp">소모 MP <span class="font-bold">{{ skill.mp }}</span></span>
+            <span v-if="skillProcPct !== null" class="text-stat-util">발동률 <span class="font-bold">{{ skillProcPct }}%</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    </Teleport>
+
+    <!-- 정보 모달 — 특성/등급/베이스 클릭 시 -->
+    <Teleport to="body">
+    <div
+      v-if="infoModal"
+      class="fixed inset-0 z-[80] flex items-center justify-center px-4 bg-black/70 backdrop-blur-sm"
+      @click.self="closeInfoModal"
+    >
+      <div class="w-full max-w-xs rounded-xl border-2 border-cyan-400/60 bg-bg-secondary/95 shadow-[0_0_30px_rgba(34,211,238,0.35)] overflow-hidden">
+        <!-- 헤더 -->
+        <div class="px-4 py-3 bg-cyan-950/40 border-b border-cyan-500/30 flex items-center gap-3">
+          <div class="flex-1 min-w-0">
+            <div class="text-base font-bold text-cyan-200 truncate">{{ infoModal.title }}</div>
+            <div v-if="infoModal.subtitle" class="text-xs text-cyan-300/70 truncate">{{ infoModal.subtitle }}</div>
+          </div>
+          <button
+            type="button"
+            class="w-7 h-7 flex items-center justify-center rounded text-base hover:bg-slate-700"
+            @click="closeInfoModal"
+            aria-label="닫기"
+          >✕</button>
+        </div>
+        <!-- 본문 -->
+        <div class="px-4 py-3 pb-4 space-y-1.5 text-sm">
+          <div
+            v-for="(ln, i) in infoModal.lines"
+            :key="i"
+            class="bg-bg-tertiary/60 rounded px-2.5 py-1.5"
+          >
+            <div class="flex items-baseline justify-between gap-2">
+              <span class="text-gray-200 font-bold">{{ ln.label }}</span>
+              <span v-if="ln.value" class="text-log-skill font-mono font-bold">{{ ln.value }}</span>
+            </div>
+            <div v-if="ln.note" class="text-xs text-gray-400 mt-0.5">{{ ln.note }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </Teleport>
   </div>
 </template>

@@ -23,7 +23,7 @@ defineProps<{
       />
       <span>{{ s.kind }}</span>
       <span class="opacity-80">×{{ s.stacks }}</span>
-      <span class="opacity-60 text-[10px]">{{ s.duration }}t</span>
+      <span class="opacity-60 text-xs">{{ s.duration }}t</span>
     </span>
   </div>
 </template>

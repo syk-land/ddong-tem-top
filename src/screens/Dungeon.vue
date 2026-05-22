@@ -135,7 +135,7 @@ const floorAccent = computed(() => {
         title="인벤토리"
       >
         <span>인벤</span>
-        <span class="text-[11px] text-gray-300 tabular-nums">{{ inventory.length }}/{{ inventoryCap }}</span>
+        <span class="text-xs text-gray-300 tabular-nums">{{ inventory.length }}/{{ inventoryCap }}</span>
       </button>
       <button class="btn-secondary text-xs min-h-9 px-3 font-bold" @click="quit" title="메인 메뉴로">메뉴</button>
     </div>
@@ -152,26 +152,28 @@ const floorAccent = computed(() => {
       ]"
       style="min-height: 380px"
     >
-      <!-- 챕터 배경 -->
+      <!-- 챕터 배경 (NPC 이미지 비율 맞지 않을 때 fallback) -->
       <div
         class="absolute inset-0 bg-cover bg-center"
         :style="{ backgroundImage: `url(${bgUrl})` }"
       />
-      <div class="absolute inset-0 bg-gradient-to-b from-black/25 via-black/35 to-black/75" />
+
+      <!-- NPC/콘텐츠 이미지 — 카드 전체 가득 -->
+      <img
+        v-if="floorImage"
+        :src="floorImage"
+        :alt="floorLabel"
+        class="absolute inset-0 w-full h-full object-cover"
+        @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+      />
+
+      <!-- 다크 그라데이션 — 텍스트 가독성 (상단 약간, 하단 강하게) -->
+      <div class="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/75 pointer-events-none" />
 
       <!-- 종류 태그 (좌상단) -->
       <div :class="['relative z-10 self-start m-2 px-2.5 py-1 rounded-md text-xs font-bold border', floorAccent.border, floorAccent.tag, floorAccent.tagBg]">
         {{ floorLabel }}
       </div>
-
-      <!-- NPC/콘텐츠 이미지 -->
-      <img
-        v-if="floorImage"
-        :src="floorImage"
-        :alt="floorLabel"
-        class="absolute inset-x-0 top-10 mx-auto max-h-[320px] max-w-[80%] object-contain drop-shadow-2xl"
-        @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
-      />
 
       <!-- 하단 진입 박스 -->
       <div class="relative z-10 w-full mt-auto bg-black/65 backdrop-blur-sm py-3 px-3 flex flex-col items-center gap-2 border-t border-white/10">
@@ -252,6 +254,7 @@ const floorAccent = computed(() => {
     <InventoryModal :open="inventoryOpen" @close="inventoryOpen = false" />
 
     <!-- 장비 상세 모달 -->
+    <Teleport to="body">
     <div
       v-if="equipDetail"
       class="fixed inset-0 z-50 flex items-center justify-center px-3 py-6 bg-black/70 backdrop-blur-sm"
@@ -275,5 +278,6 @@ const floorAccent = computed(() => {
         </div>
       </div>
     </div>
+    </Teleport>
   </section>
 </template>

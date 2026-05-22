@@ -107,19 +107,19 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
 
 <template>
   <section
-    class="flex-1 flex flex-col px-4 py-4 gap-4 max-w-3xl mx-auto w-full bg-cover bg-center"
+    class="flex-1 flex flex-col px-3 py-3 sm:px-4 sm:py-4 gap-3 sm:gap-4 max-w-3xl mx-auto w-full bg-cover bg-center"
     :style="{ backgroundImage: `linear-gradient(rgba(10,14,26,0.7), rgba(10,14,26,0.9)), url(${bgUrl})` }"
   >
     <header class="flex items-center justify-between">
-      <h2 class="text-lg font-bold text-trait-special">새 캐릭터 생성</h2>
+      <h2 class="text-base sm:text-lg font-bold text-trait-special">새 캐릭터 생성</h2>
       <div class="flex gap-2">
-        <button class="btn-secondary text-xs" @click="resetAll">다시 굴리기</button>
-        <button class="btn-secondary text-xs" @click="back">뒤로</button>
+        <button class="btn-secondary text-xs min-h-9 px-3" @click="resetAll">다시 굴리기</button>
+        <button class="btn-secondary text-xs min-h-9 px-3" @click="back">뒤로</button>
       </div>
     </header>
 
     <!-- 도전 보너스 안내 (영구 누적 + 마지막 도전 결과) -->
-    <div v-if="startBonus > 0" class="panel space-y-1 border border-grade-legend/40 bg-grade-legend/5">
+    <div v-if="startBonus > 0" class="rounded-lg border border-grade-legend/40 bg-grade-legend/5 backdrop-blur-sm px-3 py-2 space-y-1">
       <div class="text-sm text-grade-legend font-bold">진짜 보스 도전 누적 보상</div>
       <div v-if="drainPct > 0" class="text-xs text-gray-300">
         마지막 도전: 보스 체력 <span class="text-trait-special font-mono font-bold">{{ drainPct }}/100</span> 깎음
@@ -128,81 +128,84 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
         시작 능력치 총합 50 → <span class="font-mono font-bold">{{ 50 + startBonus }}pt</span>
         (+{{ startBonus }}pt 영구, 5스탯 균등 자동 분배)
       </div>
-      <div class="text-[10px] text-gray-500">탑을 5번 오를 때마다 진짜 보스 도전 → 깎은 만큼(최대 {{ START_STAT_BASE }}pt) 영구 누적</div>
+      <div class="text-xs text-gray-500">탑을 5번 오를 때마다 진짜 보스 도전 → 깎은 만큼(최대 {{ START_STAT_BASE }}pt) 영구 누적</div>
     </div>
 
-    <!-- 주사위 시스템 -->
-    <div class="panel space-y-3">
-      <div class="flex items-baseline justify-between">
-        <div class="text-sm">
-          <span class="text-grade-legend font-bold">🎲 주사위 — 능력치 굴림</span>
-          <div class="text-xs text-gray-500 mt-0.5">시작은 모두 동일. 주사위를 굴려 5스탯에 60pt 랜덤 분배 (각 최소 0, 최대 무제한).</div>
-        </div>
-        <div class="text-xs text-gray-400">남은 굴림 <span class="text-grade-legend font-mono font-bold">{{ game.rollsLeft }}</span> / 3</div>
+    <!-- ====================================================== -->
+    <!-- 주사위 시스템 — grade-legend 액센트                       -->
+    <!-- ====================================================== -->
+    <div class="rounded-lg border border-grade-legend/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
+      <div class="px-3 py-1.5 bg-grade-legend/10 border-b border-grade-legend/30 flex items-center justify-between">
+        <span class="text-xs font-bold text-grade-legend">🎲 주사위 — 능력치 굴림</span>
+        <span class="text-xs text-gray-400">남은 굴림 <span class="text-grade-legend font-mono font-bold">{{ game.rollsLeft }}</span> / 3</span>
       </div>
+      <div class="p-3 space-y-3">
+        <div class="text-xs text-gray-400 leading-snug">시작은 모두 동일. 주사위를 굴려 5스탯에 60pt 랜덤 분배 (각 최소 0, 최대 무제한).</div>
 
-      <!-- 주사위 3개 시각 -->
-      <div class="flex gap-2 justify-center">
-        <div
-          v-for="i in 3"
-          :key="i"
-          :class="[
-            'w-12 h-12 rounded-lg border-2 flex items-center justify-center text-2xl font-bold transition-all',
-            usedDice >= i
-              ? 'border-slate-700 bg-slate-800 text-gray-600'
-              : 'border-grade-legend bg-grade-legend/10 text-grade-legend animate-pulse',
-            rolling && usedDice + 1 === i ? 'rotate-12' : '',
-          ]"
+        <!-- 주사위 3개 시각 -->
+        <div class="flex gap-2 justify-center">
+          <div
+            v-for="i in 3"
+            :key="i"
+            :class="[
+              'w-14 h-14 rounded-lg border-2 flex items-center justify-center text-2xl font-bold transition-all',
+              usedDice >= i
+                ? 'border-slate-700 bg-slate-800 text-gray-600'
+                : 'border-grade-legend bg-grade-legend/10 text-grade-legend animate-pulse',
+              rolling && usedDice + 1 === i ? 'rotate-12' : '',
+            ]"
+          >
+            🎲
+          </div>
+        </div>
+
+        <!-- 현재 스탯 (도전 보너스 자동 분배 적용) -->
+        <div class="grid grid-cols-5 gap-1.5">
+          <div v-for="s in RANDOM_KEYS" :key="s" class="bg-bg-tertiary/70 rounded-md px-1.5 py-1.5 text-center border border-slate-700/40">
+            <div :class="['text-xs font-bold', statColorClass[s]]">{{ s }}</div>
+            <div class="text-lg font-mono font-bold leading-tight">{{ previewStats[s] }}</div>
+          </div>
+        </div>
+        <div class="text-xs text-center">
+          <span class="text-gray-400">총합 </span>
+          <span class="text-log-reward font-mono font-bold">{{ previewSum }}pt</span>
+          <span v-if="startBonus > 0" class="text-gray-500"> (주사위 {{ previewSum - startBonus }} + 영구 보너스 {{ startBonus }})</span>
+        </div>
+
+        <!-- 5스탯 파생 효과 안내 -->
+        <div class="text-xs text-gray-500 text-center leading-snug">
+          힘 → 공격력·관통 / 민첩 → 속도·명중·회피 / 체력 → 방어력·HP / 마력 → MP·마법계수 / 행운 → 크리·발동률·보정
+        </div>
+
+        <button
+          class="btn-primary w-full min-h-11 text-sm font-bold disabled:opacity-30"
+          :disabled="game.rollsLeft <= 0 || rolling"
+          @click="rollDice"
         >
-          🎲
-        </div>
+          <span v-if="rolling">🎲 굴리는 중...</span>
+          <span v-else-if="game.rollsLeft > 0">🎲 주사위 굴리기 ({{ game.rollsLeft }} 남음)</span>
+          <span v-else>주사위 모두 사용함</span>
+        </button>
       </div>
-
-      <!-- 현재 스탯 (도전 보너스 자동 분배 적용) -->
-      <div class="grid grid-cols-3 gap-2">
-        <div v-for="s in RANDOM_KEYS" :key="s" class="bg-bg-tertiary rounded px-2 py-1.5 text-center">
-          <div :class="['text-[10px]', statColorClass[s]]">{{ s }}</div>
-          <div class="text-lg font-mono font-bold">{{ previewStats[s] }}</div>
-        </div>
-      </div>
-      <div class="text-[10px] text-center">
-        <span class="text-gray-400">총합 </span>
-        <span class="text-log-reward font-mono font-bold">{{ previewSum }}pt</span>
-        <span v-if="startBonus > 0" class="text-gray-500"> (주사위 {{ previewSum - startBonus }} + 영구 보너스 {{ startBonus }})</span>
-      </div>
-
-      <!-- 5스탯 파생 효과 안내 -->
-      <div class="text-[10px] text-gray-500 text-center leading-snug">
-        힘 → 공격력·관통 / 민첩 → 속도·명중·회피 / 체력 → 방어력·HP / 마력 → MP·마법계수 / 행운 → 크리·발동률·보정
-      </div>
-
-      <button
-        class="btn-primary w-full disabled:opacity-30"
-        :disabled="game.rollsLeft <= 0 || rolling"
-        @click="rollDice"
-      >
-        <span v-if="rolling">🎲 굴리는 중...</span>
-        <span v-else-if="game.rollsLeft > 0">🎲 주사위 굴리기 ({{ game.rollsLeft }} 남음)</span>
-        <span v-else>주사위 모두 사용함</span>
-      </button>
-
     </div>
 
-    <!-- 챌린지 선택 -->
-    <div class="panel space-y-3">
-      <div class="text-sm text-gray-300">
-        <span class="text-grade-legend font-bold">챌린지 선택</span>
-        <span class="text-gray-500 ml-2 text-xs">하나만 선택 가능 (선택 안 해도 시작 가능)</span>
+    <!-- ====================================================== -->
+    <!-- 챌린지 선택 — pink 액센트 (톤 가이드: 챌린지/특별 이벤트)   -->
+    <!-- ====================================================== -->
+    <div class="rounded-lg border border-pink-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
+      <div class="px-3 py-1.5 bg-pink-950/40 border-b border-pink-400/20 flex items-center justify-between gap-2">
+        <span class="text-xs font-bold text-pink-200">⚔️ 챌린지 선택</span>
+        <span class="text-xs text-pink-200/60">하나만 선택 (또는 미선택)</span>
       </div>
-      <div class="grid gap-2 md:grid-cols-3">
+      <div class="p-2 grid gap-2 md:grid-cols-3">
         <div
           v-for="(c, idx) in game.challengeOptions"
           :key="c.key"
           @click="toggle(c.key)"
           :class="[
-            'cursor-pointer border-2 rounded-lg p-3 transition-all relative',
+            'cursor-pointer border-2 rounded-lg p-3 transition-all relative active:scale-[0.98]',
             isSelected(c.key)
-              ? 'border-grade-legend bg-grade-legend/10'
+              ? 'border-pink-400 bg-pink-500/15 shadow-[0_0_18px_rgba(244,114,182,0.25)]'
               : 'border-slate-700 bg-bg-tertiary hover:bg-bg-hover',
           ]"
         >
@@ -213,54 +216,73 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
             class="absolute -top-3 -right-3 w-14 h-14 object-contain drop-shadow-lg z-10"
             @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
           />
-          <div class="flex items-baseline justify-between mb-1 pr-10">
-            <span :class="['text-xs px-1.5 py-0.5 rounded', c.category === 'instant' ? 'bg-blue-900/40 text-stat-mp' : 'bg-rose-900/40 text-status-bleed']">
+          <div class="flex items-baseline justify-between mb-1.5 pr-10 gap-2">
+            <span :class="['text-xs px-2 py-0.5 rounded font-bold', c.category === 'instant' ? 'bg-cyan-950/60 text-cyan-200 border border-cyan-400/30' : 'bg-rose-950/60 text-rose-200 border border-rose-400/30']">
               {{ c.category === 'instant' ? '즉시 보상' : '리스크 베팅' }}
             </span>
-            <span class="text-[10px] text-gray-500">{{ c.group }}</span>
+            <span class="text-xs text-gray-500">{{ c.group }}</span>
           </div>
-          <h3 :class="[isSelected(c.key) ? 'text-grade-legend' : 'text-gray-100', 'font-bold text-sm']">{{ c.name }}</h3>
-          <p class="text-xs text-gray-400 mt-1">{{ c.description }}</p>
-          <div class="mt-2 space-y-0.5">
-            <div class="text-[11px] text-log-reward">✦ {{ c.reward }}</div>
-            <div class="text-[11px] text-log-damage">✖ {{ c.penalty }}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 메타 보너스 자유 분배 -->
-    <div v-if="bonusAvailable > 0" class="panel space-y-2">
-      <div class="text-sm text-gray-300">
-        <span class="text-log-reward font-bold">누적 보너스 자유 분배</span>
-        <span class="text-gray-500 ml-2 text-xs">사용 {{ used }} / {{ bonusAvailable }}</span>
-      </div>
-      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-        <div v-for="s in STAT_KEYS" :key="s" class="flex items-center justify-between bg-bg-tertiary rounded px-2 py-1.5">
-          <span :class="['text-xs font-mono', statColorClass[s]]">{{ s }}</span>
-          <div class="flex items-center gap-1">
-            <button
-              class="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 text-xs select-none"
-              @pointerdown.prevent="startHold(s, -1)"
-              @pointerup="stopHold"
-              @pointerleave="stopHold"
-              @pointercancel="stopHold"
-              @contextmenu.prevent
-            >-</button>
-            <span class="w-6 text-center text-sm font-mono">{{ allocation[s] ?? 0 }}</span>
-            <button
-              class="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 text-xs select-none"
-              @pointerdown.prevent="startHold(s, +1)"
-              @pointerup="stopHold"
-              @pointerleave="stopHold"
-              @pointercancel="stopHold"
-              @contextmenu.prevent
-            >+</button>
+          <h3 :class="[isSelected(c.key) ? 'text-pink-200' : 'text-gray-100', 'font-bold text-sm']">{{ c.name }}</h3>
+          <p class="text-xs text-gray-400 mt-1 leading-snug">{{ c.description }}</p>
+          <div class="mt-2 space-y-0.5 text-xs">
+            <div class="text-log-reward">✦ {{ c.reward }}</div>
+            <div class="text-log-damage">✖ {{ c.penalty }}</div>
           </div>
         </div>
       </div>
     </div>
 
-    <button class="btn-primary w-full" @click="start">탑 진입</button>
+    <!-- ====================================================== -->
+    <!-- 메타 보너스 자유 분배 — emerald 액센트 (회복/누적 — 톤)    -->
+    <!-- 주사위 스탯과 동일하게 5컬럼 한 줄, 세로 정렬 (+/이름/값/−) -->
+    <!-- ====================================================== -->
+    <div v-if="bonusAvailable > 0" class="rounded-lg border border-emerald-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
+      <div class="px-3 py-1.5 bg-emerald-950/40 border-b border-emerald-400/20 flex items-center justify-between">
+        <span class="text-xs font-bold text-emerald-200">✦ 누적 보너스 자유 분배</span>
+        <span class="text-xs text-emerald-200/80">사용 <span class="font-mono font-bold">{{ used }}</span> / {{ bonusAvailable }}</span>
+      </div>
+      <div class="p-2 grid grid-cols-5 gap-1.5">
+        <div
+          v-for="s in STAT_KEYS"
+          :key="s"
+          class="flex flex-col items-center gap-1 bg-bg-tertiary/60 rounded-md px-1 py-1.5 border border-slate-700/40"
+        >
+          <!-- + (위) -->
+          <button
+            class="w-9 h-9 rounded-md bg-emerald-700/60 hover:bg-emerald-700 active:scale-95 text-lg font-bold leading-none select-none transition disabled:opacity-30"
+            :disabled="used >= bonusAvailable"
+            @pointerdown.prevent="startHold(s, +1)"
+            @pointerup="stopHold"
+            @pointerleave="stopHold"
+            @pointercancel="stopHold"
+            @contextmenu.prevent
+          >+</button>
+          <!-- 스탯 이름 -->
+          <span :class="['text-xs font-bold font-mono', statColorClass[s]]">{{ s }}</span>
+          <!-- 값 -->
+          <span class="text-base font-mono font-bold tabular-nums leading-none">{{ allocation[s] ?? 0 }}</span>
+          <!-- − (아래) -->
+          <button
+            class="w-9 h-9 rounded-md bg-slate-700 hover:bg-slate-600 active:scale-95 text-lg font-bold leading-none select-none transition disabled:opacity-30"
+            :disabled="(allocation[s] ?? 0) === 0"
+            @pointerdown.prevent="startHold(s, -1)"
+            @pointerup="stopHold"
+            @pointerleave="stopHold"
+            @pointercancel="stopHold"
+            @contextmenu.prevent
+          >−</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================== -->
+    <!-- 하단 sticky — 탑 진입                                     -->
+    <!-- ====================================================== -->
+    <div class="sticky bottom-0 z-10 pt-3 pb-1 bg-gradient-to-t from-bg-primary/95 to-bg-primary/0">
+      <button
+        class="btn-primary w-full min-h-12 text-base font-bold tracking-wide"
+        @click="start"
+      >탑 진입</button>
+    </div>
   </section>
 </template>

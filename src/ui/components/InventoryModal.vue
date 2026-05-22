@@ -2,6 +2,8 @@
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import ItemDetail from '@/ui/components/ItemDetail.vue'
+import { canEquipItem } from '@/core/challengeRuntime'
+import type { ItemInstance } from '@/types'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
@@ -28,9 +30,16 @@ async function unequipSlot(slot: 'weapon' | 'armor') {
   const result = game.unequipToInventory(slot)
   if (!result.ok) await game.alertModal(result.reason ?? '해제 실패', '해제 실패')
 }
+
+// 챌린지 제약 체크
+function checkEquip(item: ItemInstance): { ok: boolean; reason?: string } {
+  if (!game.challengeContext) return { ok: true }
+  return canEquipItem(item, game.challengeContext)
+}
 </script>
 
 <template>
+  <Teleport to="body">
   <div
     v-if="props.open"
     class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-3 py-6"
@@ -51,7 +60,7 @@ async function unequipSlot(slot: 'weapon' | 'armor') {
         <!-- 무기 -->
         <div class="bg-bg-tertiary rounded p-2 space-y-2">
           <div class="flex items-center justify-between gap-2">
-            <div class="text-[10px] text-gray-500">무기</div>
+            <div class="text-xs text-gray-500">무기</div>
             <button
               v-if="c.weapon"
               class="text-xs px-2 py-1 rounded bg-slate-700 text-gray-300 hover:bg-slate-600"
@@ -59,12 +68,12 @@ async function unequipSlot(slot: 'weapon' | 'armor') {
             >해제</button>
           </div>
           <ItemDetail v-if="c.weapon" :item="c.weapon" :character="c" />
-          <div v-else class="text-xs text-gray-600 text-center py-2">맨손</div>
+          <div v-else class="text-xs text-gray-600 text-center py-2">미 착용</div>
         </div>
         <!-- 갑옷 -->
         <div class="bg-bg-tertiary rounded p-2 space-y-2">
           <div class="flex items-center justify-between gap-2">
-            <div class="text-[10px] text-gray-500">갑옷</div>
+            <div class="text-xs text-gray-500">갑옷</div>
             <button
               v-if="c.armor"
               class="text-xs px-2 py-1 rounded bg-slate-700 text-gray-300 hover:bg-slate-600"
@@ -88,17 +97,26 @@ async function unequipSlot(slot: 'weapon' | 'armor') {
           >
             <ItemDetail :item="item" :character="c" />
             <div class="flex gap-1">
-              <button class="flex-1 text-xs px-2 py-1 rounded bg-log-skill/30 text-log-skill hover:bg-log-skill/50" @click="equipItem(idx)">
-                장착
-              </button>
+              <button
+                v-if="!checkEquip(item).ok"
+                class="flex-1 text-xs px-2 py-1 rounded bg-rose-950/40 text-rose-300 border border-rose-500/40 cursor-not-allowed font-bold"
+                :disabled="true"
+                :title="checkEquip(item).reason"
+              >착용불가</button>
+              <button
+                v-else
+                class="flex-1 text-xs px-2 py-1 rounded bg-log-skill/30 text-log-skill hover:bg-log-skill/50"
+                @click="equipItem(idx)"
+              >장착</button>
               <button class="text-xs px-3 py-1 rounded bg-slate-700 text-gray-400 hover:bg-slate-600" @click="discardItem(idx)" title="폐기">
                 ✕ 폐기
               </button>
             </div>
           </div>
         </div>
-        <div class="text-[10px] text-gray-600 text-center">판매는 상점에서만 가능합니다.</div>
+        <div class="text-xs text-gray-600 text-center">판매는 상점에서만 가능합니다.</div>
       </section>
     </div>
   </div>
+  </Teleport>
 </template>

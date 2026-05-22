@@ -114,6 +114,11 @@ export function mainImageUrl(): string {
   return '/images/main.png?v=3'
 }
 
+// 세로 화면 (안드로이드 / portrait) 전용 메인 일러스트
+export function mainImagePortraitUrl(): string {
+  return '/images/main-portrait.png?v=2'
+}
+
 // 진짜 보스 도전 이미지 (챕터 테마 → 보스 일러스트)
 export function realBossImageUrl(theme: ChapterTheme): string {
   return `/images/REALBOSS/${theme}.png`

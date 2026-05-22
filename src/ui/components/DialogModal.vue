@@ -19,6 +19,7 @@ function dismiss() {
 </script>
 
 <template>
+  <Teleport to="body">
   <div
     v-if="dialog"
     class="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4"
@@ -47,4 +48,5 @@ function dismiss() {
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
