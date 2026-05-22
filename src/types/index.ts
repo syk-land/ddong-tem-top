@@ -284,8 +284,10 @@ export interface TowerRun {
   inventoryCap: number         // 기본 6, 미니멀리스트 = 0
   // 선택한 챌린지 (key 보관 — 복원 시 컨텍스트 재생성)
   challengeKeys?: string[]
-  // v10: 광고 보고 부활 — 런당 1회
-  adReviveUsed?: boolean
+  // 광고 보상 — 등반(run) 1회당 1번 시청, 효과는 런 끝까지 유지
+  adReviveUsed?: boolean        // 부활 (보상으로 1회 부활 후 사용됨)
+  adFastSpeedUnlocked?: boolean // 광고 시청 후 4배속 자유롭게 토글 가능
+  adAutoEnterUnlocked?: boolean // 광고 시청 후 자동 진입 자유롭게 토글 가능
 }
 
 // ====== 상점 ======

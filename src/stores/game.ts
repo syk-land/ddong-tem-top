@@ -40,6 +40,7 @@ import {
 } from '@/core/challengeRuntime'
 import { computeWeaponSkillProc } from '@/core/buildBalance'
 import { npcIconUrl, pickRandomUserAvatars, isValidAvatarKey, allUserAvatarKeys } from '@/ui/images'
+import { showRewardedAd } from '@/lib/ads'
 import { sfx } from '@/ui/sound'
 import { computeEffectiveStats } from '@/core/stats'
 import { SKILLS as SKILLS_REF } from '@/data/skills'
@@ -898,6 +899,18 @@ export const useGameStore = defineStore('game', {
       } catch {}
     },
 
+    // 광고 시청 후 4배속·자동진입 잠금 해제 (등반 1회당 1번)
+    unlockAdFastSpeed() {
+      if (!this.run) return
+      this.run.adFastSpeedUnlocked = true
+      saveRun(this.run)
+    },
+    unlockAdAutoEnter() {
+      if (!this.run) return
+      this.run.adAutoEnterUnlocked = true
+      saveRun(this.run)
+    },
+
     setPaused(on: boolean) {
       this.paused = on
     },
@@ -1264,17 +1277,23 @@ export const useGameStore = defineStore('game', {
             { title: '💀 사망', okLabel: '예 (광고 시청)', cancelLabel: '아니오' }
           )
           if (revive) {
-            // 추후 AdMob/AdSense 연동 자리 — 지금은 즉시 부활
-            this.run.adReviveUsed = true
-            this.combat.player.hp = this.combat.player.maxHp
-            this.combat.player.mp = this.combat.player.maxMp
-            this.combat.player.statuses = []
-            this.combat.player.silencedUntilTick = undefined
-            this.combat.ended = false
-            this.combat.victory = false
-            pushLog(this.combat, '✨ 부활! (광고 시청 보상)', 'reward')
-            saveRun(this.run)
-            return
+            // AdMob Rewarded Ad — 시청 완료 시에만 부활. 웹/dev 환경에선 즉시 true 반환.
+            const watched = await showRewardedAd('revive')
+            if (!watched) {
+              await this.alertModal('광고 시청이 완료되지 않아 부활할 수 없습니다.', '부활 실패')
+              // fallthrough → 게임오버
+            } else {
+              this.run.adReviveUsed = true
+              this.combat.player.hp = this.combat.player.maxHp
+              this.combat.player.mp = this.combat.player.maxMp
+              this.combat.player.statuses = []
+              this.combat.player.silencedUntilTick = undefined
+              this.combat.ended = false
+              this.combat.victory = false
+              pushLog(this.combat, '✨ 부활! (광고 시청 보상)', 'reward')
+              saveRun(this.run)
+              return
+            }
           }
         }
         // 사망 → 게임 오버. (도전 모드 카운터는 클리어만 증가하므로 여기선 카운트 X)

@@ -8,6 +8,7 @@ import {
   getBgmVolume, setBgmVolume,
   sfx,
 } from '@/ui/sound'
+import { showRewardedAd } from '@/lib/ads'
 
 const game = useGameStore()
 const speeds = [1, 2, 4] as const
@@ -66,14 +67,20 @@ function bumpActivity() {
 async function setSpeed(s: number) {
   sfx.click()
   bumpActivity()
-  // 4배속은 광고 시청 후 사용 (PoC: 모달만 — 실제 광고 SDK는 별도 연동)
-  if (s === 4 && game.combatSpeed !== 4) {
-    const ok = await game.confirmModal('광고를 보고 4배속을 사용하시겠습니까?', {
-      title: '광고 시청',
+  // 4배속 — 등반 1회당 광고 1번 시청 → 그 런 끝까지 자유 토글
+  if (s === 4 && game.combatSpeed !== 4 && !game.run?.adFastSpeedUnlocked) {
+    const ok = await game.confirmModal('광고를 보고 이번 등반 동안 4배속을 사용하시겠습니까?', {
+      title: '광고 시청 (등반 1회 1번)',
       okLabel: '예 (광고 보기)',
       cancelLabel: '아니오',
     })
     if (!ok) return
+    const watched = await showRewardedAd('fastSpeed')
+    if (!watched) {
+      await game.alertModal('광고 시청이 완료되지 않았습니다.', '활성화 실패')
+      return
+    }
+    game.unlockAdFastSpeed()
   }
   game.setCombatSpeed(s)
 }
@@ -81,14 +88,20 @@ async function setSpeed(s: number) {
 async function toggleAutoEnter() {
   sfx.click()
   bumpActivity()
-  // OFF → ON 전환만 광고 (ON → OFF 는 즉시 해제)
-  if (!game.autoEnter) {
-    const ok = await game.confirmModal('광고를 보고 자동 진입을 사용하시겠습니까?', {
-      title: '광고 시청',
+  // 자동진입 — 등반 1회당 광고 1번 시청 → 그 런 끝까지 자유 토글
+  if (!game.autoEnter && !game.run?.adAutoEnterUnlocked) {
+    const ok = await game.confirmModal('광고를 보고 이번 등반 동안 자동 진입을 사용하시겠습니까?', {
+      title: '광고 시청 (등반 1회 1번)',
       okLabel: '예 (광고 보기)',
       cancelLabel: '아니오',
     })
     if (!ok) return
+    const watched = await showRewardedAd('autoEnter')
+    if (!watched) {
+      await game.alertModal('광고 시청이 완료되지 않았습니다.', '활성화 실패')
+      return
+    }
+    game.unlockAdAutoEnter()
   }
   game.setAutoEnter(!game.autoEnter)
 }
