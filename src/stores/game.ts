@@ -353,12 +353,16 @@ export const useGameStore = defineStore('game', {
     // saveMeta + 클라우드 fire-and-forget 동기화 헬퍼.
     // 순환 import 방지를 위해 auth store 는 lazy require.
     persistMeta() {
+      // 로컬은 즉시 저장 (오프라인 대비). 클라우드 쓰기는 디바운스로 묶어
+      // Firestore 쓰기 한도 (무료 20K/일) 를 보호한다. 디바운스 윈도우는
+      // auth.ts 의 CLOUD_SYNC_DEBOUNCE_MS 참조. 즉시 동기화가 필요한 시점
+      // (클리어/로그아웃/탭 숨김) 은 호출 측에서 flushSyncMetaToCloud() 사용.
       saveMeta(this.meta)
       try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         import('./auth').then(({ useAuthStore }) => {
           const a = useAuthStore()
-          if (a.isLoggedIn) a.syncMetaToCloud().catch(() => {})
+          if (a.isLoggedIn) a.queueSyncMetaToCloud()
         }).catch(() => {})
       } catch {}
     },

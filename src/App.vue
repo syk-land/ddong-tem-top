@@ -86,6 +86,9 @@ function onVisibility() {
   if (document.hidden) {
     game.setPaused(true)
     pauseBgm()
+    // 사용자가 탭을 닫을 수 있으므로 보류된 클라우드 sync 를 즉시 발사.
+    // 실패해도 게임 흐름엔 영향 없으므로 fire-and-forget.
+    auth.flushSyncMetaToCloud().catch(() => {})
   } else {
     game.setPaused(false)
     // 현재 화면에 맞는 BGM 재개 — pauseBgm 시점에 저장된 kind 와 동일하면 resume.

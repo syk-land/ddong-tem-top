@@ -103,7 +103,9 @@ async function resetMeta() {
   if (!ok) return
   // 로그인 상태면 Firestore 사용자 문서 (meta + leaderboard) 삭제 — 안 하면
   // reload 후 auth listener 가 cloud meta 를 다시 받아와 클라우드 값으로 덮어씀.
+  // 보류 중인 sync 타이머는 먼저 취소 (delete 직후 발화하면 cloud 가 다시 살아남).
   if (auth.uid) {
+    auth.cancelPendingSync()
     await deleteCloudUserData(auth.uid)
   }
   // climetop: 프리픽스 가진 모든 키 일괄 삭제 —
