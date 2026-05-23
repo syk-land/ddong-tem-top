@@ -24,6 +24,7 @@
 | 13 | [자동화 모드 (dev)](./features/auto-mode.md) | `combatSpeed ≥ 5` 진입 시 자동 진입·매수·장착·이벤트 거부 + tick 배치 처리. 5~999 자유 |
 | 14 | [WebP 이미지 파이프라인](./features/webp-pipeline.md) | 모든 일러스트/아이콘 WebP 화 + 캐릭터 그리드 분할 자동화. PNG 대비 -90~-95% 용량 |
 | 15 | [시스템 다크모드 강제 변환 차단](./features/dark-mode-block.md) | `color-scheme: dark` 메타·CSS + `forceDarkAllowed=false` 로 추가 어둡게 처리 차단 |
+| 16 | [v10 밸런스 리밸런싱](./features/v10-balance.md) | 전투 템포 1초당 10 tick + HP/MP 풀 ×2 + 챕터 1~4 보스 약화 + 행운 골드 보너스 제거 |
 
 ---
 
