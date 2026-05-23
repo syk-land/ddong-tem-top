@@ -190,9 +190,6 @@ function advance() {
   }
   game.completeTutorial()
 }
-function close() {
-  game.completeTutorial()
-}
 
 async function skipAll() {
   const ok = await game.confirmModal(
@@ -336,19 +333,13 @@ onUnmounted(() => {
       </div>
 
       <!-- 카드 wrapper 는 pointer-events-none — 카드 영역과 타겟 버튼이 겹쳐도
-           타겟 클릭이 그대로 통과한다. 카드 내부의 클릭 가능한 버튼(×, CTA) 만
-           pointer-events-auto 로 활성화. -->
+           타겟 클릭이 그대로 통과한다. 카드 내부의 클릭 가능한 버튼(CTA) 만
+           pointer-events-auto 로 활성화. 닫기 X 는 의도적으로 제거 — 사용자가
+           튜토리얼을 끄려면 좌상단 "튜토리얼 전체 건너뛰기" 만 사용. -->
       <div
         ref="cardRef"
         class="relative rounded-2xl bg-zinc-900 ring-1 ring-cyan-500/40 shadow-2xl p-5 text-zinc-100 pointer-events-none"
       >
-        <!-- 닫기 버튼 -->
-        <button
-          class="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 pointer-events-auto"
-          @click.stop="close"
-          aria-label="튜토리얼 닫기"
-        >×</button>
-
         <!-- 페이지 인디케이터 -->
         <div v-if="def.pages.length > 1" class="flex items-center gap-1.5 mb-2">
           <span
@@ -405,12 +396,7 @@ onUnmounted(() => {
         class="relative w-full max-w-md rounded-2xl bg-zinc-900 ring-1 ring-cyan-500/40 shadow-2xl p-5 text-zinc-100"
         @click.stop
       >
-        <button
-          class="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
-          @click.stop="close"
-          aria-label="튜토리얼 닫기"
-        >×</button>
-
+        <!-- 닫기 X 의도적으로 제거. 튜토리얼 종료는 좌상단 "전체 건너뛰기" 단일 경로. -->
         <div v-if="def.pages.length > 1" class="flex items-center gap-1.5 mb-2">
           <span
             v-for="(_, i) in def.pages"
