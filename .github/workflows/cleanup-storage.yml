@@ -1,0 +1,152 @@
+name: Cleanup Actions Storage
+
+# main 브랜치 run/artifact 는 보존하고,
+# 그 외 브랜치에서는 워크플로우별로 가장 최신 1개만 남기고
+# 나머지 run + artifact 를 모두 삭제합니다.
+#
+# 사용 방법:
+#   1. Actions 탭 → "Cleanup Actions Storage" → Run workflow
+#      - dry_run: true  로 먼저 돌려서 무엇이 지워질지 확인
+#      - dry_run: false 로 실제 삭제
+#   2. 스케줄(매일 새벽 3시 UTC)로도 자동 실행됨
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'true 면 실제 삭제하지 않고 대상만 출력'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+  schedule:
+    # 매일 03:00 UTC (KST 12:00)
+    - cron: '0 3 * * *'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cleanup workflow runs and artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+
+          KEEP_BRANCH="main"
+          echo "Repository: $REPO"
+          echo "Keep branch: $KEEP_BRANCH"
+          echo "Dry run: $DRY_RUN"
+          echo "----------------------------------------"
+
+          # 모든 워크플로우 ID 조회
+          workflow_ids=$(gh api -X GET "repos/$REPO/actions/workflows" --paginate \
+            --jq '.workflows[].id')
+
+          total_deleted=0
+          total_kept=0
+
+          for wf_id in $workflow_ids; do
+            wf_name=$(gh api "repos/$REPO/actions/workflows/$wf_id" --jq '.name')
+            echo ""
+            echo "=== Workflow: $wf_name (id=$wf_id) ==="
+
+            # 해당 워크플로우의 모든 run 조회 (최신순)
+            runs_json=$(gh api -X GET "repos/$REPO/actions/workflows/$wf_id/runs" \
+              --paginate \
+              --jq '[.workflow_runs[] | {id, head_branch, created_at, status, conclusion}]' \
+              | jq -s 'add // []')
+
+            # main 브랜치가 아닌 run 중, 워크플로우별 최신 1개만 보존
+            # (main 브랜치 run 은 모두 보존)
+            non_main_kept_id=$(echo "$runs_json" \
+              | jq -r --arg keep "$KEEP_BRANCH" \
+                '[.[] | select(.head_branch != $keep)]
+                 | sort_by(.created_at) | reverse | .[0].id // empty')
+
+            echo "$runs_json" | jq -c '.[]' | while read -r run; do
+              run_id=$(echo "$run" | jq -r '.id')
+              branch=$(echo "$run" | jq -r '.head_branch')
+              created=$(echo "$run" | jq -r '.created_at')
+
+              if [ "$branch" = "$KEEP_BRANCH" ]; then
+                echo "  KEEP  run=$run_id branch=$branch ($created) [main]"
+                continue
+              fi
+
+              if [ "$run_id" = "$non_main_kept_id" ]; then
+                echo "  KEEP  run=$run_id branch=$branch ($created) [latest non-main]"
+                continue
+              fi
+
+              if [ "$DRY_RUN" = "true" ]; then
+                echo "  DRY   run=$run_id branch=$branch ($created)"
+              else
+                # run 삭제 시 해당 run 의 artifact 도 함께 삭제됨
+                if gh api -X DELETE "repos/$REPO/actions/runs/$run_id" --silent 2>/dev/null; then
+                  echo "  DEL   run=$run_id branch=$branch ($created)"
+                else
+                  echo "  FAIL  run=$run_id branch=$branch ($created)"
+                fi
+              fi
+            done
+          done
+
+          echo ""
+          echo "----------------------------------------"
+          echo "Cleanup complete (dry_run=$DRY_RUN)"
+
+      - name: Cleanup orphan artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+
+          KEEP_BRANCH="main"
+          echo "Sweeping artifacts not on $KEEP_BRANCH..."
+
+          # run 삭제로 대부분 정리되지만, 누락 대비해 artifact 도 한번 더 스윕
+          artifacts_json=$(gh api -X GET "repos/$REPO/actions/artifacts" --paginate \
+            --jq '[.artifacts[] | {id, name, created_at, expired,
+                                   branch: .workflow_run.head_branch}]' \
+            | jq -s 'add // []')
+
+          echo "$artifacts_json" | jq -c '.[]' | while read -r art; do
+            art_id=$(echo "$art" | jq -r '.id')
+            art_name=$(echo "$art" | jq -r '.name')
+            branch=$(echo "$art" | jq -r '.branch // "unknown"')
+            created=$(echo "$art" | jq -r '.created_at')
+            expired=$(echo "$art" | jq -r '.expired')
+
+            if [ "$branch" = "$KEEP_BRANCH" ]; then
+              echo "  KEEP  artifact=$art_id name=$art_name branch=$branch"
+              continue
+            fi
+
+            if [ "$expired" = "true" ]; then
+              echo "  SKIP  artifact=$art_id name=$art_name (already expired)"
+              continue
+            fi
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "  DRY   artifact=$art_id name=$art_name branch=$branch ($created)"
+            else
+              if gh api -X DELETE "repos/$REPO/actions/artifacts/$art_id" --silent 2>/dev/null; then
+                echo "  DEL   artifact=$art_id name=$art_name branch=$branch ($created)"
+              else
+                echo "  FAIL  artifact=$art_id name=$art_name branch=$branch"
+              fi
+            fi
+          done
+
+          echo "Artifact sweep complete"
