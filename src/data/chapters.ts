@@ -154,9 +154,11 @@ export interface BaselineStats {
 }
 
 // v9 일반 몬스터
+// v10: HP ×2 (플레이어 HP ×2 와 보조 맞춤). 보스/미믹 베이스라인이 이 값에서 파생되므로
+//   여기만 늘리면 자동 전파.
 export function getNormalMonsterBaseline(chapter: number): BaselineStats {
   return {
-    hp: 50 + 6 * chapter,
+    hp: 100 + 12 * chapter,
     atk: 8 + 1.2 * chapter,
     def: 3 + 1.0 * chapter,       // 챕터 1 = 4%, 챕터 10 = 13%
     speed: 8,
@@ -167,11 +169,20 @@ export function getNormalMonsterBaseline(chapter: number): BaselineStats {
 }
 
 // v9 보스 — 도전감 위해 hp/atk 강화
+// v10: 챕터 1~4 보스는 초반 진입 장벽 완화 위해 hp/atk 일부 감산.
+//   ch5+ 부터는 풀 강도(=1.0). 챕터 6~10 하드 보스는 영향 없음.
+const EARLY_BOSS_SOFTNESS: Record<number, { hp: number; atk: number }> = {
+  1: { hp: 0.70, atk: 0.80 },
+  2: { hp: 0.78, atk: 0.85 },
+  3: { hp: 0.86, atk: 0.90 },
+  4: { hp: 0.93, atk: 0.95 },
+}
 export function getBossBaseline(chapter: number): BaselineStats {
   const n = getNormalMonsterBaseline(chapter)
+  const soft = EARLY_BOSS_SOFTNESS[chapter] ?? { hp: 1.0, atk: 1.0 }
   return {
-    hp: n.hp * 16.0,
-    atk: n.atk * 1.7,
+    hp: n.hp * 16.0 * soft.hp,
+    atk: n.atk * 1.7 * soft.atk,
     def: n.def * 1.55,
     speed: 10,
     ticks: 8,                     // 보스는 빠름

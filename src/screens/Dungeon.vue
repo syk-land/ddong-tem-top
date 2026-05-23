@@ -10,7 +10,7 @@ import StatusBadges from '@/ui/components/StatusBadges.vue'
 import StatusModal from '@/ui/components/StatusModal.vue'
 import InventoryModal from '@/ui/components/InventoryModal.vue'
 import ItemDetail from '@/ui/components/ItemDetail.vue'
-import { themeBgUrl, floorContentImage, playerImageUrl, userAvatarLabel } from '@/ui/images'
+import { themeBgUrl, floorContentImage, playerImageUrl } from '@/ui/images'
 import type { ItemInstance } from '@/types'
 
 const game = useGameStore()
@@ -239,60 +239,75 @@ const floorAccent = computed(() => {
     </div>
 
     <!-- ④ 내 상태 — cyan 액센트 (Combat 플레이어 카드와 일관) -->
-    <div class="rounded-lg border border-cyan-500/40 bg-bg-secondary/60 backdrop-blur-sm shadow-[0_0_18px_rgba(34,211,238,0.12)_inset]">
-      <!-- 헤더 행: 아바타 + 라벨 + 골드 칩 -->
-      <div class="px-3 py-2 flex items-center gap-2 border-b border-cyan-500/20 bg-cyan-950/20">
-        <img
+    <!-- 좌측: 전신 풀하이트  /  우측: 이름·골드·HP/MP·챌린지·장비·상태 -->
+    <div class="rounded-lg border border-cyan-500/40 bg-bg-secondary/60 backdrop-blur-sm shadow-[0_0_18px_rgba(34,211,238,0.12)_inset] overflow-hidden">
+      <div class="flex items-stretch">
+        <!-- 좌: 전신 (세로 풀하이트) -->
+        <!-- HP/MP/무기/방어구 각각 1행씩 = 4행 풀폭 + 헤더 → 카드가 자연스럽게 길어진다.
+             좌측 이미지는 그 길이를 따라 더 크게 보임. portrait aspect 보장으로 최소 높이도 확보. -->
+        <div
           v-if="game.runAvatar"
-          :src="playerImageUrl(game.runAvatar)"
-          :alt="userAvatarLabel(game.runAvatar)"
-          class="w-9 h-9 rounded-full object-cover border-2 border-cyan-500/40 shrink-0"
-          @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
-        />
-        <div class="text-sm font-bold text-cyan-100 truncate flex-1">
-          {{ game.runAvatar ? userAvatarLabel(game.runAvatar) : '모험가' }}
-        </div>
-        <div class="px-2.5 py-1 rounded-md bg-amber-950/60 border border-amber-400/40 text-stat-luck text-sm font-bold font-mono shrink-0 flex items-center gap-1">
-          <span class="text-amber-400">⬢</span>
-          <span class="tabular-nums">{{ c.gold }}G</span>
-        </div>
-      </div>
-
-      <!-- 본문 -->
-      <div class="px-3 py-2.5 space-y-2">
-        <div class="grid grid-cols-2 gap-3">
-          <HpMpBar :current="c.hp" :max="c.maxHp" kind="hp" />
-          <HpMpBar :current="c.mp" :max="c.maxMp" kind="mp" />
+          class="relative shrink-0 w-32 sm:w-40 min-h-[200px] bg-cyan-950/25 border-r border-cyan-500/20"
+        >
+          <img
+            :src="playerImageUrl(game.runAvatar)"
+            :alt="game.characterName(game.runAvatar)"
+            class="absolute inset-0 w-full h-full object-cover"
+            @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+          />
+          <div class="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-bg-secondary/50 to-transparent pointer-events-none" />
         </div>
 
-        <!-- 챌린지 줄 (있을 때만) -->
-        <div v-if="challengeOneLine" class="text-xs text-trait-special truncate flex items-center gap-1">
-          <span class="shrink-0">🎯</span>
-          <span class="truncate">{{ challengeOneLine }}</span>
-        </div>
+        <!-- 우: 정보 컬럼 -->
+        <div class="flex-1 min-w-0 flex flex-col">
+          <!-- 헤더: 이름 + 골드 -->
+          <div class="px-3 py-2 flex items-center gap-2 border-b border-cyan-500/20 bg-cyan-950/20">
+            <div class="text-sm font-bold text-cyan-100 truncate flex-1">
+              {{ game.characterName(game.runAvatar) }}
+            </div>
+            <div class="px-2 py-1 rounded-md bg-amber-950/60 border border-amber-400/40 text-stat-luck text-xs font-bold font-mono shrink-0 flex items-center gap-1">
+              <span class="text-amber-400">⬢</span>
+              <span class="tabular-nums">{{ c.gold }}G</span>
+            </div>
+          </div>
 
-        <div class="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            class="bg-bg-tertiary/80 rounded-md px-2 py-2 border border-slate-700/50 text-left hover:border-cyan-500/40 hover:bg-bg-tertiary transition-colors active:scale-[0.98] flex items-center min-h-11 whitespace-nowrap overflow-hidden"
-            :disabled="!c.weapon"
-            @click="c.weapon && (equipDetail = c.weapon)"
-            :title="c.weapon ? '장비 상세 보기' : '장착된 무기 없음'"
-          >
-            <ItemName :item="c.weapon" compact />
-          </button>
-          <button
-            type="button"
-            class="bg-bg-tertiary/80 rounded-md px-2 py-2 border border-slate-700/50 text-left hover:border-cyan-500/40 hover:bg-bg-tertiary transition-colors active:scale-[0.98] flex items-center min-h-11 whitespace-nowrap overflow-hidden"
-            :disabled="!c.armor"
-            @click="c.armor && (equipDetail = c.armor)"
-            :title="c.armor ? '장비 상세 보기' : '장착된 갑옷 없음'"
-          >
-            <ItemName :item="c.armor" compact />
-          </button>
-        </div>
+          <!-- 본문 — 각 항목 1행 풀폭 -->
+          <div class="px-3 py-2 space-y-1.5 flex-1 flex flex-col">
+            <!-- HP 1행 -->
+            <HpMpBar :current="c.hp" :max="c.maxHp" kind="hp" />
+            <!-- MP 1행 -->
+            <HpMpBar :current="c.mp" :max="c.maxMp" kind="mp" />
 
-        <StatusBadges v-if="c.statuses.length" :statuses="c.statuses" />
+            <!-- 무기 1행 (풀폭, 글씨 안 잘림) -->
+            <button
+              type="button"
+              class="w-full bg-bg-tertiary/80 rounded-md px-2 py-1.5 border border-slate-700/50 text-left hover:border-cyan-500/40 hover:bg-bg-tertiary transition-colors active:scale-[0.99] flex items-center min-h-10"
+              :disabled="!c.weapon"
+              @click="c.weapon && (equipDetail = c.weapon)"
+              :title="c.weapon ? '장비 상세 보기' : '장착된 무기 없음'"
+            >
+              <ItemName :item="c.weapon" compact />
+            </button>
+            <!-- 방어구 1행 (풀폭, 글씨 안 잘림) -->
+            <button
+              type="button"
+              class="w-full bg-bg-tertiary/80 rounded-md px-2 py-1.5 border border-slate-700/50 text-left hover:border-cyan-500/40 hover:bg-bg-tertiary transition-colors active:scale-[0.99] flex items-center min-h-10"
+              :disabled="!c.armor"
+              @click="c.armor && (equipDetail = c.armor)"
+              :title="c.armor ? '장비 상세 보기' : '장착된 갑옷 없음'"
+            >
+              <ItemName :item="c.armor" compact />
+            </button>
+
+            <!-- 챌린지 줄 (있을 때만) -->
+            <div v-if="challengeOneLine" class="text-xs text-trait-special truncate flex items-center gap-1">
+              <span class="shrink-0">🎯</span>
+              <span class="truncate">{{ challengeOneLine }}</span>
+            </div>
+
+            <StatusBadges v-if="c.statuses.length" :statuses="c.statuses" />
+          </div>
+        </div>
       </div>
     </div>
 

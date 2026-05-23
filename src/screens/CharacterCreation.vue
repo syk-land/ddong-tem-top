@@ -4,8 +4,11 @@ import { useGameStore } from '@/stores/game'
 import type { Stats, StatKey } from '@/types'
 import { statColorClass } from '@/ui/colors'
 import { uniformStartingStats } from '@/core/character'
-import { mainImageUrl } from '@/ui/images'
+import { mainImageUrl, allUserAvatarKeys, userAvatarUrl, userBustUrl } from '@/ui/images'
 import { START_STAT_BASE } from '@/core/realboss'
+
+// GameMonetize 서브디렉토리 호스팅 호환 — 상대경로 prefix
+const A = import.meta.env.BASE_URL.replace(/\/$/, '')
 
 const bgUrl = mainImageUrl()
 
@@ -114,6 +117,48 @@ const usedDice = computed(() => 3 - game.rollsLeft)
 const startBonus = computed(() => (game.meta.permanentStartBonus ?? 0) + (game.meta.pendingStartBonus ?? 0))
 const permanentBonus = computed(() => game.meta.permanentStartBonus ?? 0)
 const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) * 100))
+
+// 캐릭터 외형 선택 (10명 거지템 모에)
+//   메인 화면은 현재 선택 흉상만 표시, "변경" 버튼으로 모달 열어 전신 좌우 페이저.
+const avatarKeys = allUserAvatarKeys()
+
+const pickerOpen = ref(false)
+const pickerIndex = ref(0)
+
+function openPicker() {
+  const cur = game.selectedAvatar
+  const idx = cur ? avatarKeys.indexOf(cur) : 0
+  pickerIndex.value = idx >= 0 ? idx : 0
+  pickerOpen.value = true
+}
+function closePicker() {
+  pickerOpen.value = false
+}
+function pickerPrev() {
+  pickerIndex.value = (pickerIndex.value - 1 + avatarKeys.length) % avatarKeys.length
+}
+function pickerNext() {
+  pickerIndex.value = (pickerIndex.value + 1) % avatarKeys.length
+}
+function pickerConfirm() {
+  const key = avatarKeys[pickerIndex.value]
+  if (key) game.selectAvatar(key)
+  pickerOpen.value = false
+}
+
+// 유저 캐릭터 이름 편집 — 단일 이름, LS 영구 저장.
+async function editPlayerName() {
+  const current = game.characterName(game.selectedAvatar)
+  const input = await game.showInputDialog({
+    title: '캐릭터 이름 변경',
+    message: '새 이름을 입력하세요 (최대 12자, 비우면 추천 이름으로 복귀)',
+    defaultValue: current,
+    placeholder: current,
+    okLabel: '저장',
+  })
+  if (input === null) return
+  game.setPlayerName(input)
+}
 </script>
 
 <template>
@@ -140,6 +185,43 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
         (+{{ startBonus }}pt 영구, 5스탯 균등 자동 분배)
       </div>
       <div class="text-xs text-gray-500">탑을 5번 오를 때마다 진짜 보스 도전 → 깎은 만큼(최대 {{ START_STAT_BASE }}pt) 영구 누적</div>
+    </div>
+
+    <!-- ====================================================== -->
+    <!-- 캐릭터 외형 — sky 액센트                                  -->
+    <!-- 현재 선택 캐릭터 흉상 + "변경" 버튼 (모달에서 좌우 페이저)   -->
+    <!-- ====================================================== -->
+    <div class="rounded-lg border border-sky-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
+      <div class="px-3 py-1.5 bg-sky-950/40 border-b border-sky-400/20 flex items-center justify-between">
+        <span class="text-xs font-bold text-sky-200">🧍 캐릭터 외형</span>
+        <span class="text-xs text-sky-200/60">전투 시 흉상으로 등장</span>
+      </div>
+      <div class="p-3 flex items-center gap-3">
+        <img
+          v-if="game.selectedAvatar"
+          :src="userBustUrl(game.selectedAvatar)"
+          :alt="game.characterName(game.selectedAvatar)"
+          class="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border border-sky-400/40 shadow-[0_0_14px_rgba(56,189,248,0.35)]"
+          @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+        />
+        <div class="flex-1 min-w-0">
+          <button
+            type="button"
+            class="flex items-center gap-1.5 max-w-full group active:scale-95 transition-transform"
+            @click="editPlayerName"
+            :title="'이름 변경'"
+          >
+            <span class="text-base text-sky-100 font-bold truncate">{{ game.characterName(game.selectedAvatar) }}</span>
+            <span class="text-sky-400 text-sm shrink-0 group-hover:text-sky-200">✎</span>
+          </button>
+          <div class="text-xs text-gray-400 mt-0.5 leading-snug">이름을 눌러 변경, 우측 버튼으로 외형 변경</div>
+        </div>
+        <button
+          type="button"
+          class="btn-secondary text-xs min-h-9 px-3 shrink-0"
+          @click="openPicker"
+        >외형</button>
+      </div>
     </div>
 
     <!-- ====================================================== -->
@@ -224,7 +306,7 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
         >
           <!-- 챌린지 1/2/3 배지 이미지 (우상단) -->
           <img
-            :src="`/images/UI/챌린지${idx + 1}.png`"
+            :src="`${A}/images/UI/챌린지${idx + 1}.webp`"
             :alt="`챌린지 ${idx + 1}`"
             class="absolute -top-3 -right-3 w-14 h-14 object-contain drop-shadow-lg z-10"
             @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
@@ -297,5 +379,81 @@ const drainPct = computed(() => Math.round((game.meta.lastBossDrainRatio ?? 0) *
         @click="start"
       >탑 진입</button>
     </div>
+
+    <!-- ====================================================== -->
+    <!-- 캐릭터 외형 변경 모달                                       -->
+    <!--   전신 1명씩 표시, 좌우 버튼으로 페이지, 선택으로 확정.       -->
+    <!-- ====================================================== -->
+    <Teleport to="body">
+      <div
+        v-if="pickerOpen"
+        class="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/70 backdrop-blur-sm"
+        @click.self="closePicker"
+      >
+        <div class="w-full max-w-sm rounded-xl border-2 border-sky-400/60 bg-bg-secondary/95 shadow-[0_0_30px_rgba(56,189,248,0.35)] overflow-hidden flex flex-col">
+          <!-- 헤더 -->
+          <div class="px-4 py-2.5 bg-sky-950/50 border-b border-sky-400/30 flex items-center justify-between">
+            <span class="text-sm font-bold text-sky-200">캐릭터 외형 선택</span>
+            <button
+              type="button"
+              class="w-7 h-7 flex items-center justify-center rounded text-base text-gray-300 hover:bg-slate-700"
+              @click="closePicker"
+              aria-label="닫기"
+            >✕</button>
+          </div>
+
+          <!-- 본문: 좌우 화살표 + 전신 -->
+          <div class="relative px-3 py-4 flex items-center justify-center bg-bg-primary/40" style="min-height: 360px">
+            <button
+              type="button"
+              class="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-slate-800/90 hover:bg-slate-700 active:scale-95 text-2xl text-sky-200 border border-sky-400/40 shadow-lg flex items-center justify-center"
+              @click="pickerPrev"
+              aria-label="이전 캐릭터"
+            >‹</button>
+
+            <img
+              :src="userAvatarUrl(avatarKeys[pickerIndex])"
+              :alt="`캐릭터 ${avatarKeys[pickerIndex]}`"
+              class="max-h-[320px] max-w-[70%] object-contain drop-shadow-[0_0_18px_rgba(56,189,248,0.35)]"
+              @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+            />
+
+            <button
+              type="button"
+              class="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-slate-800/90 hover:bg-slate-700 active:scale-95 text-2xl text-sky-200 border border-sky-400/40 shadow-lg flex items-center justify-center"
+              @click="pickerNext"
+              aria-label="다음 캐릭터"
+            >›</button>
+          </div>
+
+          <!-- 페이지 인디케이터 -->
+          <div class="px-4 py-2 flex items-center justify-center gap-1.5 bg-black/30 border-t border-slate-700/60">
+            <span
+              v-for="(_, i) in avatarKeys"
+              :key="i"
+              :class="[
+                'w-1.5 h-1.5 rounded-full transition-colors',
+                i === pickerIndex ? 'bg-sky-300' : 'bg-slate-600',
+              ]"
+            />
+            <span class="ml-2 text-xs text-sky-200/80 font-mono">{{ pickerIndex + 1 }} / {{ avatarKeys.length }}</span>
+          </div>
+
+          <!-- 하단 액션 -->
+          <div class="px-4 py-3 flex items-center gap-2 border-t border-slate-700/60">
+            <button
+              type="button"
+              class="btn-secondary flex-1 min-h-11 text-sm"
+              @click="closePicker"
+            >취소</button>
+            <button
+              type="button"
+              class="btn-primary flex-1 min-h-11 text-sm font-bold"
+              @click="pickerConfirm"
+            >이 캐릭터 선택</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </section>
 </template>

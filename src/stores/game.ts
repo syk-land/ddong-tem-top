@@ -41,7 +41,7 @@ import {
 } from '@/core/challengeRuntime'
 import { computeWeaponSkillProc } from '@/core/buildBalance'
 import { computeItemValue } from '@/core/itemValue'
-import { npcIconUrl, pickRandomUserAvatars, isValidAvatarKey, allUserAvatarKeys } from '@/ui/images'
+import { npcIconUrl, pickRandomUserAvatars, isValidAvatarKey, allUserAvatarKeys, defaultCharacterName } from '@/ui/images'
 import { showRewardedAd } from '@/lib/ads'
 import { IS_DEV_SERVER } from '@/lib/platform'
 import { sfx } from '@/ui/sound'
@@ -49,10 +49,56 @@ import { computeEffectiveStats } from '@/core/stats'
 import { SKILLS as SKILLS_REF } from '@/data/skills'
 import { CHALLENGES_MAP as CHALLENGES_MAP_REF } from '@/data/challenges'
 
+// GameMonetize 서브디렉토리 호스팅 호환 — 상대경로 prefix
+const A = import.meta.env.BASE_URL.replace(/\/$/, '')
+
 // 모달 dialog 콜백 보관용 (Pinia state 외부)
 let dialogResolver: ((v: unknown) => void) | null = null
 let inputResolver: ((v: string | null) => void) | null = null
 let listResolver: ((v: unknown) => void) | null = null
+
+// ============================================================
+// 마지막으로 선택한 아바타 (영구 저장)
+//   - 캐릭터 생성 진입 시 기본값으로 사용
+//   - 신규 유저는 null → 랜덤 1명 자동 선택
+// CREATION_KEY 는 "현재 진행 중인 생성 폼" 캐시라 newGame() 시 비워지지만
+// LAST_AVATAR_KEY 는 그와 별개로 영구 유지된다.
+// ============================================================
+const LAST_AVATAR_KEY = 'climetop:lastAvatar:v1'
+function saveLastAvatar(key: string) {
+  try { localStorage.setItem(LAST_AVATAR_KEY, key) } catch {}
+}
+function loadLastAvatar(): string | null {
+  try { return localStorage.getItem(LAST_AVATAR_KEY) } catch { return null }
+}
+
+// ============================================================
+// 유저 캐릭터 이름 (단일).
+//   - null 이면 현재 선택된 아바타의 기본 추천 이름이 표시됨
+//   - 한 번 수정하면 LS 에 영구 저장 → 다음 진입 시 그 이름이 뜸
+//   - 빈 문자열로 저장 시 null 로 되돌림 (기본 추천 이름 복귀)
+// ============================================================
+const PLAYER_NAME_KEY = 'climetop:playerName:v1'
+const NAME_MAX_LEN = 12
+function loadPlayerName(): string | null {
+  try { return localStorage.getItem(PLAYER_NAME_KEY) } catch { return null }
+}
+function savePlayerName(name: string | null) {
+  try {
+    if (name === null || name === '') localStorage.removeItem(PLAYER_NAME_KEY)
+    else localStorage.setItem(PLAYER_NAME_KEY, name)
+  } catch {}
+}
+
+// 캐릭터 생성 진입 시 초기 아바타 결정.
+//   prefer: 진행 중인 생성 폼에 캐싱된 키 (있으면 우선)
+//   fallback: 영구 저장된 마지막 선택 → 랜덤 1명
+function resolveInitialAvatar(prefer: string | null | undefined): string {
+  if (prefer && isValidAvatarKey(prefer)) return prefer
+  const last = loadLastAvatar()
+  if (last && isValidAvatarKey(last)) return last
+  return pickRandomUserAvatars(1)[0]
+}
 
 // ============================================================
 // 캐릭터 생성 상태 영구 저장 (뒤로가기/새로고침 후 복원)
@@ -115,6 +161,8 @@ interface GameState {
   selectedAvatar: string | null
   // 진행 중 런의 캐릭터 아바타 (영구 저장)
   runAvatar: string | null
+  // 유저가 직접 정한 캐릭터 이름 (단일). null 이면 선택 아바타의 기본 추천 이름 사용.
+  playerName: string | null
   // 진짜 보스 도전 화면용
   realBossTheme: ChapterTheme | null
   realBossMonster: MonsterInstance | null
@@ -214,6 +262,7 @@ export const useGameStore = defineStore('game', {
     rollsLeft: 3,
     selectedAvatar: null,
     runAvatar: null,
+    playerName: null,
     tutorialActive: null,
     pendingTreasureTutorial: false,
     pendingTutorialTreasureAdvance: false,
@@ -340,16 +389,29 @@ export const useGameStore = defineStore('game', {
           .map((k) => CHALLENGES_MAP_REF[k])
           .filter(Boolean)
         this.selectedChallengeKey = c.selectedKey
-        // 아바타: 저장된 selectedAvatar 있으면 유지, 없으면 새 랜덤 1개
-        this.selectedAvatar = c.selectedAvatar && isValidAvatarKey(c.selectedAvatar)
-          ? c.selectedAvatar
-          : pickRandomUserAvatars(1)[0]
+        // 아바타 우선순위: ① 진행 중 생성 폼의 selectedAvatar
+        //                  ② 영구 LAST_AVATAR
+        //                  ③ 랜덤 1명
+        this.selectedAvatar = resolveInitialAvatar(c.selectedAvatar)
       }
-      // 진행 중인 런이 있으면 runAvatar도 복원
+      // 진행 중인 런이 있으면 runAvatar도 복원.
+      //   옛 빌드(F_r*_c* / M_r*_c*)에서 만든 세이브의 키는 더 이상 유효하지 않으므로
+      //   유효성 검사 후 마지막 선택 또는 랜덤으로 마이그레이션 (전투 화면 흉상 폴백 방지).
       const loaded = loadRun()
       if (loaded && (loaded as any).avatarKey) {
-        this.runAvatar = (loaded as any).avatarKey
+        const k = (loaded as any).avatarKey as string
+        if (isValidAvatarKey(k)) {
+          this.runAvatar = k
+        } else {
+          const migrated = resolveInitialAvatar(null)
+          this.runAvatar = migrated
+          ;(loaded as any).avatarKey = migrated
+          // 다음 저장 때 신규 키가 영속화되도록 세이브 직접 갱신
+          try { saveRun(loaded) } catch {}
+        }
       }
+      // 유저 캐릭터 이름 복원
+      this.playerName = loadPlayerName()
     },
 
     setScreen(screen: Screen) {
@@ -371,27 +433,27 @@ export const useGameStore = defineStore('game', {
         this.selectedChallengeKey = c.selectedKey
         this.rolledStats = c.rolledStats
         this.rollsLeft = c.rollsLeft
-        this.selectedAvatar = c.selectedAvatar && isValidAvatarKey(c.selectedAvatar)
-          ? c.selectedAvatar
-          : pickRandomUserAvatars(1)[0]
+        this.selectedAvatar = resolveInitialAvatar(c.selectedAvatar)
       } else {
         this.challengeOptions = pickThreeRandomChallenges(this.tutorialChallengeOpts)
         this.selectedChallengeKey = null
         this.rolledStats = null
         this.rollsLeft = 3
-        this.selectedAvatar = pickRandomUserAvatars(1)[0]
+        // 신규 진입은 마지막 선택 우선, 없으면 랜덤
+        this.selectedAvatar = resolveInitialAvatar(null)
       }
       this.persistCreation()
       this.screen = 'create'
     },
 
     // 캐릭터 생성 다시 굴림 시작 (새 챌린지 + 주사위 + 아바타 리셋)
+    //   아바타는 사용자의 마지막 선택을 유지 (다시 굴릴 때마다 외형이 바뀌면 짜증)
     resetCharacterCreation() {
       this.challengeOptions = pickThreeRandomChallenges(this.tutorialChallengeOpts)
       this.selectedChallengeKey = null
       this.rolledStats = null
       this.rollsLeft = 3
-      this.selectedAvatar = pickRandomUserAvatars(1)[0]
+      this.selectedAvatar = resolveInitialAvatar(this.selectedAvatar)
       this.persistCreation()
     },
 
@@ -419,6 +481,30 @@ export const useGameStore = defineStore('game', {
     selectChallenge(key: string | null) {
       this.selectedChallengeKey = key
       this.persistCreation()
+    },
+
+    // 캐릭터 외형 선택 (10명 모에 캐릭터)
+    //   현재 진행 중 폼 + 영구 LS 둘 다 저장 → 다음 진입 시 자동 복원
+    selectAvatar(key: string) {
+      if (!isValidAvatarKey(key)) return
+      this.selectedAvatar = key
+      saveLastAvatar(key)
+      this.persistCreation()
+    },
+
+    // 유저 캐릭터 이름 변경 — 단일 이름, LS 영구 저장.
+    //   빈 문자열은 기본 추천 이름으로 폴백 (LS 삭제).
+    setPlayerName(name: string) {
+      const trimmed = (name ?? '').trim().slice(0, NAME_MAX_LEN)
+      this.playerName = trimmed === '' ? null : trimmed
+      savePlayerName(this.playerName)
+    },
+
+    // 표시용 캐릭터 이름 — 유저 설정값이 있으면 그것을, 없으면 선택 아바타의 기본 추천 이름.
+    characterName(key: string | null | undefined): string {
+      if (this.playerName) return this.playerName
+      if (!key) return '모험가'
+      return defaultCharacterName(key)
     },
 
     // 새 게임 시작 (챌린지 + 메타 보너스 자유분배 + 주사위 결과 + 도전 보너스)
@@ -494,7 +580,16 @@ export const useGameStore = defineStore('game', {
       if (typeof loaded.inventoryCap !== 'number') loaded.inventoryCap = 4
       if (!Array.isArray(loaded.challengeKeys)) loaded.challengeKeys = []
       this.run = loaded
-      this.runAvatar = (loaded as any).avatarKey ?? null
+      // 옛 키(F_r*_c* / M_r*_c*) 마이그레이션
+      const rawKey = (loaded as any).avatarKey as string | undefined
+      if (rawKey && isValidAvatarKey(rawKey)) {
+        this.runAvatar = rawKey
+      } else {
+        const migrated = resolveInitialAvatar(null)
+        this.runAvatar = migrated
+        ;(loaded as any).avatarKey = migrated
+        try { saveRun(loaded) } catch {}
+      }
       // 챌린지 컨텍스트 재생성 (즉시 보상은 이미 적용된 상태)
       this.challengeContext = makeChallengeContext(loaded.challengeKeys)
       this.savedRunExists = true
@@ -1695,9 +1790,6 @@ export const useGameStore = defineStore('game', {
       // ±20% 변동
       const variance = 0.8 + Math.random() * 0.4
       reward = Math.round(reward * variance)
-      // 행운 보너스
-      const luckBonus = 1 + (this.run.character.stats.행운 * 0.05)
-      reward = Math.round(reward * luckBonus)
 
       this.run.character.gold += reward
       pushLog(this.combat, `골드 +${reward}`, 'gold')
@@ -1984,7 +2076,7 @@ export const useGameStore = defineStore('game', {
         title: '진짜 보스의 부름',
         okLabel: '도전하기',
         cancelLabel: '나중에',
-        imageUrl: '/images/REALBOSS/진짜보스직전.png',
+        imageUrl: `${A}/images/REALBOSS/진짜보스직전.webp`,
       })
       if (!ok) {
         // 누적 골드는 보존 — 이번 세션은 거절 처리 (메뉴 재진입 시 다시 안 뜸)
@@ -2045,12 +2137,15 @@ export const useGameStore = defineStore('game', {
       this.meta.lastBossDrainRatio = ratio
       this.meta.permanentStartBonus = (this.meta.permanentStartBonus ?? 0) + gain
       this.meta.realBossCompleted = true
-      if (ratio >= 0.9999) {
+      const fullClear = ratio >= 0.9999
+      if (fullClear) {
         this.meta.realBossDefeated = true  // 게임 클리어
       }
-      // 누적 풀 리셋 — 결과 화면 버튼 클릭 여부와 무관하게 보스전 종료 시점에 처리
-      this.meta.totalBonusStats = 0
-      this.meta.allocations = {}
+      // 회귀(=불완전 처치) 시에만 누적 풀 리셋. 100% 처치는 회귀가 아니므로 보존.
+      if (!fullClear) {
+        this.meta.totalBonusStats = 0
+        this.meta.allocations = {}
+      }
       this.persistMeta()
       this.combat = null
       this.screen = 'realboss_result'

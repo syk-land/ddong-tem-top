@@ -256,7 +256,8 @@ export function commitClearBonus(meta: MetaBonuses, _ignored: Partial<Stats>, pe
 }
 
 // v6.1: 캐릭터 생성에서 분배해도 totalBonusStats 차감 X.
-//   누적 풀은 *영구* — 진짜 보스 100% 클리어 시에만 리셋.
+//   누적 풀은 *영구* — 진짜 보스에서 회귀(=불완전 처치) 시에만 리셋.
+//   100% 처치는 회귀가 아니므로 누적 풀 보존.
 //   allocations에는 마지막 분배만 기록 (디버그용, 자동 적용 X).
 export function consumeBonusFromPool(meta: MetaBonuses, allocations: Partial<Stats>) {
   for (const key in allocations) {

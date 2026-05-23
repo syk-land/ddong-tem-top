@@ -11,7 +11,7 @@
 | 0 | [인게임 튜토리얼](./features/tutorial.md) | 첫 플레이 8단계 점진적 노출 (캐릭터 생성·전투·상점·메타·진짜 보스). 속도/자동진입도 단계별 해금. 서사 힌트 분위기만 |
 | 1 | [인트로 만화](./features/intro-comic.md) | 최초 1회 자동 만화 3컷 + 설정에서 다시보기, 진짜 보스 클리어 시 마지막 컷 잠금 해제 |
 | 2 | [진짜 보스 도전 모드](./features/realboss.md) | 누적 골드 5만 + 5회 클리어 시 최근 캐릭터 부활 → 강화 보스 도전 → 깎은 비율만큼 영구 시작 스탯 |
-| 3 | [캐릭터 외형 자동 랜덤](./features/auto-avatar.md) | 캐릭터 생성 시 21개 아바타에서 자동 추첨, 진행 중 런의 아바타는 영구 보존 |
+| 3 | [캐릭터 외형 & 이름](./features/auto-avatar.md) | 거지템 모에 10명 중 외형 선택 + 추천/사용자 이름 1개 영구 저장, 던전=전신·전투=흉상 |
 | 4 | [자동 진입](./features/auto-enter.md) | 광고 1회로 등반당 해금, 일반 몬스터 / 보스 / 회복샘 자동 진입 |
 | 5 | [설정 패널 UX](./features/settings-panel.md) | 사운드 / 클라우드 / 인트로 / 데이터 리셋 — 기본 접힘, 모달 위에서 자동 흐려짐 |
 | 6 | [안드로이드 뒤로가기 = 취소](./features/back-button.md) | Capacitor backButton → 모달/상점 우선 닫기, 데스크탑 ESC 동일 |
@@ -22,6 +22,9 @@
 | 11 | [Firebase Google 로그인 + 클라우드 저장](./features/firebase-auth.md) | Firestore 진행도 동기화 + 리더보드. 웹 popup / 안드 네이티브 자동 분기 |
 | 12 | [모바일 UI 전체 정비](./features/ui-overhaul.md) | 색 액센트 톤 통일 + 카드 위계 + 탭 모달 + 전투력 % 비교 |
 | 13 | [자동화 모드 (dev)](./features/auto-mode.md) | `combatSpeed ≥ 5` 진입 시 자동 진입·매수·장착·이벤트 거부 + tick 배치 처리. 5~999 자유 |
+| 14 | [WebP 이미지 파이프라인](./features/webp-pipeline.md) | 모든 일러스트/아이콘 WebP 화 + 캐릭터 그리드 분할 자동화. PNG 대비 -90~-95% 용량 |
+| 15 | [시스템 다크모드 강제 변환 차단](./features/dark-mode-block.md) | `color-scheme: dark` 메타·CSS + `forceDarkAllowed=false` 로 추가 어둡게 처리 차단 |
+| 16 | [v10 밸런스 리밸런싱](./features/v10-balance.md) | 전투 템포 1초당 10 tick + HP/MP 풀 ×2 + 챕터 1~4 보스 약화 + 행운 골드 보너스 제거 |
 
 ---
 

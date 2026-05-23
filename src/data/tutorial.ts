@@ -283,9 +283,9 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
     step: 'realboss_clear',
     pages: [
       {
-        title: '영구 시작 보너스',
+        title: '회귀하셨습니다',
         body:
-          '진짜 보스에서 깎은 비율만큼 영구 시작 스탯이 추가됐어요.\n다음 캐릭터 생성에 자동으로 분배됩니다.\n완전히 처치하면 더 큰 보너스를 받을 수 있어요.',
+          '진짜 보스를 완전히 처치하지 못해 회귀하셨습니다.\n깎은 비율만큼 영구 시작 스탯이 추가됐어요.\n다음 캐릭터 생성에 자동으로 분배됩니다.\n완전히 처치하면 회귀하지 않고 누적 보너스를 그대로 유지할 수 있어요.',
         hint: '깊은 곳에서 누군가가 너를 도와주고 있다.',
         target: '[data-tutorial-target="realboss-bonus"]',
       },
