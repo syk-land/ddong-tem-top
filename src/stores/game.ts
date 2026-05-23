@@ -49,6 +49,9 @@ import { computeEffectiveStats } from '@/core/stats'
 import { SKILLS as SKILLS_REF } from '@/data/skills'
 import { CHALLENGES_MAP as CHALLENGES_MAP_REF } from '@/data/challenges'
 
+// GameMonetize 서브디렉토리 호스팅 호환 — 상대경로 prefix
+const A = import.meta.env.BASE_URL.replace(/\/$/, '')
+
 // 모달 dialog 콜백 보관용 (Pinia state 외부)
 let dialogResolver: ((v: unknown) => void) | null = null
 let inputResolver: ((v: string | null) => void) | null = null
@@ -2076,7 +2079,7 @@ export const useGameStore = defineStore('game', {
         title: '진짜 보스의 부름',
         okLabel: '도전하기',
         cancelLabel: '나중에',
-        imageUrl: '/images/REALBOSS/진짜보스직전.webp',
+        imageUrl: `${A}/images/REALBOSS/진짜보스직전.webp`,
       })
       if (!ok) {
         // 누적 골드는 보존 — 이번 세션은 거절 처리 (메뉴 재진입 시 다시 안 뜸)

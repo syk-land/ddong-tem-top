@@ -1,6 +1,11 @@
 import type { ChapterTheme, StatKey, StatusKind } from '@/types'
 import type { SpecialEventKey } from '@/core/events'
 
+// 자산 경로 BASE_URL prefix — vite base 가 './' 또는 '/'.
+// GameMonetize(서브디렉토리 호스팅) 호환 위해 모든 정적 자산 URL 은
+// 절대(/images) 가 아닌 ${A}/images 로 prefix.
+const A = import.meta.env.BASE_URL.replace(/\/$/, '')
+
 // =========================================================
 // 챕터 테마별 배경 (모바일 / WIDE 분기)
 // 파일명 대소문자 혼재(WIDE / wide) 때문에 매핑 테이블 사용
@@ -31,14 +36,14 @@ export function isWideViewport(): boolean {
 export function themeBgUrl(theme: ChapterTheme, wide?: boolean): string {
   const w = wide ?? isWideViewport()
   if (w) {
-    return `/images/BACKGROUND/${theme}${WIDE_SUFFIX[theme]}.webp`
+    return `${A}/images/BACKGROUND/${theme}${WIDE_SUFFIX[theme]}.webp`
   }
-  return `/images/BACKGROUND/${theme}.webp`
+  return `${A}/images/BACKGROUND/${theme}.webp`
 }
 
 /** 기본 메뉴/타이틀 배경 */
 export function defaultBgUrl(): string {
-  return '/images/BACKGROUND/배경.webp'
+  return `${A}/images/BACKGROUND/배경.webp`
 }
 
 // =========================================================
@@ -49,7 +54,7 @@ export type RankKey = typeof RANK_KEYS[number]
 
 export function rankIconUrl(rank: string): string | null {
   if ((RANK_KEYS as readonly string[]).includes(rank)) {
-    return `/images/UI/${rank}등급.webp`
+    return `${A}/images/UI/${rank}등급.webp`
   }
   return null
 }
@@ -68,7 +73,7 @@ const STAT_FILE: Record<StatKey, string | null> = {
 
 export function statIconUrl(stat: StatKey): string | null {
   const f = STAT_FILE[stat]
-  return f ? `/images/UI/${f}.webp` : null
+  return f ? `${A}/images/UI/${f}.webp` : null
 }
 
 // =========================================================
@@ -85,7 +90,7 @@ const STATUS_FILE: Record<StatusKind, string | null> = {
 
 export function statusIconUrl(kind: StatusKind): string | null {
   const f = STATUS_FILE[kind]
-  return f ? `/images/UI/${f}.webp` : null
+  return f ? `${A}/images/UI/${f}.webp` : null
 }
 
 // =========================================================
@@ -101,32 +106,32 @@ const NPC_FILE: Record<SpecialEventKey, string> = {
 }
 
 export function npcIconUrl(key: SpecialEventKey): string {
-  return `/images/NPC/${NPC_FILE[key]}.webp`
+  return `${A}/images/NPC/${NPC_FILE[key]}.webp`
 }
 
 export function shopIconUrl(): string {
-  return '/images/NPC/상점.webp'
+  return `${A}/images/NPC/상점.webp`
 }
 
 // 게임 메인 일러스트 (최초 실행 화면)
 // ?v 쿼리는 워터마크 제거 후 브라우저 캐시 무효화용
 export function mainImageUrl(): string {
-  return '/images/main.webp?v=3'
+  return `${A}/images/main.webp?v=3`
 }
 
 // 세로 화면 (안드로이드 / portrait) 전용 메인 일러스트
 export function mainImagePortraitUrl(): string {
-  return '/images/main-portrait.webp?v=2'
+  return `${A}/images/main-portrait.webp?v=2`
 }
 
 // 진짜 보스 도전 이미지 (챕터 테마 → 보스 일러스트)
 export function realBossImageUrl(theme: ChapterTheme): string {
-  return `/images/REALBOSS/${theme}.webp`
+  return `${A}/images/REALBOSS/${theme}.webp`
 }
 
 // 인트로 만화 페이지 (1, 2, 3) — v=3 캐시 무효화
 export function tutorialImageUrl(page: 1 | 2 | 3): string {
-  return `/images/TUTORIAL/${page}.webp?v=3`
+  return `${A}/images/TUTORIAL/${page}.webp?v=3`
 }
 
 // 플레이어 캐릭터 이미지 — 사용자 선택
@@ -162,11 +167,11 @@ export function userAvatarLabel(key: string): string {
 }
 
 export function userAvatarUrl(key: string): string {
-  return `/images/USER/${key}.webp`
+  return `${A}/images/USER/${key}.webp`
 }
 
 export function userBustUrl(key: string): string {
-  return `/images/USER_BUST/${key}.webp`
+  return `${A}/images/USER_BUST/${key}.webp`
 }
 
 export function allUserAvatarKeys(): string[] {
@@ -190,7 +195,7 @@ export function pickRandomUserAvatars(n: number): string[] {
 // 플레이어 이미지 — 캐릭터 생성/던전 등의 전신 컷
 export function playerImageUrl(avatarKey?: string | null): string {
   if (avatarKey && isValidAvatarKey(avatarKey)) return userAvatarUrl(avatarKey)
-  return '/images/user.webp'  // fallback
+  return `${A}/images/user.webp`  // fallback
 }
 
 // 플레이어 흉상 — 전투 화면 전용.
@@ -210,7 +215,7 @@ const SKILL_FILE_OVERRIDE: Record<string, string> = {
 
 export function skillIconUrl(skillKey: string): string {
   const name = SKILL_FILE_OVERRIDE[skillKey] ?? skillKey
-  return `/images/SKILL/${name}.webp`
+  return `${A}/images/SKILL/${name}.webp`
 }
 
 // =========================================================
@@ -247,10 +252,10 @@ const ARMOR_FILE: Record<string, string> = {
 export function itemImageUrl(kind: 'weapon' | 'armor', baseKey: string): string | null {
   if (kind === 'weapon') {
     const f = WEAPON_FILE[baseKey]
-    return f ? `/images/ITEM/${f}.webp` : null
+    return f ? `${A}/images/ITEM/${f}.webp` : null
   }
   const f = ARMOR_FILE[baseKey]
-  return f ? `/images/ITEM/${f}.webp` : null
+  return f ? `${A}/images/ITEM/${f}.webp` : null
 }
 
 // =========================================================
@@ -339,14 +344,14 @@ const MONSTER_FILE_MAP: Record<string, string> = {
 
 export function monsterImageUrl(name: string): string {
   // "미믹 (X 모방)" 같은 동적 이름도 매칭
-  if (name.startsWith('미믹')) return '/images/MONSTER/미믹.webp'
+  if (name.startsWith('미믹')) return `${A}/images/MONSTER/미믹.webp`
   // 정확 매칭
-  if (MONSTER_FILE_MAP[name]) return `/images/MONSTER/${MONSTER_FILE_MAP[name]}.webp`
+  if (MONSTER_FILE_MAP[name]) return `${A}/images/MONSTER/${MONSTER_FILE_MAP[name]}.webp`
   // 부분 매칭 (fallback): 키 중 일부가 이름에 포함되면 해당 이미지
   for (const [key, file] of Object.entries(MONSTER_FILE_MAP)) {
-    if (name.includes(key)) return `/images/MONSTER/${file}.webp`
+    if (name.includes(key)) return `${A}/images/MONSTER/${file}.webp`
   }
-  return '/images/MONSTER/몬스터.webp'
+  return `${A}/images/MONSTER/몬스터.webp`
 }
 
 // =========================================================
