@@ -21,7 +21,7 @@
     ├─ 4. 영구 시작 보너스 자동 분배 (permanentStartBonus)
     │     └─ 5스탯 균등 + 나머지 힘→민첩→체력→마력→행운
     │
-    ├─ 5. 자동 아바타 (저장된 것 없으면 21개 중 랜덤)
+    ├─ 5. 외형 선택 (10명 모에 + 마지막 선택 자동 복원) + 이름 편집
     │
     └─ "시작" → Dungeon
 ```
@@ -92,12 +92,14 @@ stats.행운 += each
 
 ---
 
-## 자동 아바타
+## 외형 & 이름
 
-`src/lib/auth.ts` 의 `pickRandomAvatar()`:
-- 저장된 아바타 있으면 유지 (`runAvatar`)
-- 없으면 `USER/` 폴더 21개 중 랜덤 1개 선택
-- 선택 결과는 영구 보존 (런 도중에는 절대 변경 안 됨)
+`src/screens/CharacterCreation.vue` 의 메인 카드 + 변경 모달:
+- 거지템 모에 10명 (`01`~`10`) — `public/images/USER/{ID}.webp` (전신) / `USER_BUST/{ID}.webp` (흉상)
+- 초기값: 마지막 선택(`climetop:lastAvatar:v1`) → 없으면 랜덤 1명
+- 변경 모달: 전신 1명씩 좌우 페이저 → "선택" → 영구 LS 저장
+- 이름: 단일 (`climetop:playerName:v1`). 미설정 시 아바타의 추천 이름. 편집(`✎`) 시 입력 다이얼로그
+- 런 시작 → `runAvatar = selectedAvatar`, 런 동안 변경 불가
 
 자세히: [../features/auto-avatar.md](../features/auto-avatar.md)
 
