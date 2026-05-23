@@ -48,7 +48,8 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       break
     case '연속공격': {
       // v9: 속도 → 민첩 (스탯) 직접 사용. 민첩 20 = +1 hit
-      const hits = 1 + Math.floor(eff.민첩 / 20)
+      // cap 20 — 정상 게임플레이는 도달 불가하지만 store 강제 조작 시 frame freeze 방지.
+      const hits = Math.min(20, 1 + Math.floor(eff.민첩 / 20))
       for (let i = 0; i < hits; i++) {
         const t = currentTarget(ctx)
         if (!t || t.hp <= 0) break

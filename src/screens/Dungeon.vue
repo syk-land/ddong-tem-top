@@ -49,6 +49,7 @@ let autoEnterTimer: ReturnType<typeof setTimeout> | null = null
 
 function tryAutoEnter() {
   if (!game.autoEnter) return
+  if (game.paused) return  // 백그라운드 진입 동안 보류 (visibilitychange 가 paused 토글)
   // 모달이 떠 있으면 자동 진입 막음 (사용자 결정 대기 중)
   if (game.dialog || game.inputDialog || game.listDialog || game.pendingPickup) return
   if (game.tutorialActive) return  // 튜토리얼 활성 동안 자동 진입 보류

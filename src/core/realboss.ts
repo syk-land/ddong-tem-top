@@ -36,9 +36,15 @@ export function pickWeakestRecord(meta: MetaBonuses): CharacterRecord | null {
 
 // 가장 최근에 클리어한 캐릭터 — 게임 최종 목표 도전용.
 // "5번째 클리어 한 그 캐릭터로 진짜 보스에 도전" 의도.
+//   - cleared === false 인 사망 기록은 거른다. (이전엔 사망 기록까지 last 로
+//     잡혀, 7챕터에서 죽은 약한 캐릭터로 진짜 보스에 도전하게 되는 버그)
+//   - cleared === undefined 는 옛 세이브 호환 → true 로 간주.
 export function pickLatestRecord(meta: MetaBonuses): CharacterRecord | null {
-  if (meta.characterHistory.length === 0) return null
-  return meta.characterHistory[meta.characterHistory.length - 1]
+  for (let i = meta.characterHistory.length - 1; i >= 0; i--) {
+    const r = meta.characterHistory[i]
+    if (r.cleared !== false) return r
+  }
+  return null
 }
 
 // 진짜 보스 몬스터 — 챕터 10 하드 보스를 더 강하게 증폭

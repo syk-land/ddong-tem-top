@@ -11,10 +11,19 @@
 //   3. 발동 확률은 함수 내부에서 결정 (각 trait 별 고유 확률).
 
 import type { CombatContext } from './combat'
-import { pushLog, makeMonster } from './combat'
+import { pushLog, makeMonster, activeBuff } from './combat'
 import type { MonsterInstance, StatusKind, Character } from '@/types'
 import { applyStatus } from './status'
 import { CHAPTER_THEMES } from '@/data/chapters'
+
+// 플레이어 buff 의 statusResistMult 를 resistChance 로 변환.
+//   - 불굴의의지: statusResistMult = 30 → 30% 저항 굴림
+//   - 저항의결계: statusResistMult = 2  → 2% (값이 작은 건 의도/typo 영역 — 별도 조정)
+// 이전엔 호출부 모두 resistChance=0 하드코드라 두 스킬이 모두 무용했음.
+function playerResistChance(ctx: CombatContext): number {
+  const b = activeBuff(ctx)
+  return (b.statusResistMult ?? 0) / 100
+}
 
 // trait 훅에서 사용하는 표준 페이로드
 export interface TraitHookPayload {
@@ -62,7 +71,7 @@ function tryApplyStatusOnPlayer(
 ): boolean {
   if (chance <= 0) return false
   if (Math.random() >= chance) return false
-  return applyStatus(ctx.player, kind, snapshotAtk, ctx.tick, 0)
+  return applyStatus(ctx.player, kind, snapshotAtk, ctx.tick, playerResistChance(ctx))
 }
 
 // 플레이어 HP 직접 손실 (heal_reverse 같은 음수 회복은 별도. 여기는 trait 발 환경 데미지)
@@ -227,9 +236,9 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
     description: '독 누적 — 50% 확률 + 보너스 1스택 (독화살 개구리)',
     onBeforeAttack({ ctx, monster }) {
       if (Math.random() < 0.5) {
-        applyStatus(ctx.player, '독', monster.atk, ctx.tick, 0)
+        applyStatus(ctx.player, '독', monster.atk, ctx.tick, playerResistChance(ctx))
         // 추가 한 번 더 (스택 가속)
-        applyStatus(ctx.player, '독', monster.atk, ctx.tick, 0)
+        applyStatus(ctx.player, '독', monster.atk, ctx.tick, playerResistChance(ctx))
         pushLog(ctx, `${monster.template.name}: 독 누적 +2`, 'status')
       }
     },
@@ -411,9 +420,9 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
     description: '석화 — 15% 확률로 플레이어 둔화 +3스택 (바실리스크)',
     onBeforeAttack({ ctx, monster }) {
       if (Math.random() < 0.15) {
-        applyStatus(ctx.player, '둔화', monster.atk, ctx.tick, 0)
-        applyStatus(ctx.player, '둔화', monster.atk, ctx.tick, 0)
-        applyStatus(ctx.player, '둔화', monster.atk, ctx.tick, 0)
+        applyStatus(ctx.player, '둔화', monster.atk, ctx.tick, playerResistChance(ctx))
+        applyStatus(ctx.player, '둔화', monster.atk, ctx.tick, playerResistChance(ctx))
+        applyStatus(ctx.player, '둔화', monster.atk, ctx.tick, playerResistChance(ctx))
         pushLog(ctx, `${monster.template.name}: 석화! 둔화 +3`, 'status')
       }
     },
@@ -629,7 +638,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
     onHpThreshold({ ctx, monster, threshold }) {
       if (threshold !== 0.5) return
       for (let i = 0; i < 3; i++) {
-        applyStatus(ctx.player, '둔화', monster.atk, ctx.tick, 0)
+        applyStatus(ctx.player, '둔화', monster.atk, ctx.tick, playerResistChance(ctx))
       }
       pushLog(ctx, `${monster.template.name}: 결박! 둔화 +3스택`, 'status')
     },
@@ -697,7 +706,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
     description: '화염 오라 — 매 5틱 점화 적용 (화염의 군주 이프리트)',
     onTickStart({ ctx, monster }) {
       if (ctx.tick > 0 && ctx.tick % 5 === 0) {
-        applyStatus(ctx.player, '점화', monster.atk, ctx.tick, 0)
+        applyStatus(ctx.player, '점화', monster.atk, ctx.tick, playerResistChance(ctx))
       }
     },
   },
@@ -719,7 +728,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
       // 시야 차단 = 암흑 상태 4스택 부여 (1스택 -25, 4스택 ≈ -65 명중)
       // 층 클리어 시 자동 정화되므로 영구 문제 없음
       for (let i = 0; i < 4; i++) {
-        applyStatus(ctx.player, '암흑', monster.atk, ctx.tick, 0)
+        applyStatus(ctx.player, '암흑', monster.atk, ctx.tick, playerResistChance(ctx))
       }
       pushLog(ctx, `${monster.template.name}: 시야 차단! 강력한 암흑 (4스택)`, 'status')
     },
@@ -760,7 +769,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
       if (ctx.tick > 0 && ctx.tick % 10 === 0) {
         const dmg = Math.round(monster.atk * 0.5)
         damagePlayer(ctx, dmg, `${monster.template.name}: 뇌우`)
-        applyStatus(ctx.player, '감전', monster.atk, ctx.tick, 0)
+        applyStatus(ctx.player, '감전', monster.atk, ctx.tick, playerResistChance(ctx))
       }
     },
   },
@@ -770,7 +779,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
     description: '독 오라 — 매 5틱 독 적용 (독룡 히드라)',
     onTickStart({ ctx, monster }) {
       if (ctx.tick > 0 && ctx.tick % 5 === 0) {
-        applyStatus(ctx.player, '독', monster.atk, ctx.tick, 0)
+        applyStatus(ctx.player, '독', monster.atk, ctx.tick, playerResistChance(ctx))
       }
     },
   },

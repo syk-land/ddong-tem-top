@@ -356,6 +356,9 @@ export interface CharacterRecord {
   stats: Stats
   score: number
   rank: string
+  // 100층 클리어 여부 — pickLatestRecord 가 사망 기록을 거르고 클리어 캐릭터로
+  // 진짜 보스에 도전하도록 한다. 옛 세이브 호환: undefined 면 true 로 간주.
+  cleared?: boolean
   avatarKey: string | null
   weapon: ItemInstance | null
   armor: ItemInstance | null

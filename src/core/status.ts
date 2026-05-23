@@ -18,7 +18,10 @@ export function applyStatus(
 
   if (existing) {
     existing.stacks = Math.min(MAX_STACKS, existing.stacks + 1)
-    existing.duration = def.baseDuration  // 리프레시
+    // stun-lock 완화: 매번 baseDuration 으로 리셋하면 빠른 공격으로 영구 갇힘
+    // (예: 0.5s 마다 둔화 적용 → 영원히 둔화). max 로 변경해 기존 잔여보다 짧으면
+    // 갱신, 길면 그대로 — 새로 걸 때마다 매번 리셋되지는 않음.
+    existing.duration = Math.max(existing.duration, def.baseDuration)
     existing.snapshotAtk = Math.max(existing.snapshotAtk, snapshotAtk)
     if (def.dotInterval > 0) {
       existing.nextDotAt = currentTick + def.dotInterval

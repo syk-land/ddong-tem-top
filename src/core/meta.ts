@@ -165,7 +165,9 @@ export function defaultMeta(): MetaBonuses {
   }
 }
 
-// 클리어 캐릭터를 히스토리에 적재 (최대 50개)
+// 캐릭터를 히스토리에 적재 (최대 50개)
+//   cleared = true:  100층 클리어 — 진짜 보스 도전 후보
+//   cleared = false: 도중 사망 — 통계용. pickLatestRecord 가 거른다.
 export function pushCharacterHistory(
   meta: MetaBonuses,
   character: Character,
@@ -173,11 +175,13 @@ export function pushCharacterHistory(
   rank: string,
   avatarKey: string | null,
   lastChapterTheme: ChapterTheme,
+  cleared: boolean = true,
 ) {
   const rec: CharacterRecord = {
     stats: { ...character.stats },
     score,
     rank,
+    cleared,
     avatarKey,
     weapon: character.weapon ? JSON.parse(JSON.stringify(character.weapon)) : null,
     armor: character.armor ? JSON.parse(JSON.stringify(character.armor)) : null,
@@ -264,13 +268,25 @@ export function consumeBonusFromPool(meta: MetaBonuses, allocations: Partial<Sta
 }
 
 // 진행 중인 런 저장 / 복원
+let saveRunFailureWarned = false
 export function saveRun(run: TowerRun) {
   try {
     // Maps와 Sets를 직렬화 가능하게 변환
     const serializable = JSON.parse(JSON.stringify(run))
     localStorage.setItem(STORAGE_KEY_RUN, JSON.stringify(serializable))
-  } catch {}
+    saveRunFailureWarned = false
+  } catch (e) {
+    // localStorage quota 초과 / private mode 거부 등. 옛 코드는 silent 무시였는데
+    // 풀 등반 끝에 큰 run 객체가 저장 실패하면 앱 재시작 시 진행 손실. 첫 실패
+    // 시점에만 console.error 로 남겨 디버그 가능하게 한다 (매 tick 반복 X).
+    if (!saveRunFailureWarned) {
+      saveRunFailureWarned = true
+      console.error('[saveRun] localStorage 저장 실패 — 진행이 저장되지 않을 수 있습니다.', e)
+    }
+  }
 }
+// 저장이 정상 복귀하면 다시 경고 가능하도록 외부에서 리셋할 수 있게 export.
+export function resetSaveRunWarning() { saveRunFailureWarned = false }
 
 export function loadRun(): TowerRun | null {
   try {

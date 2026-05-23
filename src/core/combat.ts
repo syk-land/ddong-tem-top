@@ -156,7 +156,7 @@ export function rollCrit(agility: number, luck: number): { isCrit: boolean; mult
 }
 
 // 합계 활성 버프
-function activeBuff(ctx: CombatContext): TempBuff {
+export function activeBuff(ctx: CombatContext): TempBuff {
   const merged: TempBuff = {}
   for (const b of ctx.buffs.values()) {
     if (b.effect.defMult) merged.defMult = Math.max(merged.defMult ?? 1, b.effect.defMult)
@@ -306,6 +306,12 @@ export function monsterAttack(ctx: CombatContext, attacker: MonsterInstance) {
   }
   // v9: 방어는 % 단위 — 받는 데미지 = atk × (1 - def%/100), 최소 1
   let finalDmg = Math.max(1, Math.round(attacker.atk * (1 - Math.max(0, effDefPct) / 100)))
+
+  // 배리어 스킬 (mdefBonus) — 절대값 차감. 이전엔 buff merge 까지만 됐고 데미지
+  // 계산에선 참조 안 했어서 마력 소비하고 친 배리어가 무용했던 버그 fix.
+  if (buff.mdefBonus) {
+    finalDmg = Math.max(1, finalDmg - Math.round(buff.mdefBonus))
+  }
 
   // 갑옷 자동 반응 (피격 시 확률 발동: 가죽갑 회피 / 로브 방어 / 판금 철벽)
   //   발동률 = 0.10 + 행운 × 0.005

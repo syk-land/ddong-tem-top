@@ -54,10 +54,13 @@ export function applyInstantRewards(character: Character, ctx: ChallengeContext)
   for (const ac of ctx.active) {
     const def = CHALLENGES_MAP[ac.key]
     if (def?.flags?.trackLuckOnly) {
-      const base = ['공격력', '방어력', '체력', '마력'] as StatKey[]
+      // 운칠기삼: 행운 외 4종 스탯을 3 으로 강제, 잉여를 행운으로.
+      // 옛 코드는 ['공격력', '방어력', ...] 로 잘못 캐스팅돼 character.stats['공격력']
+      // = undefined → surplus = NaN → 행운 NaN 으로 빠지는 버그가 있었다.
+      const base: StatKey[] = ['힘', '민첩', '체력', '마력']
       let surplus = 0
       for (const k of base) {
-        surplus += Math.max(0, character.stats[k] - 3)
+        surplus += Math.max(0, (character.stats[k] ?? 0) - 3)
         character.stats[k] = 3
       }
       character.stats.행운 = (character.stats.행운 ?? 0) + surplus

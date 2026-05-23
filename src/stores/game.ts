@@ -3,7 +3,7 @@ import type {
   Screen, TowerRun, MetaBonuses, Stats, StatKey, ItemInstance, MonsterInstance, ChapterTheme, CharacterRecord,
   TutorialStep,
 } from '@/types'
-import { createCharacter, generateRandomStats, uniformStartingStats, computeMaxMp } from '@/core/character'
+import { createCharacter, generateRandomStats, uniformStartingStats, computeMaxMp, computeMaxHp } from '@/core/character'
 import { makeTowerRun, currentChapter, currentFloor, advanceFloor } from '@/core/tower'
 import {
   loadMeta, saveMeta, saveRun, loadRun, clearRun, defaultMeta, commitClearBonus, consumeBonusFromPool,
@@ -423,6 +423,23 @@ export const useGameStore = defineStore('game', {
 
     // 새 게임 시작 (챌린지 + 메타 보너스 자유분배 + 주사위 결과 + 도전 보너스)
     newGame(bonusAllocation: Partial<Stats> = {}) {
+      // bonusAllocation 검증 — store 강제 조작 (콘솔에서 store.newGame({힘: 9999}) 등)
+      // 으로 보유 풀을 초과한 분배를 만드는 cheat 차단. 음수도 거부.
+      const totalAllocated = Object.values(bonusAllocation).reduce<number>(
+        (sum, v) => sum + (Number.isFinite(v) ? (v as number) : 0),
+        0,
+      )
+      const pool = this.meta.totalBonusStats ?? 0
+      if (totalAllocated < 0 || totalAllocated > pool) {
+        console.warn(`[newGame] invalid allocation total=${totalAllocated} pool=${pool} — refused`)
+        return
+      }
+      for (const v of Object.values(bonusAllocation)) {
+        if (!Number.isFinite(v) || (v as number) < 0) {
+          console.warn('[newGame] invalid allocation contains non-positive/non-finite — refused')
+          return
+        }
+      }
       // 주사위 굴린 결과가 있으면 사용, 없으면 균등 시작 (모두 8)
       const customStats = this.rolledStats ?? uniformStartingStats()
       // 영구 누적 시작 스탯 보너스 (진짜 보스 도전 누적). 1회성 pending은 deprecated.
@@ -845,13 +862,17 @@ export const useGameStore = defineStore('game', {
       return { ok: true }
     },
 
-    // 장비 변경 시 maxMp 재계산 (마력 보너스가 갑옷/특성에서 변경됨)
-    //   character.maxMp 는 생성 시점 stats.마력 만 반영 → 동적 갱신 필요
+    // 장비 변경 시 파생 능력치 재계산.
+    //   maxMp: 마력 (스탯 + 갑옷 mpBonus + 특성 마력) 기반
+    //   maxHp: 체력 (스탯 + 향후 장비/특성 체력 보너스 기반)
+    // 이전엔 maxMp 만 갱신했는데, 향후 "장비 착용 시 HP +N%" 같은 효과가 추가되면
+    // maxHp 도 같은 패턴으로 동기화돼야 한다 — 안전망으로 같이 처리.
     recomputeDerivedStats() {
       if (!this.run) return
       const c = this.run.character
       const eff = computeEffectiveStats(c)
       const newMaxMp = computeMaxMp(eff.마력)
+      const newMaxHp = computeMaxHp(eff.체력)
       // mpCapFixed 챌린지가 있으면 그 값 유지
       const flags = this.challengeContext ? mergedFlags(this.challengeContext) : {}
       if (flags.mpCapFixed !== undefined) {
@@ -859,7 +880,9 @@ export const useGameStore = defineStore('game', {
       } else {
         c.maxMp = newMaxMp
       }
+      c.maxHp = newMaxHp
       c.mp = Math.min(c.mp, c.maxMp)
+      c.hp = Math.min(c.hp, c.maxHp)
     },
 
     // 인벤토리 슬롯 판매 (buyback 가격)
@@ -965,7 +988,7 @@ export const useGameStore = defineStore('game', {
       const lastCh = this.run.chapters[lastChIdx] ?? this.run.chapters[this.run.chapters.length - 1]
       const score = this.pendingClear?.score ?? computeClearScore(this.run.character, 10)
       const rank = this.pendingClear?.rank ?? getClearRank(score).rank
-      pushCharacterHistory(this.meta, this.run.character, score, rank, this.runAvatar, lastCh.theme)
+      pushCharacterHistory(this.meta, this.run.character, score, rank, this.runAvatar, lastCh.theme, true)
       // 리더보드 제출 (로그인 시) — fire-and-forget. 실패해도 게임 흐름엔 영향 없음.
       import('./auth').then(({ useAuthStore }) => {
         const a = useAuthStore()
@@ -1290,9 +1313,15 @@ export const useGameStore = defineStore('game', {
     // ========================================
     async runSpecialEvent(chapter: number) {
       if (!this.run) return
-      // 자동화 모드 (6배속) — 특별 이벤트는 전부 거부. 모달도 띄우지 않고 advance.
-      // (이벤트의 PVP 결과·보너스 등 모두 포기. 등반 흐름을 끊지 않는 게 우선.)
+      // 자동화 모드 — 특별 이벤트 자동 처리. 대부분 거부 (advance) 하지만
+      // 암시장만 체력 스탯을 골드 한도까지 자동 매수 (등반 안정성 직결).
       if (this.isAutoMode) {
+        const key = pickOne(SPECIAL_EVENTS) as SpecialEventKey
+        if (key === 'black_market') {
+          this.autoBlackMarketBuyHp(chapter)
+        }
+        // 다른 이벤트 (PVP / 룰렛 / 대장장이 / 수집가 / 도박꾼 / 제단 / 모험가) 는
+        // 보너스/리스크 trade-off 가 빌드 의도와 충돌 가능 — 자동 거부.
         this.advance()
         return
       }
@@ -1632,7 +1661,7 @@ export const useGameStore = defineStore('game', {
           this.pendingClear = pending
           // 메타 풀에 적립 + 히스토리 기록 (클리어 보상과 동일 흐름의 미니 버전)
           const lastCh = this.run.chapters[Math.max(0, this.run.currentChapterIndex)]
-          pushCharacterHistory(this.meta, this.run.character, pending.score, pending.rank, this.runAvatar, lastCh?.theme ?? '고블린')
+          pushCharacterHistory(this.meta, this.run.character, pending.score, pending.rank, this.runAvatar, lastCh?.theme ?? '고블린', false)
           // 도중 사망 + 등반 보상 → climbCount ++  (clearCount 는 100층 클리어 전용)
           commitClearBonus(this.meta, {}, pending.bonus, false)
         }
@@ -1857,6 +1886,23 @@ export const useGameStore = defineStore('game', {
     //      receiveItem 을 호출 → 자동 업그레이드 + 가득 시 worst 슬롯 교체까지 처리.
     //   3) 더 매수할 게 없으면 새로고침 시도 (충전 잔량/챌린지 금지 한도 내). 새로고침
     //      후 다시 매수 사이클. 무한 루프 방지로 라운드 cap 적용.
+    // 자동화 모드 — 암시장 자동 매수 (체력 스탯만, 골드 한도까지).
+    // runSpecialEvent 의 자동 분기에서 black_market 키일 때 호출. 모달 없이 진행.
+    autoBlackMarketBuyHp(chapter: number) {
+      if (!this.run) return
+      const c = this.run.character
+      let bought = 0
+      const HARD_CAP = 999  // 무한 매수 방지 (가격이 0으로 떨어질 경우 등)
+      while (bought < HARD_CAP) {
+        const price = blackMarketPrice(chapter, '체력')
+        if (price <= 0 || c.gold < price) break
+        if (!buyStatPoint(c, chapter, '체력')) break
+        bought++
+        if (this.challengeContext) onBlackMarketUsed(this.challengeContext)
+      }
+      saveRun(this.run)
+    },
+
     autoShopFlow() {
       if (!this.run || !this.shop || !this.isAutoMode) return
       const c = this.run.character
