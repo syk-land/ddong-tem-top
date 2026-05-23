@@ -58,6 +58,14 @@ function tryAutoEnter() {
   const allowed = game.isAutoMode ? AUTO_ENTER_TYPES_AUTOMODE : AUTO_ENTER_TYPES
   if (!allowed.has(f.type)) return
   if (autoEnterTimer) clearTimeout(autoEnterTimer)
+  // 자동화 모드 — setTimeout 우회. 안드로이드 webview 의 setTimeout throttle 로
+  // 챕터 전환 후 자동 진입이 멈추는 현상 방지. game.advance() 끝에서도 micro-task
+  // 로 직접 트리거되지만, Dungeon mount 시 (다른 screen 에서 돌아온 경우) onMounted
+  // 의 tryAutoEnter 도 즉시 호출되도록 안전망.
+  if (game.isAutoMode) {
+    game.enterCurrentFloor()
+    return
+  }
   // 짧은 지연으로 UI 보여주고 자동 진입 — 속도에 따라 단축
   const delay = Math.max(120, 500 / Math.max(1, game.combatSpeed))
   autoEnterTimer = setTimeout(() => {

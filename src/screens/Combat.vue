@@ -200,6 +200,11 @@ function maybeAutoAdvance() {
   if (!combat.value.victory) return
   if (game.pendingPickup) return
   if (game.dialog || game.inputDialog || game.listDialog) return
+  // 보상 카드(ItemAnnounceModal) 떠 있으면 자동 진입 보류. 사용자가 카드 확인 →
+  // clearItemAnnounce 가 closeCombat 직접 호출 (queue 비워진 시점) → 그때 진입.
+  // 일찍 closeCombat 호출하면 combat=null 후 advance 가 queue 가드로 return 해
+  // screen='combat' + combat=null 의 stuck 상태가 된다.
+  if (game.itemAnnounceQueue.length > 0) return
   if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer)
   const delay = Math.max(300, Math.round(900 / Math.max(1, game.combatSpeed)))
   autoAdvanceTimer = setTimeout(() => {

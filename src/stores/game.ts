@@ -695,8 +695,12 @@ export const useGameStore = defineStore('game', {
     clearItemAnnounce() {
       this.itemAnnounceQueue = []
       // 1) 사용자가 "확인" 을 누른 시점에 다음 층 자동 진입 (autoEnter 여부와 무관).
-      //    보물 외 일반 드롭에서도 ItemAnnounce 닫으면 자연스럽게 다음 층 흐름이 이어진다.
-      if (this.run && !this.combat && this.screen === 'dungeon') {
+      //    - combat 이 종료(승리) 상태로 남아 있으면 closeCombat 호출 → combat=null +
+      //      advance(). closeCombat 안의 itemAnnounceQueue 가드도 이제 통과 (큐 비움).
+      //    - combat 없는 던전 도착 상태 (보물/일반 드롭 알림 닫은 후) 면 직접 advance.
+      if (this.combat?.ended && this.combat?.victory) {
+        this.closeCombat()
+      } else if (this.run && !this.combat && this.screen === 'dungeon') {
         this.advance()
       }
       // 2) 보물 받기 직후 흐름 — advance() 가 currentFloor 를 +1 (3층 shop) 으로 옮긴 뒤
@@ -922,6 +926,24 @@ export const useGameStore = defineStore('game', {
       this.combat = null
       this.shop = null
       this.screen = 'dungeon'
+
+      // 자동화 모드 — Dungeon.vue 의 tryAutoEnter 가 setTimeout(120ms) 으로 다음 노드
+      // 자동 진입을 등록하지만 안드로이드 webview 에서 setTimeout throttle 로 발화가
+      // 누락/지연돼 챕터 전환 후 멈추는 현상이 있었다. micro-task 로 직접 다음 노드
+      // 진입을 트리거해 setTimeout 의존을 우회한다.
+      if (this.isAutoMode && this.autoEnter) {
+        Promise.resolve().then(() => {
+          if (!this.run || this.screen !== 'dungeon') return
+          const floor = currentFloor(this.run)
+          if (!floor || floor.cleared) return
+          // shop / special_event 도 자동화 모드에선 자동 진입 (Shop.vue 의
+          // autoShopFlow, runSpecialEvent 의 자동 거부가 받는다).
+          const allowed = new Set(['monster', 'boss', 'healing_spring', 'treasure', 'shop', 'special_event'])
+          if (allowed.has(floor.type)) {
+            this.enterCurrentFloor()
+          }
+        })
+      }
     },
 
     handleTowerClear() {
@@ -1689,6 +1711,12 @@ export const useGameStore = defineStore('game', {
         this.finishRealBossCombat()
         return
       }
+      // 보상 카드(ItemAnnounceModal) 떠 있으면 closeCombat 보류. 그대로 진행하면
+      // combat=null 직후 advance() 가 itemAnnounceQueue 가드로 return 해 screen='combat'
+      // 인데 combat=null 인 stuck 상태가 된다 → Vue 렌더 null 참조 → 안드로이드 webview
+      // 가 더 엄격해 크래시. 사용자가 모달 확인 → clearItemAnnounce 가 다시 closeCombat
+      // 호출하면 그때는 큐 비어 통과한다.
+      if (this.itemAnnounceQueue.length > 0) return
       this.combat = null
       this.advance()
     },
