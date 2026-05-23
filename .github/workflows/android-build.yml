@@ -48,9 +48,12 @@ jobs:
       - name: Upload Debug APK artifact
         uses: actions/upload-artifact@v4
         with:
+          # 파일명은 build.gradle 의 applicationVariants.outputFileName 으로
+          # "똥템탑_v<versionName>.apk" 형식. versionName 변경 시 자동 반영되도록 와일드카드.
           name: climetop-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
+          if-no-files-found: error
 
       # 릴리스 APK는 keystore가 필요 (서명용)
       # 환경 secrets 설정 후 주석 해제:
