@@ -20,11 +20,11 @@ function start() {
     class="flex-1 flex flex-col items-center justify-center px-4 py-6 max-w-2xl mx-auto w-full bg-cover bg-center gap-8 animate-fadein"
     :style="{ backgroundImage: `linear-gradient(rgba(10,14,26,0.78), rgba(10,14,26,0.92)), url(${bgUrl})` }"
   >
-    <!-- 보스 이미지 — 크게, 중앙 (화면 폭 꽉 채움) -->
+    <!-- 보스 이미지 — 크게, 중앙. 원본 비율 그대로 (자르지 않음). -->
     <img
       :src="realBossImageUrl(theme)"
       :alt="boss.template.name"
-      class="w-full aspect-square max-w-sm sm:max-w-md object-cover rounded-2xl border-2 border-rose-500/70 shadow-[0_0_40px_rgba(244,63,94,0.45)]"
+      class="w-full max-w-sm sm:max-w-md h-auto rounded-2xl border-2 border-rose-500/70 shadow-[0_0_40px_rgba(244,63,94,0.45)]"
       @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
     />
 
