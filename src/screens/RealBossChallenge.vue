@@ -38,8 +38,9 @@ function decline() {
       <div class="text-rose-300 text-4xl font-bold tracking-widest leading-tight">탑의 부름</div>
       <p class="text-sm text-gray-200 leading-snug">
         탑이 가장 빛바랜 영혼을 불러냈다.<br />
-        진짜 보스에 도전해 깎은 비율만큼<br />
-        다음 캐릭터의 힘이 된다.
+        패배하면 <span class="text-rose-300 font-bold">회귀하셨습니다</span> — 깎은 비율만큼<br />
+        다음 캐릭터의 힘이 된다.<br />
+        완전히 처치하면 회귀하지 않는다.
       </p>
     </div>
 

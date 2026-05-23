@@ -2137,12 +2137,15 @@ export const useGameStore = defineStore('game', {
       this.meta.lastBossDrainRatio = ratio
       this.meta.permanentStartBonus = (this.meta.permanentStartBonus ?? 0) + gain
       this.meta.realBossCompleted = true
-      if (ratio >= 0.9999) {
+      const fullClear = ratio >= 0.9999
+      if (fullClear) {
         this.meta.realBossDefeated = true  // 게임 클리어
       }
-      // 누적 풀 리셋 — 결과 화면 버튼 클릭 여부와 무관하게 보스전 종료 시점에 처리
-      this.meta.totalBonusStats = 0
-      this.meta.allocations = {}
+      // 회귀(=불완전 처치) 시에만 누적 풀 리셋. 100% 처치는 회귀가 아니므로 보존.
+      if (!fullClear) {
+        this.meta.totalBonusStats = 0
+        this.meta.allocations = {}
+      }
       this.persistMeta()
       this.combat = null
       this.screen = 'realboss_result'
