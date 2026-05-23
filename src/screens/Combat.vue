@@ -132,7 +132,7 @@ const skillKindColor: Record<string, string> = {
   magic_def: 'text-stat-mag_def',
 }
 
-const BASE_INTERVAL = 60
+const BASE_INTERVAL = 100
 
 let ticker: number | null = null
 function startAutoTick() {

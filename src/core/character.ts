@@ -20,14 +20,15 @@ export function generateRandomStats(): Stats {
 }
 
 // 스탯 → 실수치 변환 (v3 재밸런싱)
-// 체력 1pt = +10 HP (받는 dmg 평균 10 기준 +1 hit 회피)
+// v10: HP/MP 풀 ×2 — 한 방에 끝나지 않도록 체력 여유 확보
+// 체력 1pt = +20 HP (변경 전 +10)
 export function computeMaxHp(체력: number): number {
-  return 체력 * 10 + 50
+  return 체력 * 20 + 100
 }
 
-// 마력 1pt = +15 MP + 모든 공격 데미지 +1 가산 (stats.ts에서 처리)
+// 마력 1pt = +30 MP + 모든 공격 데미지 +1 가산 (stats.ts에서 처리). 변경 전 +15
 export function computeMaxMp(마력: number): number {
-  return 마력 * 15 + 30
+  return 마력 * 30 + 60
 }
 
 // 2.4 시작 장비: 무기만 (하급 노말, coef 0.5~1.0)

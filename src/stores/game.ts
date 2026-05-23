@@ -1790,9 +1790,6 @@ export const useGameStore = defineStore('game', {
       // ±20% 변동
       const variance = 0.8 + Math.random() * 0.4
       reward = Math.round(reward * variance)
-      // 행운 보너스
-      const luckBonus = 1 + (this.run.character.stats.행운 * 0.05)
-      reward = Math.round(reward * luckBonus)
 
       this.run.character.gold += reward
       pushLog(this.combat, `골드 +${reward}`, 'gold')
