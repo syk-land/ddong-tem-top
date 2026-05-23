@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
-import { realBossImageUrl, defaultBgUrl } from '@/ui/images'
+import { realBossImageUrl, defaultBgUrl, playerImageUrl } from '@/ui/images'
+import HpMpBar from '@/ui/components/HpMpBar.vue'
+import ItemName from '@/ui/components/ItemName.vue'
 
 const game = useGameStore()
 const bgUrl = defaultBgUrl()
 
 const theme = computed(() => game.realBossTheme)
 const boss = computed(() => game.realBossMonster)
+const weak = computed(() => game.realBossWeakRecord)
 
 function start() {
   game.enterRealBossCombat()
@@ -16,26 +19,68 @@ function start() {
 
 <template>
   <section
-    v-if="boss && theme"
-    class="flex-1 flex flex-col items-center pt-2 pb-2 max-w-2xl mx-auto w-full bg-cover bg-center gap-4 animate-fadein"
+    v-if="weak && boss && theme"
+    class="flex-1 flex flex-col pt-2 pb-2 px-3 max-w-2xl mx-auto w-full bg-cover bg-center gap-3 animate-fadein"
     :style="{ backgroundImage: `linear-gradient(rgba(10,14,26,0.78), rgba(10,14,26,0.92)), url(${bgUrl})` }"
   >
-    <!-- 보스 이미지 — section 폭 가득 (좌우 padding 0). 원본 비율 (h-auto). -->
-    <img
-      :src="realBossImageUrl(theme)"
-      :alt="boss.template.name"
-      class="block w-full h-auto border-y-2 border-rose-500/70 shadow-[0_0_40px_rgba(244,63,94,0.45)]"
-      @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
-    />
-
-    <!-- 보스 이름만 -->
-    <div class="text-3xl sm:text-4xl text-rose-200 font-bold tracking-wide text-center px-4">
-      {{ boss.template.name }}
+    <!-- ① 진짜 보스 카드 — 이미지 + 이름 한 카드 -->
+    <div class="rounded-lg border border-rose-500/50 bg-bg-secondary/60 backdrop-blur-sm shadow-[0_0_18px_rgba(244,63,94,0.20)_inset] overflow-hidden">
+      <img
+        :src="realBossImageUrl(theme)"
+        :alt="boss.template.name"
+        class="block w-full h-auto"
+        @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+      />
+      <div class="px-3 py-2 text-center border-t border-rose-500/30 bg-rose-950/20">
+        <div class="text-xl sm:text-2xl text-rose-200 font-bold tracking-wide">
+          {{ boss.template.name }}
+        </div>
+      </div>
     </div>
 
-    <!-- 도전 시작 (하단 sticky) -->
-    <div class="w-full mt-auto sticky bottom-0 px-4 pt-2 pb-1 bg-gradient-to-t from-bg-primary/95 to-bg-primary/0">
-      <button class="btn-primary w-full min-h-12 font-bold tracking-wide" @click="start">도전 시작</button>
+    <!-- ② 도전할 캐릭터 카드 — 던전 화면과 동일 디자인 (cyan 액센트) -->
+    <div class="rounded-lg border border-cyan-500/40 bg-bg-secondary/60 backdrop-blur-sm shadow-[0_0_18px_rgba(34,211,238,0.12)_inset] overflow-hidden">
+      <div class="flex items-stretch">
+        <!-- 좌: 전신 -->
+        <div class="relative shrink-0 w-32 sm:w-40 min-h-[200px] bg-cyan-950/25 border-r border-cyan-500/20">
+          <img
+            :src="playerImageUrl(weak.avatarKey)"
+            :alt="game.characterName(weak.avatarKey)"
+            class="absolute inset-0 w-full h-full object-cover"
+            @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+          />
+          <div class="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-bg-secondary/50 to-transparent pointer-events-none" />
+        </div>
+
+        <!-- 우: 이름/골드 + HP/MP + 장비 -->
+        <div class="flex-1 min-w-0 flex flex-col">
+          <div class="px-3 py-2 flex items-center gap-2 border-b border-cyan-500/20 bg-cyan-950/20">
+            <div class="text-sm font-bold text-cyan-100 truncate flex-1">
+              {{ game.characterName(weak.avatarKey) }}
+            </div>
+            <div class="px-2 py-1 rounded-md bg-amber-950/60 border border-amber-400/40 text-stat-luck text-xs font-bold font-mono shrink-0 flex items-center gap-1">
+              <span class="text-amber-400">⬢</span>
+              <span class="tabular-nums">{{ weak.gold }}G</span>
+            </div>
+          </div>
+          <div class="px-3 py-2 space-y-1.5 flex-1 flex flex-col">
+            <HpMpBar :current="weak.hp" :max="weak.maxHp" kind="hp" />
+            <HpMpBar :current="weak.mp" :max="weak.maxMp" kind="mp" />
+            <!-- 무기/방어구 — 도전 화면이라 클릭 상세는 생략, 표시만 -->
+            <div class="w-full bg-bg-tertiary/80 rounded-md px-2 py-1.5 border border-slate-700/50 flex items-center min-h-10">
+              <ItemName :item="weak.weapon" compact />
+            </div>
+            <div class="w-full bg-bg-tertiary/80 rounded-md px-2 py-1.5 border border-slate-700/50 flex items-center min-h-10">
+              <ItemName :item="weak.armor" compact />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ 도전하기 (하단 sticky) -->
+    <div class="w-full mt-auto sticky bottom-0 pt-2 pb-1 bg-gradient-to-t from-bg-primary/95 to-bg-primary/0">
+      <button class="btn-primary w-full min-h-12 font-bold tracking-wide" @click="start">도전하기</button>
     </div>
   </section>
 </template>
