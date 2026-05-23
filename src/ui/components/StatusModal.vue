@@ -319,11 +319,11 @@ function showSkillDetail(key: string) {
       <div class="grid grid-cols-3 gap-2 text-xs font-mono">
         <div class="bg-bg-tertiary rounded px-2 py-1.5">
           <div class="text-xs text-stat-hp">체력</div>
-          <div>{{ c.hp }} / {{ c.maxHp }}</div>
+          <div>{{ Math.round(c.hp) }} / {{ c.maxHp }}</div>
         </div>
         <div class="bg-bg-tertiary rounded px-2 py-1.5">
           <div class="text-xs text-stat-mp">마력</div>
-          <div>{{ c.mp }} / {{ c.maxMp }}</div>
+          <div>{{ Math.round(c.mp) }} / {{ c.maxMp }}</div>
         </div>
         <div class="bg-bg-tertiary rounded px-2 py-1.5">
           <div class="text-xs text-stat-luck">골드</div>
