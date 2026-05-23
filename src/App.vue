@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useGameStore } from './stores/game'
 import { useAuthStore } from './stores/auth'
 import MainMenu from './screens/MainMenu.vue'
@@ -64,6 +64,20 @@ watch(
   },
   { immediate: true },  // 페이지 로드 직후 첫 BGM 자동 시작
 )
+
+// 화면 전환 시 최상단으로 스크롤. 컴포넌트 mount 후 (nextTick) 에 실행해
+// 새 화면이 DOM 에 그려진 직후 스크롤 위치를 0 으로 리셋.
+//   - window: 페이지 전체 스크롤 (드물지만 안전망)
+//   - #app: 9:16 컨테이너 (현재 layout 의 실 스크롤 컨테이너)
+//   - main: App.vue 의 <main> (각 screen 컴포넌트의 부모)
+watch(currentScreen, async () => {
+  await nextTick()
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  const appEl = document.getElementById('app')
+  if (appEl) appEl.scrollTop = 0
+  const mainEl = appEl?.querySelector('main')
+  if (mainEl) mainEl.scrollTop = 0
+})
 
 // ============================================================
 // 백그라운드 전환 시 일시정지 (BGM + 자동 틱)
