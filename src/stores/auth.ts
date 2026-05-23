@@ -11,18 +11,15 @@ interface AuthState {
   initialized: boolean
 }
 
-// 클라우드 sync 디바운스 — 게임 중 persistMeta() 가 5~10 회 호출되어도
-// 마지막 변경만 한 번 푸시 (Firestore 쓰기 한도 절약, 무료 한도에서 DAU 5배↑).
-// 즉시 보장이 필요한 시점 (클리어/로그아웃/탭 숨김/데이터 리셋) 에선
-// flushSyncMetaToCloud() / cancelPendingSync() 로 우회.
-const CLOUD_SYNC_DEBOUNCE_MS = 30_000
-let cloudSyncTimer: ReturnType<typeof setTimeout> | null = null
-function clearCloudSyncTimer() {
-  if (cloudSyncTimer !== null) {
-    clearTimeout(cloudSyncTimer)
-    cloudSyncTimer = null
-  }
-}
+// 클라우드 sync 정책 — persistMeta() 는 로컬만 저장하고 클라우드는 명시적 시점
+// (캐릭터 클리어 / 로그아웃 / 탭 숨김 / 로그인 직후) 에서만 push 한다.
+// 이 사이 변경분이 있는지는 cloudDirty 플래그로 추적. Firestore 쓰기 한도
+// (무료 20K/일) 를 크게 절약 — 게임 1 세션당 약 1 write 수준.
+//
+// 트레이드오프: 진행 중 브라우저 강제 종료 (visibilitychange 미발화) 시
+// 마지막 명시 sync 이후 변경분은 cloud 에 못 들어감. 단 localStorage 에는
+// 항상 있으므로 다음 로그인 시 _onLoggedIn 의 cloud merge 가 로컬을 push.
+let cloudDirty = false
 
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
@@ -97,41 +94,35 @@ export const useAuthStore = defineStore('auth', {
           game.meta.characterHistory = cloud.characterHistory
         }
       }
-      // 첫 로그인이면 로컬을 클라우드로 푸시
-      await saveCloudMeta(user.uid, game.meta)
+      // 첫 로그인이면 로컬을 클라우드로 푸시 (이후 dirty 추적 시작점)
+      await this.syncMetaToCloud()
     },
 
-    // 즉시 클라우드 푸시 (디바운스 우회). 보류 타이머가 있어도 그것까지 취소.
+    // 즉시 클라우드 푸시. dirty 플래그도 함께 해제.
     async syncMetaToCloud() {
       if (!this.user) return
-      clearCloudSyncTimer()
+      cloudDirty = false
       const game = useGameStore()
       await saveCloudMeta(this.user.uid, game.meta)
     },
 
-    // 디바운스 큐잉 — game.persistMeta() 가 사용. 30초 안에 추가 호출이
-    // 오면 타이머만 리셋, 마지막 호출 후 30초 뒤에 한 번만 실제 푸시.
+    // game.persistMeta() 가 호출 — 로컬 변경이 클라우드와 어긋났음을 표시만 한다.
+    // 실제 push 는 명시 시점 (캐릭터 클리어 / 로그아웃 / 탭 숨김) 의 flush 에서 일어남.
     queueSyncMetaToCloud() {
       if (!this.user) return
-      clearCloudSyncTimer()
-      cloudSyncTimer = setTimeout(() => {
-        cloudSyncTimer = null
-        // 비로그인 상태로 바뀌었을 수 있으므로 syncMetaToCloud 내부에서 한 번 더 가드.
-        this.syncMetaToCloud().catch((e) => console.warn('queued sync failed', e))
-      }, CLOUD_SYNC_DEBOUNCE_MS)
+      cloudDirty = true
     },
 
-    // 보류 타이머가 있으면 즉시 실행, 없으면 no-op. await 가능.
+    // dirty 면 즉시 push, 아니면 no-op. 명시 sync 지점에서 호출.
     async flushSyncMetaToCloud() {
-      if (cloudSyncTimer === null) return
-      clearCloudSyncTimer()
+      if (!cloudDirty) return
       await this.syncMetaToCloud()
     },
 
-    // 보류 타이머만 취소 (쓰기 X). 데이터 리셋 직전에 사용 — 삭제 직후 타이머가 발화해
-    // 삭제된 cloud 문서가 다시 쓰여지는 걸 막는다.
+    // dirty 플래그만 해제 (쓰기 X). 데이터 리셋 직전에 사용 — 삭제 직후
+    // flush 가 발화해 삭제된 cloud 문서가 다시 쓰여지는 걸 막는다.
     cancelPendingSync() {
-      clearCloudSyncTimer()
+      cloudDirty = false
     },
 
     // 외부에서 호출: 리더보드 제출 (캐릭터 클리어 시점).
