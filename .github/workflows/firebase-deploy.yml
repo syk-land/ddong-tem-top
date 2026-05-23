@@ -1,0 +1,42 @@
+name: Firebase Hosting Deploy
+
+# main 푸시 시 자동 배포. 수동 실행도 가능 (Actions 탭 → Run workflow).
+#
+# 사전 준비 (한 번만):
+#   1. Firebase Console → 프로젝트 설정 → 서비스 계정 → 새 비공개 키 생성 → JSON 다운로드
+#   2. GitHub repo → Settings → Secrets and variables → Actions → New secret
+#      - Name: FIREBASE_SERVICE_ACCOUNT
+#      - Value: 다운받은 JSON 전체 내용 그대로 붙여넣기
+#   3. Firebase Console → Hosting → 시작하기 (한 번만 활성화)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web bundle
+        run: npm run build
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: ddongtop-bea1d
