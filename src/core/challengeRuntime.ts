@@ -20,6 +20,7 @@ export interface ActiveChallenge {
     altarOfferedChapters?: Record<number, boolean>  // 제단 등장한 챕터
     refreshUsedByChapter?: Record<number, boolean>
     totalGoldSpent?: number
+    totalGoldGained?: number     // 골드 획득 누적 (황금알레르기 위반 추적)
     mimicFled?: boolean
     blackMarketCount?: number
     rouletteGreatCount?: number
@@ -461,6 +462,24 @@ export function onTick(ctx: ChallengeContext, character: Character) {
       ac.failed = true
     }
     if (f.trackStrengthAtLeast !== undefined && character.stats.힘 < f.trackStrengthAtLeast) {
+      ac.failed = true
+    }
+    // 과유불급 — 최종 공격력이 maxAtk 초과 시 챌린지 실패 (위반은 fail, 사망은 X)
+    if (f.maxAtk !== undefined) {
+      const eff = computeEffectiveStats(character)
+      if (eff.공격력 > f.maxAtk) ac.failed = true
+    }
+  })
+}
+
+/** 골드 획득 직후 호출 — 누적 획득 골드 카운터 + goldMax500Death 위반 체크 */
+export function onGoldGain(ctx: ChallengeContext, amount: number) {
+  if (amount <= 0) return
+  forActive(ctx, (ac, def) => {
+    const f = def.flags
+    if (!f) return
+    ac.counters.totalGoldGained = (ac.counters.totalGoldGained ?? 0) + amount
+    if (f.goldMax500Death && (ac.counters.totalGoldGained ?? 0) > 2000) {
       ac.failed = true
     }
   })

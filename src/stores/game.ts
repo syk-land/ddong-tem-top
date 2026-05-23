@@ -30,7 +30,7 @@ import { applyRefreshBoost } from '@/core/shop'
 import { pickThreeRandomChallenges, type ChallengeDef } from '@/data/challenges'
 import {
   makeChallengeContext, applyInstantRewards, type ChallengeContext,
-  calcChallengeMetaBonus, onEquipItem, onShopBuy, onShopRefresh,
+  calcChallengeMetaBonus, onEquipItem, onShopBuy, onShopRefresh, onGoldGain,
   onMimicFlee, onBossFightEnd, onTick, onChapterEnd,
   recordActiveSkillUse, recordBasicAttackUse, evaluateFinalChallenges,
   isActiveSkillForbidden, isBasicAttackForbidden, canEquipItem,
@@ -986,6 +986,7 @@ export const useGameStore = defineStore('game', {
       const item = this.run.inventory[idx]
       if (!item) return
       this.run.character.gold += item.buyback
+      if (this.challengeContext) onGoldGain(this.challengeContext, item.buyback)
       this.run.inventory.splice(idx, 1)
       saveRun(this.run)
     },
@@ -995,6 +996,7 @@ export const useGameStore = defineStore('game', {
       if (!this.run) return 0
       const total = this.run.inventory.reduce((sum, it) => sum + it.buyback, 0)
       this.run.character.gold += total
+      if (this.challengeContext) onGoldGain(this.challengeContext, total)
       this.run.inventory = []
       saveRun(this.run)
       return total
@@ -1269,6 +1271,7 @@ export const useGameStore = defineStore('game', {
       if (!this.run) return
       if (this.meta.tutorialSeen.first_shop) return
       this.run.character.gold += 100
+      if (this.challengeContext) onGoldGain(this.challengeContext, 100)
       saveRun(this.run)
     },
     // 현재 단계 닫기 — 본 것으로 마킹하고 저장
@@ -1792,6 +1795,7 @@ export const useGameStore = defineStore('game', {
       reward = Math.round(reward * variance)
 
       this.run.character.gold += reward
+      if (this.challengeContext) onGoldGain(this.challengeContext, reward)
       pushLog(this.combat, `골드 +${reward}`, 'gold')
 
       // 보스/미믹 처치 시 드랍 아이템 (다수 전투는 드랍 X — 골드만)
@@ -1930,6 +1934,7 @@ export const useGameStore = defineStore('game', {
       const item = this.run.character[slot]
       if (!item) return
       this.run.character.gold += item.buyback
+      if (this.challengeContext) onGoldGain(this.challengeContext, item.buyback)
       // 챌린지 훅: 저주의 무기 제거는 '저주의 동반자' 챌린지 실패
       if (this.challengeContext && slot === 'weapon' && item.trait === '저주의') {
         for (const ac of this.challengeContext.active) {
