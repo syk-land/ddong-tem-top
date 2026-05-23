@@ -1661,6 +1661,15 @@ export const useGameStore = defineStore('game', {
       }
 
       saveRun(this.run)
+      // 자동화 모드 — Combat.vue 의 maybeAutoAdvance 의 setTimeout(300ms) 의존을 우회하고
+      // 즉시 다음 층으로 진행. 안드로이드 webview 에서 100배속 tick 배치 처리로 단일
+      // 스레드가 점유되면 setTimeout 스케줄이 지연/누락돼 챕터 전환이 안 일어나는 현상
+      // 방지. 자동화 모드는 어차피 사용자 결정 대기가 없으므로 즉시 closeCombat 안전.
+      // (보스 드랍 receiveItem 도 자동화 분기에서 모달 없이 동기 완료 — closeCombat
+      // 가 itemAnnounceQueue.length > 0 가드에 막히지 않는다.)
+      if (this.isAutoMode) {
+        this.closeCombat()
+      }
       // 다음 층으로 자동 진행은 UI에서 (전투 결과 보여주고 → advance() 호출)
     },
 

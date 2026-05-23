@@ -142,10 +142,14 @@ function startAutoTick() {
   // 한 setInterval 콜에서 여러 번 tick 을 호출(배치) — setInterval 최소 가드(10ms)
   // 이상으로 가속 가능. 시각 효과(데미지 팝업/로그)는 같은 프레임에 누적되지만
   // 자동 모드 사용자는 결과만 보는 흐름이라 큰 문제 없음.
+  // ticksPerCall 은 안드로이드 webview 단일 스레드 점유로 setTimeout / Promise
+  // 스케줄(maybeAutoAdvance 등) 이 못 끼어드는 현상을 막기 위해 8 로 cap. 100배속
+  // 같은 경우 실 처리량은 (1000ms / 10ms) × 8 = 800 tick/s → BASE_INTERVAL=60ms
+  // 기준으로 약 48배 정도. 그 이상 가속은 시각적 의미가 적고 안정성 우선.
   const interval = Math.max(10, Math.round(BASE_INTERVAL / speed))
   const callsPerSec = 1000 / interval
   const targetTicksPerSec = speed * (1000 / BASE_INTERVAL)
-  const ticksPerCall = Math.max(1, Math.round(targetTicksPerSec / callsPerSec))
+  const ticksPerCall = Math.min(8, Math.max(1, Math.round(targetTicksPerSec / callsPerSec)))
   ticker = window.setInterval(() => {
     for (let i = 0; i < ticksPerCall; i++) {
       if (!combat.value || combat.value.ended) {
