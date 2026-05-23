@@ -6,7 +6,7 @@ import HpMpBar from '@/ui/components/HpMpBar.vue'
 import ItemName from '@/ui/components/ItemName.vue'
 import StatusBadges from '@/ui/components/StatusBadges.vue'
 import { logColorClass, logPrefix } from '@/ui/colors'
-import { themeBgUrl, skillIconUrl, monsterImageUrl, playerImageUrl, realBossImageUrl } from '@/ui/images'
+import { themeBgUrl, skillIconUrl, monsterImageUrl, playerBustUrl, realBossImageUrl } from '@/ui/images'
 import { sfx } from '@/ui/sound'
 
 const game = useGameStore()
@@ -397,10 +397,10 @@ watch(
             <div class="flex items-center gap-3">
               <div class="relative flex-shrink-0">
                 <img
-                  :src="playerImageUrl(game.runAvatar)"
+                  :src="playerBustUrl(game.runAvatar)"
                   alt="플레이어"
                   :class="[
-                    'w-20 h-20 object-contain drop-shadow-2xl',
+                    'w-32 h-32 sm:w-36 sm:h-36 object-cover rounded-lg drop-shadow-2xl border-2 border-cyan-500/40 shadow-[0_0_14px_rgba(34,211,238,0.3)]',
                     playerShaking ? 'animate-shake animate-flash-red' : '',
                   ]"
                   @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"

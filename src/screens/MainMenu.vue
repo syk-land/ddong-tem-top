@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useAuthStore } from '@/stores/auth'
-import { mainImageUrl, playerImageUrl, userAvatarLabel } from '@/ui/images'
+import { mainImageUrl, playerImageUrl } from '@/ui/images'
 import { loadRun } from '@/core/meta'
 import { deleteCloudUserData } from '@/lib/cloudSync'
 import { themeColorClass } from '@/ui/colors'
@@ -141,14 +141,14 @@ async function resetMeta() {
           <img
             v-if="savedAvatarKey"
             :src="playerImageUrl(savedAvatarKey)"
-            :alt="userAvatarLabel(savedAvatarKey)"
+            :alt="game.characterName(savedAvatarKey)"
             class="w-14 h-14 rounded-full object-cover border-2 border-emerald-400/60 shrink-0"
             @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
           />
           <div class="flex-1 min-w-0">
             <div class="flex items-baseline gap-2 mb-1">
               <span class="text-xs font-bold text-emerald-300">▶ 이어하기</span>
-              <span class="text-xs text-gray-400 truncate">{{ savedAvatarKey ? userAvatarLabel(savedAvatarKey) : '모험가' }}</span>
+              <span class="text-xs text-gray-400 truncate">{{ savedAvatarKey ? game.characterName(savedAvatarKey) : '모험가' }}</span>
             </div>
             <div :class="['text-sm font-bold truncate', themeColorClass[savedChapter.theme]]">
               제 {{ savedChapter.chapter }}챕터 · {{ savedChapter.themeName }}
