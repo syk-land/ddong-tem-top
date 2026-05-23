@@ -10,6 +10,7 @@ import {
   sfx,
 } from '@/ui/sound'
 import { showRewardedAd } from '@/lib/ads'
+import { IS_DEV_SERVER } from '@/lib/platform'
 
 const game = useGameStore()
 const auth = useAuthStore()
@@ -424,10 +425,12 @@ watch(
           </button>
         </div>
 
-        <!-- 자동화 모드 — dev 계정만. 기본 100배 + 숫자 입력으로 5~999 조정.
-             autoEnter 강제 on + 상점 자동 매수·새로고침 + 인벤 자동 업그레이드 +
-             특별이벤트 자동 거부. -->
-        <div v-if="auth.isDevAccount" class="flex items-center justify-center gap-2 pt-1 border-t border-slate-700/40">
+        <!-- 자동화 모드 — vite dev 서버 + dev 계정 한정. 기본 100배 + 숫자 입력으로
+             5~999 조정. autoEnter 강제 on + 상점 자동 매수·새로고침 + 인벤 자동
+             업그레이드 + 특별이벤트 자동 거부.
+             production 빌드 (안드로이드 / 웹 호스팅) 에서는 IS_DEV_SERVER 가 false
+             상수 → 이 v-if 가 dead branch → minifier 가 블록 전체 제거. -->
+        <div v-if="IS_DEV_SERVER && auth.isDevAccount" class="flex items-center justify-center gap-2 pt-1 border-t border-slate-700/40">
           <button
             class="px-3 py-1 rounded text-xs font-bold transition-all"
             :class="game.isAutoMode

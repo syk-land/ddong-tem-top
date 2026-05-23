@@ -1,26 +1,44 @@
 # 자동화 모드 (Auto Mode)
 
-> `combatSpeed >= 5` 일 때 활성화되는 dev 전용 자동화 모드. 기본 100배 + 5~999 자유 조정. 자동 진입 / 자동 매수 / 자동 장착 / 특별이벤트 자동 거부 / 튜토리얼 보류로 사용자 개입 없이 등반이 끝까지 흘러간다.
+> `combatSpeed >= 5` 일 때 활성화되는 **vite 개발 서버 한정** 자동화 모드. 기본 100배 + 5~999 자유 조정. 자동 진입 / 자동 매수 / 자동 장착 / 특별이벤트 자동 거부 / 튜토리얼 보류로 사용자 개입 없이 등반이 끝까지 흘러간다.
+>
+> `npm run build` 로 만든 production 번들 (안드로이드 빌드 / 웹 호스팅 배포 포함) 에서는 빌드 타임 상수 `IS_DEV_SERVER === false` 가 인라인되어 **자동화 진입 경로가 모두 차단**된다 — getter 항상 false, UI `v-if` falsy, setCombatSpeed 가 5+ 입력을 4로 강제. 사용자는 기능에 도달할 수 없다. (메소드 본체와 UI 문자열은 번들에 그대로 남는다 — Vue 의 v-if 가 render function 내 변수 참조로 컴파일되어 minifier 가 dead 라고 추론 못 함. 더 강한 제거가 필요하면 자동화 섹션을 별도 컴포넌트로 분리 + dynamic import 해야 함.)
 
-코드: `src/stores/game.ts` (`isAutoMode`, `setCombatSpeed`, `autoUpgradeEquipment`, `autoShopFlow`, `receiveItem`, `runSpecialEvent`, `triggerTutorial`), `src/screens/Combat.vue` (tick 배치), `src/screens/Shop.vue` (onMounted), `src/screens/Dungeon.vue` (자동 진입 확장), `src/ui/components/SpeedControl.vue` (UI)
+코드: `src/lib/platform.ts` (`IS_DEV_SERVER` 빌드 타임 상수), `src/stores/game.ts` (`isAutoMode`, `setCombatSpeed`, `autoUpgradeEquipment`, `autoShopFlow`, `receiveItem`, `runSpecialEvent`, `triggerTutorial`), `src/screens/Combat.vue` (tick 배치), `src/screens/Shop.vue` (onMounted), `src/screens/Dungeon.vue` (자동 진입 확장), `src/ui/components/SpeedControl.vue` (UI)
 
-저장: `climetop:speed:v1` (정수, 1~1000 clamp)
+저장: `climetop:speed:v1` (정수, dev 서버 1~1000 / production 1~4 clamp)
 
 ---
 
-## 진입 / 노출
-
-`SpeedControl` 패널 (dev 계정 한정, `auth.isDevAccount === true`) 아래쪽 점선
-구분선 밑에 `🚀 100x (auto)` 버튼이 노출. 버튼을 누르면 즉시 `setCombatSpeed(100)`
-이 호출되고, 그 옆에 5~999 범위의 숫자 입력 박스가 함께 나타나 사용자가 직접
-배속을 조정할 수 있다.
-
-- 비-dev 계정: 버튼 자체가 렌더되지 않음 (`<div v-if="auth.isDevAccount">`).
-- 게이팅 면제: 2/4 배속과 달리 광고/튜토리얼 게이트 없이 즉시 활성.
-- 활성 판정은 `game.isAutoMode === game.combatSpeed >= 5` 게터 하나로 통일.
+## 빌드 타임 분기 — `IS_DEV_SERVER`
 
 ```ts
-isAutoMode: (s): boolean => s.combatSpeed >= 5,
+// src/lib/platform.ts
+export const IS_DEV_SERVER: boolean = import.meta.env.DEV
+```
+
+Vite 가 빌드 시 boolean 상수로 인라인 → production 번들에서:
+- `isAutoMode` getter 가 `false && ...` 로 평가되어 항상 false → 모든 `if (this.isAutoMode)` 분기가 도달 불가
+- `SpeedControl` 의 자동화 버튼/숫자 입력 박스 `<div v-if="IS_DEV_SERVER && ...">` 가 항상 falsy → DOM 렌더 X
+- `setCombatSpeed` / `init()` localStorage 복원 안의 `if (!IS_DEV_SERVER && speed > 4)` 가 안전망 — 옛 dev 서버에서 100배로 저장한 localStorage 가 production 빌드에 그대로 들어와도 4 로 강제 clamp
+
+번들 사이즈 측면 한계: Pinia action 메소드는 객체 property 로 등록되고, Vue template 의 v-if 도 render function 안에서 `_ctx.IS_DEV_SERVER` 변수 참조로 컴파일된다. minifier 가 그게 module top-level boolean 상수임을 추론하지 못하므로 자동화 분기 함수 본체 (`autoUpgradeEquipment` / `autoShopFlow` / 자동화 분기 안의 모달 우회 로직) 와 UI 문자열은 번들에 남는다. 사용자에게는 보이지 않고 도달도 불가하지만, 코드는 적재된 상태. 실제 tree-shake 까지 필요하면 자동화 섹션을 별도 `AutoModeControls.vue` 로 분리 + `import.meta.env.DEV ? defineAsyncComponent(() => import(...)) : null` 패턴이 필요.
+
+---
+
+## 진입 / 노출 (dev 서버 한정)
+
+`SpeedControl` 패널 아래쪽 점선 구분선 밑에 `🚀 100x (auto)` 버튼이 노출. 버튼을
+누르면 즉시 `setCombatSpeed(100)` 이 호출되고, 그 옆에 5~999 범위의 숫자 입력
+박스가 함께 나타나 사용자가 직접 배속을 조정할 수 있다.
+
+노출 조건: `IS_DEV_SERVER && auth.isDevAccount` 모두 true.
+- production 빌드: `IS_DEV_SERVER` 가 false 상수 → 블록 자체가 minifier 제거.
+- dev 서버 + 비-dev 계정: 버튼 렌더 X.
+- 게이팅 면제: 2/4 배속과 달리 광고/튜토리얼 게이트 없이 즉시 활성.
+
+```ts
+isAutoMode: (s): boolean => IS_DEV_SERVER && s.combatSpeed >= 5,
 ```
 
 ---
@@ -28,19 +46,23 @@ isAutoMode: (s): boolean => s.combatSpeed >= 5,
 ## 부수 효과 (`setCombatSpeed`)
 
 ```ts
-// 1) clamp — 1 ≤ speed ≤ 1000, 정수
-speed = Math.max(1, Math.min(1000, Math.round(speed)))
-
-// 2) tutorial 게이팅 (1/2/4 만 해당, 5+ 는 게이팅 면제)
+// 1) tutorial 게이팅 (1/2/4 만 해당, 5+ 는 게이팅 면제)
 if (speed === 2 && !meta.tutorialSeen.second_combat) speed = 1
 if (speed === 4 && !meta.tutorialSeen.first_chapter_clear) speed = 1
 
-// 3) 자동화 모드 진입 시 autoEnter 강제 on
+// 2) clamp — 1 ≤ speed ≤ 1000, 정수
+speed = Math.max(1, Math.min(1000, Math.round(speed)))
+
+// 3) production 안전망 — dev 서버 아니면 5+ 진입 자체 차단 (4로 clamp)
+if (!IS_DEV_SERVER && speed > 4) speed = 4
+
+// 4) 자동화 모드 진입 시 autoEnter 강제 on
 if (speed >= 5 && !autoEnter) setAutoEnter(true)
 ```
 
 - `autoEnter` 는 자동화 모드에서 강제로 켜진다 (꺼져 있으면 켜고, 켜져 있으면 유지).
 - 1/2/4 로 다시 내릴 때는 `autoEnter` 를 끄지 않음 — 사용자 의도 기준.
+- production 빌드는 (3) 의 안전망으로 5+ 가 절대 들어가지 않으므로 (4) 분기에 도달 X.
 
 ---
 

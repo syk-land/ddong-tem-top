@@ -43,6 +43,7 @@ import { computeWeaponSkillProc } from '@/core/buildBalance'
 import { computeItemValue } from '@/core/itemValue'
 import { npcIconUrl, pickRandomUserAvatars, isValidAvatarKey, allUserAvatarKeys } from '@/ui/images'
 import { showRewardedAd } from '@/lib/ads'
+import { IS_DEV_SERVER } from '@/lib/platform'
 import { sfx } from '@/ui/sound'
 import { computeEffectiveStats } from '@/core/stats'
 import { SKILLS as SKILLS_REF } from '@/data/skills'
@@ -275,12 +276,14 @@ export const useGameStore = defineStore('game', {
       s.meta.tutorialSeen.first_chapter_clear || s.tutorialActive === 'first_chapter_clear',
     canShowAutoEnter: (s): boolean =>
       s.meta.tutorialSeen.first_chapter_clear || s.tutorialActive === 'first_chapter_clear',
-    // 자동화 모드 — combatSpeed >= 5 일 때 (기본 100배, 사용자가 숫자 입력으로 조정).
+    // 자동화 모드 — vite 개발 서버 한정. production 빌드 (안드로이드 포함) 에서는
+    // IS_DEV_SERVER 가 false 상수로 인라인되어 이 getter 가 항상 false → 모든
+    // `if (this.isAutoMode)` 분기는 dead branch → minifier 가 제거.
     //   1) autoEnter 강제 on (setCombatSpeed 가 처리)
     //   2) 보물/일반 드롭 → 인벤에 넣고 즉시 더 좋은 장비면 자동 swap (receiveItem)
     //   3) 상점 진입 → 골드 한도 내에서 atk/def value 최고 매물 자동 매수 후 leaveShop (Shop.vue)
     //   4) 특별이벤트 (대장장이/암시장/룰렛/제단/수집가/모험가/도박꾼) → confirmModal 우회, 거부 path
-    isAutoMode: (s): boolean => s.combatSpeed >= 5,
+    isAutoMode: (s): boolean => IS_DEV_SERVER && s.combatSpeed >= 5,
     // 튜토리얼 챌린지 게이팅 — 첫 챕터 클리어 전에는 도박꾼·제단·모험가 같은
     // 특별이벤트 챌린지만 후보 (일상 학습 흐름인 인벤/상점/장비를 방해하지 않게).
     // 첫 챕터 클리어 후엔 전체 풀로 복귀.
@@ -314,11 +317,15 @@ export const useGameStore = defineStore('game', {
     init() {
       this.meta = loadMeta()
       this.savedRunExists = loadRun() !== null
-      // 저장된 게임 속도 복원 (1/2/4 = 게이팅 적용, 5 이상은 자동화·dev 자유).
+      // 저장된 게임 속도 복원 (1/2/4 = 게이팅 적용, 5 이상은 dev 서버 자동화 모드).
+      // production 빌드(안드로이드 포함) 에서는 5 이상 값이 저장돼 있어도 1로 강제.
       try {
         const raw = localStorage.getItem('climetop:speed:v1')
         const n = raw ? Number(raw) : NaN
-        if (Number.isFinite(n) && n >= 1 && n <= 1000) this.combatSpeed = Math.round(n)
+        if (Number.isFinite(n) && n >= 1 && n <= 1000) {
+          const restored = Math.round(n)
+          this.combatSpeed = IS_DEV_SERVER ? restored : Math.min(4, restored)
+        }
       } catch {}
       // 자동 진입 토글 복원
       try {
@@ -1061,15 +1068,17 @@ export const useGameStore = defineStore('game', {
     setCombatSpeed(speed: number) {
       // 튜토리얼 게이팅 (강제 조작 방어):
       //   2배속은 second_combat 학습 후, 4배속은 first_chapter_clear 학습 후만 허용.
-      //   5배 이상은 자동화 모드 — 게이팅 면제 (SpeedControl 에서 dev 전용 노출).
+      //   5배 이상은 자동화 모드 (dev 서버 한정) — 게이팅 면제.
       if (speed === 2 && !this.meta.tutorialSeen.second_combat) {
         speed = 1
       }
       if (speed === 4 && !this.meta.tutorialSeen.first_chapter_clear) {
         speed = 1
       }
-      // 범위 clamp — 1 이상, 1000 이하 정수.
+      // 범위 clamp — 1 이상, 1000 이하 정수. production 빌드(안드로이드 포함)
+      // 에서는 5+ 가 들어와도 4로 강제 (자동화 모드 비활성).
       speed = Math.max(1, Math.min(1000, Math.round(speed)))
+      if (!IS_DEV_SERVER && speed > 4) speed = 4
       this.combatSpeed = speed
       try {
         localStorage.setItem('climetop:speed:v1', String(speed))
@@ -1077,7 +1086,8 @@ export const useGameStore = defineStore('game', {
       // 자동화 모드 (5배 이상) — autoEnter 강제 on. 떠 있는 튜토리얼 카드는 그대로
       // 둔다 (사용자가 직접 닫음). 새 단계 trigger 는 triggerTutorial 안에서
       // isAutoMode 가드로 보류된다. 1·2·4 로 다시 내릴 때는 autoEnter 가 사용자
-      // 의도 기준이므로 강제 off 하지 않는다.
+      // 의도 기준이므로 강제 off 하지 않는다. production 빌드는 위에서 4로 clamp
+      // 되어 이 분기에 도달하지 않는다.
       if (speed >= 5 && !this.autoEnter) {
         this.setAutoEnter(true)
       }
