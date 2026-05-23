@@ -11,6 +11,12 @@ const game = useGameStore()
 
 // 첫 상점 — 구매/판매/새로고침 안내 + 학습용 100G 1회 지급 + 매물 명중 강제는 createShop 쪽에서 처리
 onMounted(() => {
+  // 자동화 모드 (6배속) — 자동 매수 + 자동 이탈. 사용자가 화면을 거의 못 보지만
+  // 일부러 빠른 진행을 선택한 모드라 그대로 OK.
+  if (game.isAutoMode) {
+    game.autoShopFlow()
+    return
+  }
   game.grantTutorialShopBonus()  // first_shop 마킹 전에만 1회 +100G
   game.triggerTutorial('first_shop')
 })

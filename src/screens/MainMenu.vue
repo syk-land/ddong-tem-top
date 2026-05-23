@@ -59,7 +59,7 @@ function loadGameClick() {
 }
 async function resetMeta() {
   const ok = await game.confirmModal(
-    '정말 모든 누적 보너스와 진행을 리셋할까요?\n로그인 상태라면 클라우드 데이터(누적 보너스·리더보드)도 함께 삭제됩니다.',
+    '정말 모든 누적 보너스와 진행을 리셋할까요?\n사운드·속도·자동진입 등 설정도 모두 초기화됩니다.\n로그인 상태라면 클라우드 데이터(누적 보너스·리더보드)도 함께 삭제됩니다.',
     {
       title: '데이터 리셋',
       danger: true,
@@ -72,10 +72,17 @@ async function resetMeta() {
   if (auth.uid) {
     await deleteCloudUserData(auth.uid)
   }
-  localStorage.removeItem('climetop:meta:v1')
-  localStorage.removeItem('climetop:run:v1')
-  localStorage.removeItem('climetop:tutorialSeen:v1')
-  localStorage.removeItem('climetop:creation:v1')
+  // climetop: 프리픽스 가진 모든 키 일괄 삭제 —
+  // 메타/진행/튜토리얼/생성/사운드/속도/자동진입/SpeedControl 펼침 상태 등 전부.
+  // 새 키가 추가돼도 동기화 없이 항상 전체 리셋된다.
+  try {
+    const toRemove: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith('climetop:')) toRemove.push(k)
+    }
+    for (const k of toRemove) localStorage.removeItem(k)
+  } catch {}
   location.reload()
 }
 </script>

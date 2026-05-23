@@ -40,6 +40,7 @@ import {
   mergedFlags,
 } from '@/core/challengeRuntime'
 import { computeWeaponSkillProc } from '@/core/buildBalance'
+import { computeItemValue } from '@/core/itemValue'
 import { npcIconUrl, pickRandomUserAvatars, isValidAvatarKey, allUserAvatarKeys } from '@/ui/images'
 import { showRewardedAd } from '@/lib/ads'
 import { sfx } from '@/ui/sound'
@@ -262,11 +263,24 @@ export const useGameStore = defineStore('game', {
       return { rank, bonus, score, eqScore, goldScore, hpScore }
     },
     // ── 튜토리얼 속도 게이팅 ──
-    // 2배속은 second_combat (챕터 1 4층 일반 몬스터 안내) 본 후부터 자유.
-    canUseSpeed2x: (s): boolean => s.meta.tutorialSeen.second_combat,
-    // 4배속·자동진입은 first_chapter_clear (챕터 2 1층 안내) 본 후 노출.
-    canShowSpeed4x: (s): boolean => s.meta.tutorialSeen.first_chapter_clear,
-    canShowAutoEnter: (s): boolean => s.meta.tutorialSeen.first_chapter_clear,
+    // 2배속은 second_combat (챕터 1 4층 일반 몬스터 안내) 트리거 시점부터 자유.
+    // 안내 모달이 떠 있는 동안에도 이미 해금 — 사용자가 안내를 읽으면서
+    // 좌측 상단의 2배속 버튼을 바로 누를 수 있게 한다.
+    canUseSpeed2x: (s): boolean =>
+      s.meta.tutorialSeen.second_combat || s.tutorialActive === 'second_combat',
+    // 4배속·자동진입은 first_chapter_clear (챕터 2 1층 안내) 트리거 시점부터 노출.
+    // 2배속과 동일 — 안내 모달이 떠 있는 동안에도 이미 해금된 상태로 버튼을 노출해
+    // 사용자가 안내를 읽으면서 바로 4배속/자동진입 버튼을 시도해볼 수 있게 한다.
+    canShowSpeed4x: (s): boolean =>
+      s.meta.tutorialSeen.first_chapter_clear || s.tutorialActive === 'first_chapter_clear',
+    canShowAutoEnter: (s): boolean =>
+      s.meta.tutorialSeen.first_chapter_clear || s.tutorialActive === 'first_chapter_clear',
+    // 자동화 모드 — combatSpeed >= 5 일 때 (기본 100배, 사용자가 숫자 입력으로 조정).
+    //   1) autoEnter 강제 on (setCombatSpeed 가 처리)
+    //   2) 보물/일반 드롭 → 인벤에 넣고 즉시 더 좋은 장비면 자동 swap (receiveItem)
+    //   3) 상점 진입 → 골드 한도 내에서 atk/def value 최고 매물 자동 매수 후 leaveShop (Shop.vue)
+    //   4) 특별이벤트 (대장장이/암시장/룰렛/제단/수집가/모험가/도박꾼) → confirmModal 우회, 거부 path
+    isAutoMode: (s): boolean => s.combatSpeed >= 5,
     // 튜토리얼 챌린지 게이팅 — 첫 챕터 클리어 전에는 도박꾼·제단·모험가 같은
     // 특별이벤트 챌린지만 후보 (일상 학습 흐름인 인벤/상점/장비를 방해하지 않게).
     // 첫 챕터 클리어 후엔 전체 풀로 복귀.
@@ -300,11 +314,11 @@ export const useGameStore = defineStore('game', {
     init() {
       this.meta = loadMeta()
       this.savedRunExists = loadRun() !== null
-      // 저장된 게임 속도 복원 (1/2/4 또는 100=개발자 테스트용)
+      // 저장된 게임 속도 복원 (1/2/4 = 게이팅 적용, 5 이상은 자동화·dev 자유).
       try {
         const raw = localStorage.getItem('climetop:speed:v1')
         const n = raw ? Number(raw) : NaN
-        if (n === 1 || n === 2 || n === 4 || n === 100) this.combatSpeed = n
+        if (Number.isFinite(n) && n >= 1 && n <= 1000) this.combatSpeed = Math.round(n)
       } catch {}
       // 자동 진입 토글 복원
       try {
@@ -576,10 +590,10 @@ export const useGameStore = defineStore('game', {
           rollItem({ kind: 'armor',  chapter, source: 'treasure', forceTraitName: '정밀한' }),
         ]
         for (const item of rewards) this.receiveItem(item)
-        // ★ 핵심: 튜토리얼 보물에서는 advance() 호출 X.
-        //   2층 학습 (first_inventory + first_status) 완료 전엔 currentFloor=2
-        //   상태로 던전 화면에 머문다. completeTutorial(first_status) 에서 자동 advance.
-        this.pendingTutorialTreasureAdvance = true
+        // 튜토리얼 모드에서도 즉시 advance — 사용자가 ItemAnnounce 확인을 누르면
+        // clearItemAnnounce 에서 다음 층(3층=상점) 으로 진입한다.
+        // 인벤/상태 학습은 3층 도착 후 Dungeon.vue onMounted 에서 발화한다.
+        this.advance()
         return
       }
       // 통상: 10% 미믹, 85% 1개, 5% 2개
@@ -629,7 +643,38 @@ export const useGameStore = defineStore('game', {
       if (this.run.inventory.length < this.run.inventoryCap) {
         this.run.inventory.push(item)
         this.autoEquipFromInventory()
-        this.itemAnnounceQueue.push(item)
+        if (this.isAutoMode) {
+          // 자동화 모드 — 자동 업그레이드까지 처리하고 ItemAnnounce 모달은 띄우지 않는다.
+          // ("확인" 자동 클릭과 같은 결과: 카드 안 보이고 즉시 다음 진행으로 이어감.)
+          this.autoUpgradeEquipment()
+        } else {
+          this.itemAnnounceQueue.push(item)
+        }
+        saveRun(this.run)
+        return
+      }
+
+      // 가득 참 — 자동화 모드면 PickupModal 우회. 같은 종류 인벤 슬롯 중 가치
+      // 가장 낮은 것을 새 아이템으로 교체 (단 새 아이템이 더 약하면 폐기).
+      if (this.isAutoMode) {
+        const chapter = this.currentChapterState?.chapter
+        const valOf = (it: ItemInstance): number => it.kind === 'weapon'
+          ? computeItemValue(it, this.run!.character, { chapter }).atkValue
+          : computeItemValue(it, this.run!.character, { chapter }).defValue
+        const newVal = valOf(item)
+        let worstIdx = -1
+        let worstVal = newVal
+        for (let i = 0; i < this.run.inventory.length; i++) {
+          const inv = this.run.inventory[i]
+          if (inv.kind !== item.kind) continue
+          const v = valOf(inv)
+          if (v < worstVal) { worstVal = v; worstIdx = i }
+        }
+        if (worstIdx >= 0) {
+          this.run.inventory[worstIdx] = item
+          this.autoUpgradeEquipment()
+        }
+        // worstIdx === -1 → 새 아이템이 가장 약하거나 같은 kind 인벤 없음 → 폐기
         saveRun(this.run)
         return
       }
@@ -642,16 +687,19 @@ export const useGameStore = defineStore('game', {
     // ItemAnnounceModal 의 "확인" 콜백 — 큐 전체 비움 (한 모달에 카드 N장 한꺼번에 보여줌).
     clearItemAnnounce() {
       this.itemAnnounceQueue = []
-      // 보물 노드 받기 직후 — 튜토리얼 모드에서는 advance() 가 안 호출돼 Dungeon
-      // 의 onMounted 가 다시 실행되지 않으므로 여기서 first_treasure 발화.
+      // 1) 사용자가 "확인" 을 누른 시점에 다음 층 자동 진입 (autoEnter 여부와 무관).
+      //    보물 외 일반 드롭에서도 ItemAnnounce 닫으면 자연스럽게 다음 층 흐름이 이어진다.
+      if (this.run && !this.combat && this.screen === 'dungeon') {
+        this.advance()
+      }
+      // 2) 보물 받기 직후 흐름 — advance() 가 currentFloor 를 +1 (3층 shop) 으로 옮긴 뒤
+      //    인벤 버튼 안내(first_treasure) 발화. Dungeon 컴포넌트는 floor 변경 시
+      //    재mount 되지 않으므로 onMounted 가 다시 실행되지 않는다 — 여기서 직접 트리거.
+      //    triggerTutorial 가드가 chapter==1 && currentFloor==2 && floor.type==='shop'
+      //    조건을 한 번 더 확인한다.
       if (this.pendingTreasureTutorial) {
         this.pendingTreasureTutorial = false
         this.triggerTutorial('first_treasure')
-      }
-      // 자동 진입 모드라 advance 가 일찍 막혔다면 큐 비워진 직후 다시 시도.
-      // (advance 안의 pendingTutorialTreasureAdvance 가드가 학습 미완료면 차단.)
-      if (this.autoEnter && this.run && !this.combat) {
-        this.advance()
       }
     },
 
@@ -683,6 +731,47 @@ export const useGameStore = defineStore('game', {
           c[slot] = it
           if (this.challengeContext) onEquipItem(this.challengeContext, it, null)
           this.run.inventory.splice(bestIdx, 1)
+          changed = true
+        }
+      }
+      if (changed) this.recomputeDerivedStats()
+    },
+
+    // 자동화 모드 (combatSpeed === 6) — 인벤 안에서 atk(무기)/def(갑옷) value 가 현재
+    // 장착품보다 더 높은 후보가 있으면 자동 swap. 슬롯이 비어 있으면 그것도 채움.
+    // receiveItem 직후, 상점 매수 후 등에서 호출.
+    autoUpgradeEquipment() {
+      if (!this.run) return
+      const c = this.run.character
+      const chapter = this.currentChapterState?.chapter
+      let changed = false
+      for (const slot of ['weapon', 'armor'] as const) {
+        const curVal = c[slot]
+          ? (slot === 'weapon'
+              ? computeItemValue(c[slot]!, c, { chapter }).atkValue
+              : computeItemValue(c[slot]!, c, { chapter }).defValue)
+          : -Infinity
+        let bestVal = curVal
+        let bestIdx = -1
+        for (let i = 0; i < this.run.inventory.length; i++) {
+          const it = this.run.inventory[i]
+          if (it.kind !== slot) continue
+          if (this.challengeContext) {
+            const check = canEquipItem(it, this.challengeContext)
+            if (!check.ok) continue
+          }
+          const v = slot === 'weapon'
+            ? computeItemValue(it, c, { chapter }).atkValue
+            : computeItemValue(it, c, { chapter }).defValue
+          if (v > bestVal) { bestVal = v; bestIdx = i }
+        }
+        if (bestIdx >= 0) {
+          const newItem = this.run.inventory[bestIdx]
+          const old = c[slot]
+          c[slot] = newItem
+          this.run.inventory.splice(bestIdx, 1)
+          if (old) this.run.inventory.push(old)  // 인벤 cap 유지 (-1 + 1)
+          if (this.challengeContext) onEquipItem(this.challengeContext, newItem, old)
           changed = true
         }
       }
@@ -794,13 +883,8 @@ export const useGameStore = defineStore('game', {
       if (!this.run) return
       // 획득 알림 모달이 떠 있으면 사용자가 "확인" 누르기 전엔 진행하지 않음
       if (this.itemAnnounceQueue.length > 0) return
-      // ★ 튜토리얼 — 2층 보물 노드에서 인벤/상태 학습 완료 전엔 절대로 다음 층으로
-      //   안 넘어가게 차단. completeTutorial 안에서 first_status 가 마킹된 후
-      //   자동 advance 가 들어와야 통과한다.
-      if (this.pendingTutorialTreasureAdvance &&
-          (!this.meta.tutorialSeen.first_inventory || !this.meta.tutorialSeen.first_status)) {
-        return
-      }
+      // (구) pendingTutorialTreasureAdvance 게이트는 제거됨 — 보물에서 받은 뒤
+      // 즉시 3층(상점) 으로 진입하고, 인벤/상태 학습은 3층 onMounted 에서 발화한다.
       this.pendingTutorialTreasureAdvance = false
       sfx.transition()
       // 층 클리어 시 플레이어 상태이상 + 침묵 전체 제거
@@ -977,17 +1061,26 @@ export const useGameStore = defineStore('game', {
     setCombatSpeed(speed: number) {
       // 튜토리얼 게이팅 (강제 조작 방어):
       //   2배속은 second_combat 학습 후, 4배속은 first_chapter_clear 학습 후만 허용.
-      //   100배는 게이팅 면제 — 개발자 테스트용 (SpeedControl 에서 isDevAccount 일 때만 노출)
+      //   5배 이상은 자동화 모드 — 게이팅 면제 (SpeedControl 에서 dev 전용 노출).
       if (speed === 2 && !this.meta.tutorialSeen.second_combat) {
         speed = 1
       }
       if (speed === 4 && !this.meta.tutorialSeen.first_chapter_clear) {
         speed = 1
       }
+      // 범위 clamp — 1 이상, 1000 이하 정수.
+      speed = Math.max(1, Math.min(1000, Math.round(speed)))
       this.combatSpeed = speed
       try {
         localStorage.setItem('climetop:speed:v1', String(speed))
       } catch {}
+      // 자동화 모드 (5배 이상) — autoEnter 강제 on. 떠 있는 튜토리얼 카드는 그대로
+      // 둔다 (사용자가 직접 닫음). 새 단계 trigger 는 triggerTutorial 안에서
+      // isAutoMode 가드로 보류된다. 1·2·4 로 다시 내릴 때는 autoEnter 가 사용자
+      // 의도 기준이므로 강제 off 하지 않는다.
+      if (speed >= 5 && !this.autoEnter) {
+        this.setAutoEnter(true)
+      }
     },
 
     // ── 인게임 튜토리얼 ──
@@ -995,14 +1088,28 @@ export const useGameStore = defineStore('game', {
     triggerTutorial(step: TutorialStep) {
       if (this.meta.tutorialSeen[step]) return
       if (this.tutorialActive) return
-      // 인벤/상태창 학습 (first_inventory, prompt_status, first_status) 은
-      // 반드시 상점 전 2층 (= 챕터 1 의 보물 노드) 에서만 트리거.
-      // 사용자가 보물 노드 외에서 인벤/상태 모달을 열어도 학습 X — 의도적으로
-      // 학습 위치를 고정해서 사용자가 상점에서 학습되는 등의 어긋남을 막음.
-      if (step === 'first_inventory' || step === 'prompt_status' || step === 'first_status') {
+      // 자동화 모드 (6배속) — 튜토리얼 발화 보류. autoEnter / autoShopFlow 가
+      // 사용자 개입 없이 흐름을 끌고 가는 동안 안내 모달이 자동 진입을 막지
+      // 않게 한다. 6배속을 1·2·4 로 내리면 다시 발화 가능.
+      if (this.isAutoMode) return
+      // 인벤/상태창 학습 (first_treasure, first_inventory, prompt_status, first_status) 은
+      // 챕터 1 3층 (= 상점 노드 도착 직후) 에서만 트리거. 학습 위치를 한 곳에 고정.
+      if (step === 'first_treasure' || step === 'first_inventory'
+          || step === 'prompt_status' || step === 'first_status') {
         const ch = this.run?.chapters[this.run.currentChapterIndex]
         const floor = ch?.floors[ch?.currentFloor]
-        if (floor?.type !== 'treasure') return
+        if (!ch || ch.chapter !== 1 || ch.currentFloor !== 2 || floor?.type !== 'shop') return
+      }
+      // 진입 버튼 안내 — 챕터 1 강제 노드(2층 보물 / 3층 상점) 에서만 발화.
+      if (step === 'prompt_enter_treasure') {
+        const ch = this.run?.chapters[this.run.currentChapterIndex]
+        const floor = ch?.floors[ch?.currentFloor]
+        if (!ch || ch.chapter !== 1 || ch.currentFloor !== 1 || floor?.type !== 'treasure') return
+      }
+      if (step === 'prompt_enter_shop') {
+        const ch = this.run?.chapters[this.run.currentChapterIndex]
+        const floor = ch?.floors[ch?.currentFloor]
+        if (!ch || ch.chapter !== 1 || ch.currentFloor !== 2 || floor?.type !== 'shop') return
       }
       this.tutorialActive = step
     },
@@ -1021,10 +1128,10 @@ export const useGameStore = defineStore('game', {
       this.meta.tutorialSeen[step] = true
       this.tutorialActive = null
       this.persistMeta()
-      // ★ 2층 보물 노드 학습 종착점 — first_status 가 마킹되면 보류된 advance 실행
-      //   → 3층 (상점) 으로 자동 진입. pendingTutorialTreasureAdvance 는 advance 안에서 클리어.
-      if (step === 'first_status' && this.pendingTutorialTreasureAdvance) {
-        this.advance()
+      // first_status (3층 상점 노드에서 닫힘) → 다음으로 상점 진입 버튼 안내 발화.
+      // triggerTutorial 의 가드가 floor.type === 'shop' 인지 한 번 더 확인한다.
+      if (step === 'first_status') {
+        this.triggerTutorial('prompt_enter_shop')
       }
     },
     // 튜토리얼 전체 건너뛰기 — 모든 단계를 본 것으로 마킹 + 현재 단계 종료.
@@ -1043,11 +1150,13 @@ export const useGameStore = defineStore('game', {
         creation_intro: false,
         first_node: false,
         first_combat: false,
+        prompt_enter_treasure: false,
         first_treasure: false,
         first_inventory: false,
         prompt_status: false,
-        first_shop: false,
         first_status: false,
+        prompt_enter_shop: false,
+        first_shop: false,
         second_combat: false,
         first_chapter_clear: false,
         meta_creation: false,
@@ -1149,6 +1258,12 @@ export const useGameStore = defineStore('game', {
     // ========================================
     async runSpecialEvent(chapter: number) {
       if (!this.run) return
+      // 자동화 모드 (6배속) — 특별 이벤트는 전부 거부. 모달도 띄우지 않고 advance.
+      // (이벤트의 PVP 결과·보너스 등 모두 포기. 등반 흐름을 끊지 않는 게 우선.)
+      if (this.isAutoMode) {
+        this.advance()
+        return
+      }
       const key = pickOne(SPECIAL_EVENTS) as SpecialEventKey
       const info = SPECIAL_EVENT_INFO[key]
       await this.alertModal(info.description, `${info.name}`, npcIconUrl(key))
@@ -1387,20 +1502,33 @@ export const useGameStore = defineStore('game', {
     async eventGreedyCollector(chapter: number): Promise<boolean> {
       if (!this.run) return false
       const c = this.run.character
-      const w = c.weapon
-      const a = c.armor
-      if (!w && !a) {
+      const inv = this.run.inventory
+      // 장착 + 인벤 전체에서 tier 최고 1개 선정 — 사용자에게 미리 어떤 아이템이
+      // 넘어가는지 보여준다 (실제 제거는 양도 확정 후 greedyCollectorTake 가 수행).
+      type Cand = { item: ItemInstance; from: '장착' | '인벤' }
+      const cands: Cand[] = []
+      if (c.weapon) cands.push({ item: c.weapon, from: '장착' })
+      if (c.armor)  cands.push({ item: c.armor,  from: '장착' })
+      for (const it of inv) cands.push({ item: it, from: '인벤' })
+      if (cands.length === 0) {
         await this.alertModal('수집가가 빈손인 당신을 보고 그냥 떠났다.', '탐욕의 수집가')
         return false
       }
-      const highest = w && a ? (w.tier >= a.tier ? w : a) : (w ?? a)!
+      let highest = cands[0]
+      for (let i = 1; i < cands.length; i++) {
+        if (cands[i].item.tier > highest.item.tier) highest = cands[i]
+      }
       const give = await this.confirmModal(
-        `${highest.trait} ${highest.grade} ${highest.baseKey} (티어 ${highest.tier})\n\n` +
+        `${highest.item.trait} ${highest.item.grade} ${highest.item.baseKey} (티어 ${highest.item.tier}, ${highest.from})\n\n` +
           `양도 시 무작위 스탯 +1, 거절 시 보스 70% 강도 PVP`,
         { title: '탐욕의 수집가가 요구한다', okLabel: '양도', cancelLabel: '거절' }
       )
       if (give) {
-        const result = greedyCollectorTake(c)
+        const result = greedyCollectorTake(c, inv)
+        // 인벤에서 가져갔으면 splice 로 실제 제거 (events.ts 는 character 만 수정).
+        if (result.fromInventoryIndex !== undefined && result.fromInventoryIndex >= 0) {
+          inv.splice(result.fromInventoryIndex, 1)
+        }
         await this.alertModal(`${result.randomStat} +1`, '양도 완료')
         saveRun(this.run)
         return false
@@ -1674,6 +1802,60 @@ export const useGameStore = defineStore('game', {
     leaveShop() {
       this.shop = null
       this.advance()
+    },
+
+    // 자동화 모드 (6배속) — 상점 진입 시 자동 매수 + 자동 새로고침 + 자동 이탈.
+    //   1) 무기는 atkValue, 갑옷은 defValue 가 현재 장착품보다 더 높은 매물만 후보.
+    //   2) 가치 높은 순으로 정렬해 골드 한도 내에서 모두 매수. buyItem 이 내부의
+    //      receiveItem 을 호출 → 자동 업그레이드 + 가득 시 worst 슬롯 교체까지 처리.
+    //   3) 더 매수할 게 없으면 새로고침 시도 (충전 잔량/챌린지 금지 한도 내). 새로고침
+    //      후 다시 매수 사이클. 무한 루프 방지로 라운드 cap 적용.
+    autoShopFlow() {
+      if (!this.run || !this.shop || !this.isAutoMode) return
+      const c = this.run.character
+      const chapter = this.currentChapterState?.chapter
+      const valOf = (it: ItemInstance): number => it.kind === 'weapon'
+        ? computeItemValue(it, c, { chapter }).atkValue
+        : computeItemValue(it, c, { chapter }).defValue
+      const refreshBlocked = !!this.challengeContext && shopRefreshForbidden(this.challengeContext)
+
+      const MAX_ROUNDS = 8       // 새로고침 최대 사이클 (실 충전 한도가 먼저 동작)
+      let round = 0
+      while (round <= MAX_ROUNDS && this.shop) {
+        // ── 매수 라운드 ──
+        let buySafety = 32
+        while (buySafety-- > 0 && this.shop && this.shop.inventory.length > 0) {
+          const curW = c.weapon ? computeItemValue(c.weapon, c, { chapter }).atkValue : -Infinity
+          const curA = c.armor  ? computeItemValue(c.armor,  c, { chapter }).defValue : -Infinity
+          type Cand = { it: ItemInstance; v: number }
+          const cands: Cand[] = []
+          for (const it of this.shop.inventory) {
+            const v = valOf(it)
+            const better = it.kind === 'weapon' ? v > curW : v > curA
+            const budget = c.gold >= it.buyPrice
+            if (better && budget) cands.push({ it, v })
+          }
+          if (cands.length === 0) break
+          cands.sort((a, b) => b.v - a.v)
+          if (!this.buyItem(cands[0].it)) break
+        }
+        // ── 새로고침 ──
+        if (round >= MAX_ROUNDS) break
+        if (refreshBlocked) break
+        // refreshShop 은 충전 잔량 / 골드 / 챕터 가드 모두 내부에서 처리, 성공 시 true.
+        // autoShopFlow 안에서는 alertModal 을 띄우는 분기를 우회하기 위해 직접 호출.
+        const chNum = currentChapter(this.run).chapter
+        const ok = refreshShop(this.shop, this.run.refreshState, chNum,
+          { tutorialForceAcc: !this.meta.tutorialSeen.first_shop })
+        if (!ok) break
+        this.refreshUsedThisChapter = true
+        if (this.challengeContext) {
+          onShopRefresh(this.challengeContext, chNum, 0)
+        }
+        round++
+      }
+      saveRun(this.run)
+      this.leaveShop()
     },
 
     resetGame() {

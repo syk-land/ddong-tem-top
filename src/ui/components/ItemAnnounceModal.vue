@@ -18,7 +18,7 @@ function confirmAll() {
 <template>
   <div
     v-if="visible"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-3 py-6"
+    class="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm px-3 py-6"
     role="dialog"
     aria-live="polite"
   >

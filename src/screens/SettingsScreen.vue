@@ -84,6 +84,27 @@ function back() {
   game.setScreen('menu')
 }
 
+// ── 게임 종료 ──
+// 안드로이드(Capacitor) 에서는 App.exitApp() 으로 앱을 닫고,
+// 웹에서는 window.close() 시도 + 빈 화면 안내 (사용자가 직접 연 탭만 닫힘).
+async function quitGame() {
+  const ok = await game.confirmModal('게임을 종료하시겠습니까?', {
+    title: '종료',
+    okLabel: '예',
+    cancelLabel: '아니오',
+    danger: true,
+  })
+  if (!ok) return
+  try {
+    const { App: CapApp } = await import('@capacitor/app')
+    await CapApp.exitApp()
+    return
+  } catch {
+    // 웹 환경 fallback — 브라우저 정책상 사용자가 직접 연 탭만 close 가능.
+    try { window.close() } catch {}
+  }
+}
+
 onMounted(() => {
   // 페이지 진입 시 현재 값 동기화
   sfxOn.value = isSoundEnabled()
@@ -199,6 +220,19 @@ onMounted(() => {
           class="w-full min-h-11 rounded-md bg-bg-tertiary hover:bg-bg-hover border border-slate-700/60 font-bold text-sm active:scale-[0.99] transition px-3 text-left"
           @click="replayTutorial"
         >튜토리얼 다시 보기</button>
+      </div>
+    </div>
+
+    <!-- ── 게임 종료 ── -->
+    <div class="rounded-lg border border-rose-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
+      <div class="px-3 py-1.5 bg-rose-950/30 border-b border-rose-500/20 flex items-center">
+        <span class="text-xs font-bold text-rose-200">⏻ 종료</span>
+      </div>
+      <div class="p-3">
+        <button
+          class="w-full min-h-11 rounded-md bg-rose-950/40 hover:bg-rose-900/50 border border-rose-500/40 text-rose-200 font-bold text-sm active:scale-[0.99] transition px-3"
+          @click="quitGame"
+        >게임 종료</button>
       </div>
     </div>
 

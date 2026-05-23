@@ -261,19 +261,46 @@ onUnmounted(() => {
 <template>
   <div
     v-if="def && currentPage"
-    class="fixed inset-0 z-[60] select-none"
-    :class="targetActionEl ? 'pointer-events-none' : ''"
+    class="fixed inset-0 z-[60] select-none pointer-events-none"
     role="dialog"
     aria-live="polite"
   >
     <!-- 백드롭: 투명 — 게임 화면이 그대로 보이도록.
-         타겟이 클릭 가능 버튼(targetActionEl) 일 때는 사용자가 그 버튼을 직접 눌러야
-         하므로 pointer-events: none 으로 클릭을 통과시킨다. 그 외(panel/div 가
-         타겟이거나 타겟 없음) 는 클릭을 흡수해 게임 UI 가 우발적으로 안 눌리게 차단. -->
+         타겟이 클릭 가능 버튼이면 4-segment(상/하/좌/우) 로 분할해 타겟 사각형만
+         빈 영역으로 남기고, 그 외 영역의 클릭은 모두 흡수해 다른 게임 UI 가
+         눌리지 않게 한다 (예: 모달 백드롭, 인접 버튼 등). 타겟 없음 / 비-버튼
+         타겟 / noAutoAction 인 경우는 단일 백드롭으로 모든 클릭 흡수. -->
+    <template v-if="targetActionEl && targetRect">
+      <div
+        class="absolute left-0 right-0 top-0 bg-transparent pointer-events-auto"
+        :style="{ height: targetRect.top + 'px' }"
+        @click.stop.prevent
+        @pointerdown.stop.prevent
+      />
+      <div
+        class="absolute left-0 right-0 bg-transparent pointer-events-auto"
+        :style="{ top: (targetRect.top + targetRect.height) + 'px', bottom: 0 }"
+        @click.stop.prevent
+        @pointerdown.stop.prevent
+      />
+      <div
+        class="absolute bg-transparent pointer-events-auto"
+        :style="{ top: targetRect.top + 'px', left: 0, width: targetRect.left + 'px', height: targetRect.height + 'px' }"
+        @click.stop.prevent
+        @pointerdown.stop.prevent
+      />
+      <div
+        class="absolute bg-transparent pointer-events-auto"
+        :style="{ top: targetRect.top + 'px', left: (targetRect.left + targetRect.width) + 'px', right: 0, height: targetRect.height + 'px' }"
+        @click.stop.prevent
+        @pointerdown.stop.prevent
+      />
+    </template>
     <div
-      class="absolute inset-0 bg-transparent"
-      :class="targetActionEl ? 'pointer-events-none' : ''"
-      @click.stop
+      v-else
+      class="absolute inset-0 bg-transparent pointer-events-auto"
+      @click.stop.prevent
+      @pointerdown.stop.prevent
     />
 
     <!-- 튜토리얼 전체 건너뛰기 (좌측 상단, SpeedControl 아래 줄) -->
@@ -308,14 +335,16 @@ onUnmounted(() => {
         </svg>
       </div>
 
+      <!-- 카드 wrapper 는 pointer-events-none — 카드 영역과 타겟 버튼이 겹쳐도
+           타겟 클릭이 그대로 통과한다. 카드 내부의 클릭 가능한 버튼(×, CTA) 만
+           pointer-events-auto 로 활성화. -->
       <div
         ref="cardRef"
-        class="relative rounded-2xl bg-zinc-900 ring-1 ring-cyan-500/40 shadow-2xl p-5 text-zinc-100 pointer-events-auto"
-        @click.stop
+        class="relative rounded-2xl bg-zinc-900 ring-1 ring-cyan-500/40 shadow-2xl p-5 text-zinc-100 pointer-events-none"
       >
         <!-- 닫기 버튼 -->
         <button
-          class="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+          class="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 pointer-events-auto"
           @click.stop="close"
           aria-label="튜토리얼 닫기"
         >×</button>
@@ -349,7 +378,7 @@ onUnmounted(() => {
         </div>
         <button
           v-else
-          class="mt-4 w-full py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 font-bold text-zinc-900 transition-colors"
+          class="mt-4 w-full py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 font-bold text-zinc-900 transition-colors pointer-events-auto"
           @click.stop="advance"
         >{{ ctaLabel }}</button>
       </div>

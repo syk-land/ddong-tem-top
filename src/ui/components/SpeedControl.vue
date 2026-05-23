@@ -80,9 +80,10 @@ function bumpActivity() {
 async function setSpeed(s: number) {
   sfx.click()
   bumpActivity()
-  // 100배 — 개발자 테스트용 (광고 없음)
-  if (s === 100) {
-    game.setCombatSpeed(100)
+  // 자동화 모드 (5배 이상) — 광고 없음. 배치 tick 처리로 setInterval 가드 우회.
+  // autoEnter 강제 on + 자동 매수/장착/이벤트 거부 + 자동 진입.
+  if (s >= 5) {
+    game.setCombatSpeed(s)
     return
   }
   // 4배속 — 등반 1회당 광고 1번 시청 → 그 런 끝까지 자유 토글
@@ -94,6 +95,10 @@ async function setSpeed(s: number) {
     })
     if (!ok) return
     const watched = await showRewardedAd('fastSpeed')
+    // 광고 흐름 직후 — 결과와 무관하게 설정 패널을 무조건 최소화한다.
+    // (광고 후 화면 복귀 시 설정창이 활짝 펼쳐져 있으면 게임 화면을 가려서
+    //  몰입이 깨짐.)
+    collapse()
     if (!watched) {
       await game.alertModal('광고 시청이 완료되지 않았습니다.', '활성화 실패')
       return
@@ -115,6 +120,8 @@ async function toggleAutoEnter() {
     })
     if (!ok) return
     const watched = await showRewardedAd('autoEnter')
+    // 광고 흐름 직후 — 결과와 무관하게 설정 패널 강제 최소화 (위 setSpeed 와 동일 이유).
+    collapse()
     if (!watched) {
       await game.alertModal('광고 시청이 완료되지 않았습니다.', '활성화 실패')
       return
@@ -122,6 +129,35 @@ async function toggleAutoEnter() {
     game.unlockAdAutoEnter()
   }
   game.setAutoEnter(!game.autoEnter)
+}
+
+// 자동화 모드 — 사용자가 직접 배속 숫자 입력 (5~999)
+function onCustomSpeed(e: Event) {
+  const v = parseInt((e.target as HTMLInputElement).value, 10)
+  if (!Number.isFinite(v)) return
+  const clamped = Math.max(5, Math.min(999, v))
+  game.setCombatSpeed(clamped)
+  bumpActivity()
+}
+
+// 게임 종료 — SettingsScreen 과 동일 패턴. Capacitor App.exitApp 우선,
+// 웹에서는 window.close() fallback (브라우저 정책상 사용자가 직접 연 탭만 닫힘).
+async function quitGame() {
+  bumpActivity()
+  const ok = await game.confirmModal('게임을 종료하시겠습니까?', {
+    title: '종료',
+    okLabel: '예',
+    cancelLabel: '아니오',
+    danger: true,
+  })
+  if (!ok) return
+  try {
+    const { App: CapApp } = await import('@capacitor/app')
+    await CapApp.exitApp()
+    return
+  } catch {
+    try { window.close() } catch {}
+  }
 }
 
 function expand() {
@@ -369,7 +405,7 @@ watch(
           </label>
         </div>
 
-        <div class="flex items-center justify-center pt-0.5">
+        <div class="flex items-center justify-center gap-2 pt-0.5">
           <button
             class="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-gray-300 hover:bg-slate-700"
             title="인트로 만화 다시 보기"
@@ -378,21 +414,38 @@ watch(
             <span class="text-sm leading-none">📖</span>
             <span>인트로 만화</span>
           </button>
+          <button
+            class="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-rose-300 hover:bg-rose-900/40 border border-rose-500/30"
+            title="게임 종료"
+            @click="quitGame"
+          >
+            <span class="text-sm leading-none">⏻</span>
+            <span>게임 종료</span>
+          </button>
         </div>
 
-        <!-- 개발자 테스트용 100배 — dev 계정만 별도 줄로 분리 (헤더 wrap 으로
-             자동 버튼이 가려지는 문제 회피) -->
-        <div v-if="auth.isDevAccount" class="flex items-center justify-center pt-1 border-t border-slate-700/40">
+        <!-- 자동화 모드 — dev 계정만. 기본 100배 + 숫자 입력으로 5~999 조정.
+             autoEnter 강제 on + 상점 자동 매수·새로고침 + 인벤 자동 업그레이드 +
+             특별이벤트 자동 거부. -->
+        <div v-if="auth.isDevAccount" class="flex items-center justify-center gap-2 pt-1 border-t border-slate-700/40">
           <button
             class="px-3 py-1 rounded text-xs font-bold transition-all"
-            :class="game.combatSpeed === 100
+            :class="game.isAutoMode
               ? 'bg-fuchsia-500 text-black ring-2 ring-fuchsia-200 shadow-[0_0_8px_rgba(217,70,239,0.7)]'
               : 'bg-slate-800/70 text-gray-200 hover:bg-slate-700'"
-            title="개발자 테스트용 100배속"
+            title="자동화 모드 — 기본 100배 + 자동 진입·매수·장착·이벤트 거부"
             @click="setSpeed(100)"
           >
-            🚀 100x (dev)
+            🚀 100x (auto)
           </button>
+          <input
+            v-if="game.isAutoMode"
+            type="number" min="5" max="999" step="1"
+            :value="game.combatSpeed"
+            @change="onCustomSpeed"
+            class="w-16 bg-slate-800 text-xs px-2 py-1 rounded font-mono text-center text-gray-200 border border-slate-600 focus:border-fuchsia-400 outline-none"
+            title="배속 직접 입력 (5~999)"
+          />
         </div>
       </div>
     </template>

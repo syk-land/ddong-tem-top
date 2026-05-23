@@ -190,23 +190,37 @@ export function buyStatPoint(character: Character, chapter: number, stat: StatKe
 }
 
 // 신규: 탐욕의 수집가
-export function greedyCollectorTake(character: Character): { taken: ItemInstance | null; randomStat?: StatKey } {
-  // 가장 높은 tier 장비 선택
-  const w = character.weapon
-  const a = character.armor
-  let taken: ItemInstance | null = null
-  if (w && a) {
-    taken = w.tier >= a.tier ? w : a
-  } else {
-    taken = w || a
+//   장착 무기/갑옷 + 인벤토리 전체를 후보로 두고 tier 가장 높은 1개를 가져간다.
+//   동률이면 (장착 무기 → 장착 갑옷 → 인벤 idx 0…) 순으로 우선.
+//   호출부가 인벤에서 splice 할 수 있게 fromInventoryIndex 를 반환.
+export function greedyCollectorTake(
+  character: Character,
+  inventory: ItemInstance[] = [],
+): { taken: ItemInstance | null; randomStat?: StatKey; fromInventoryIndex?: number } {
+  type Cand = { item: ItemInstance; source: 'weapon' | 'armor' | 'inventory'; idx: number }
+  const candidates: Cand[] = []
+  if (character.weapon) candidates.push({ item: character.weapon, source: 'weapon', idx: -1 })
+  if (character.armor)  candidates.push({ item: character.armor,  source: 'armor',  idx: -1 })
+  inventory.forEach((it, i) => candidates.push({ item: it, source: 'inventory', idx: i }))
+  if (candidates.length === 0) return { taken: null }
+
+  // 가장 높은 tier 우선, 동률은 입력 순서(= 장착 우선) 유지를 위해 stable 정렬.
+  let best = candidates[0]
+  for (let i = 1; i < candidates.length; i++) {
+    if (candidates[i].item.tier > best.item.tier) best = candidates[i]
   }
-  if (!taken) return { taken: null }
-  if (taken === w) character.weapon = null
-  else character.armor = null
+
+  if (best.source === 'weapon') character.weapon = null
+  else if (best.source === 'armor') character.armor = null
+  // inventory 제거는 호출부에서 splice (run 컨텍스트 필요)
 
   // 무작위 스탯 +1 (v6 5스탯)
   const allStats: StatKey[] = ['힘', '민첩', '체력', '마력', '행운']
   const stat = pickOne(allStats)
   applyRouletteResult(character, stat, +1)
-  return { taken, randomStat: stat }
+  return {
+    taken: best.item,
+    randomStat: stat,
+    fromInventoryIndex: best.source === 'inventory' ? best.idx : undefined,
+  }
 }

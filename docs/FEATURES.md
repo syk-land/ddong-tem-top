@@ -21,6 +21,7 @@
 | 10 | [이미지 워터마크 제거](./features/watermark-removal.md) | Pillow + clone stamp 인페인트, 노란 박스 마킹 검출 지원 |
 | 11 | [Firebase Google 로그인 + 클라우드 저장](./features/firebase-auth.md) | Firestore 진행도 동기화 + 리더보드. 웹 popup / 안드 네이티브 자동 분기 |
 | 12 | [모바일 UI 전체 정비](./features/ui-overhaul.md) | 색 액센트 톤 통일 + 카드 위계 + 탭 모달 + 전투력 % 비교 |
+| 13 | [자동화 모드 (dev)](./features/auto-mode.md) | `combatSpeed ≥ 5` 진입 시 자동 진입·매수·장착·이벤트 거부 + tick 배치 처리. 5~999 자유 |
 
 ---
 
@@ -83,7 +84,7 @@ interface MetaBonuses {
 | `climetop:run:v1` | 진행 중 런 (`TowerRun`) |
 | `climetop:creation:v1` | 캐릭터 생성 임시 상태 |
 | `climetop:tutorialSeen:v1` | 인트로 만화 자동 표시 여부 |
-| `climetop:speed:v1` | 게임 속도 1/2/4 |
+| `climetop:speed:v1` | 게임 속도 (1/2/4 게이팅, 5~999 = 자동화 모드 dev) |
 | `climetop:autoEnter:v1` | 자동 진입 토글 |
 | `climetop:speedControl:expanded:v2` | 설정 패널 펼침 상태 |
 | `climetop:sound:v1` | 사운드 ON·볼륨 |

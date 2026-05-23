@@ -40,8 +40,11 @@ const challengeOneLine = computed(() => {
 })
 
 // 자동 진입: 일반몬스터/보스/치유샘/보물 자동 진입.
-// 상점/특별이벤트는 사용자 선택을 위해 자동 진입 X.
+// 상점/특별이벤트는 통상엔 사용자 선택을 위해 보류하지만, 자동화 모드(6배속) 에서는
+// 상점도 자동 진입 — 진입 후 Shop.vue 가 autoShopFlow 로 매수+이탈까지 자동 처리.
+// (특별이벤트는 runSpecialEvent 가 자동 거부 + advance.)
 const AUTO_ENTER_TYPES = new Set(['monster', 'boss', 'healing_spring', 'treasure'])
+const AUTO_ENTER_TYPES_AUTOMODE = new Set([...AUTO_ENTER_TYPES, 'shop', 'special_event'])
 let autoEnterTimer: ReturnType<typeof setTimeout> | null = null
 
 function tryAutoEnter() {
@@ -52,7 +55,8 @@ function tryAutoEnter() {
   if (game.screen !== 'dungeon') return
   const f = game.currentFloorEvent
   if (!f || f.cleared) return
-  if (!AUTO_ENTER_TYPES.has(f.type)) return
+  const allowed = game.isAutoMode ? AUTO_ENTER_TYPES_AUTOMODE : AUTO_ENTER_TYPES
+  if (!allowed.has(f.type)) return
   if (autoEnterTimer) clearTimeout(autoEnterTimer)
   // 짧은 지연으로 UI 보여주고 자동 진입 — 속도에 따라 단축
   const delay = Math.max(120, 500 / Math.max(1, game.combatSpeed))
@@ -69,12 +73,25 @@ function tryAutoEnter() {
 onMounted(() => {
   // 첫 던전 진입 — 노드 클릭법 안내. 자동 진입 트리거보다 먼저 발화해야 함.
   game.triggerTutorial('first_node')
-  // 보물 노드 receiveItem 직후 pendingTreasureTutorial 가 set 된 경우 — 여기서 발화.
-  // (Combat 화면에선 인벤 버튼이 없으니 Dungeon 진입 직후로 지연)
+
+  // 보물에서 받은 직후 advance → 3층(상점) 도착 흐름:
+  //   pendingTreasureTutorial 이 true 이면 인벤 버튼 안내(first_treasure) 를 발화한다.
+  //   이 발화로 시작해 first_inventory → prompt_status → first_status →
+  //   prompt_enter_shop 의 연쇄 학습이 진행된다.
   if (game.pendingTreasureTutorial) {
     game.pendingTreasureTutorial = false
     game.triggerTutorial('first_treasure')
+  } else {
+    // 일반 도착 — 챕터 1 강제 노드(2층 보물 / 3층 상점) 에 대해 진입 버튼 안내.
+    // 그 외 챕터·층은 triggerTutorial 가드에서 차단된다.
+    const ft = game.currentFloorEvent?.type
+    if (ft === 'treasure') {
+      game.triggerTutorial('prompt_enter_treasure')
+    } else if (ft === 'shop') {
+      game.triggerTutorial('prompt_enter_shop')
+    }
   }
+
   // 챕터 2 1층 진입 시 4배속·자동진입 광고 해금 안내 트리거
   // (챕터 1 보스 클리어 직후 = advance 가 아니라 다음 챕터 첫 화면에서 학습)
   const ch = game.currentChapterState
@@ -208,7 +225,7 @@ const floorAccent = computed(() => {
           :disabled="game.isTutorialBlockingExit"
           :title="game.isTutorialBlockingExit ? '튜토리얼 — 인벤토리와 상태창 학습을 먼저 완료해주세요' : ''"
           @click="enter"
-        >{{ game.isTutorialBlockingExit ? '학습 진행 중…' : '진입' }}</button>
+        >{{ game.isTutorialBlockingExit ? '학습 진행 중…' : (floor?.type === 'treasure' ? '열기' : '진입') }}</button>
       </div>
     </div>
 

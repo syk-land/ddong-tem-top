@@ -137,13 +137,23 @@ const BASE_INTERVAL = 60
 let ticker: number | null = null
 function startAutoTick() {
   if (ticker) return
-  const interval = Math.max(10, Math.round(BASE_INTERVAL / Math.max(1, game.combatSpeed)))
+  const speed = Math.max(1, game.combatSpeed)
+  // 6배까지는 interval 단축 (1 tick/call). 6 초과는 interval 을 10ms 로 고정하고
+  // 한 setInterval 콜에서 여러 번 tick 을 호출(배치) — setInterval 최소 가드(10ms)
+  // 이상으로 가속 가능. 시각 효과(데미지 팝업/로그)는 같은 프레임에 누적되지만
+  // 자동 모드 사용자는 결과만 보는 흐름이라 큰 문제 없음.
+  const interval = Math.max(10, Math.round(BASE_INTERVAL / speed))
+  const callsPerSec = 1000 / interval
+  const targetTicksPerSec = speed * (1000 / BASE_INTERVAL)
+  const ticksPerCall = Math.max(1, Math.round(targetTicksPerSec / callsPerSec))
   ticker = window.setInterval(() => {
-    if (!combat.value || combat.value.ended) {
-      stopAutoTick()
-      return
+    for (let i = 0; i < ticksPerCall; i++) {
+      if (!combat.value || combat.value.ended) {
+        stopAutoTick()
+        return
+      }
+      game.tickStep()
     }
-    game.tickStep()
   }, interval)
 }
 function stopAutoTick() {

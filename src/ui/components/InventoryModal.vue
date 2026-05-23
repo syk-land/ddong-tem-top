@@ -63,7 +63,7 @@ function checkEquip(item: ItemInstance): { ok: boolean; reason?: string } {
           인벤토리
           <span class="text-xs text-gray-500 ml-2">{{ inventory.length }} / {{ inventoryCap }}</span>
         </div>
-        <button class="text-gray-400 hover:text-white text-xl leading-none" @click="emit('close')">✕</button>
+        <button data-tutorial-target="inventory-close" class="text-gray-400 hover:text-white text-xl leading-none" @click="emit('close')">✕</button>
       </header>
 
       <!-- 장착 중 -->

@@ -312,7 +312,7 @@ function showSkillDetail(key: string) {
     <div data-tutorial-target="status-stats" class="panel max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-3">
       <header class="flex items-center justify-between sticky top-0 bg-bg-panel z-10 -mx-3 px-3 py-1">
         <div class="text-lg font-bold">상태창</div>
-        <button class="text-gray-400 hover:text-white text-xl leading-none" @click="emit('close')">✕</button>
+        <button data-tutorial-target="status-close" class="text-gray-400 hover:text-white text-xl leading-none" @click="emit('close')">✕</button>
       </header>
 
       <!-- HP / MP / Gold -->

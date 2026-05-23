@@ -99,17 +99,31 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
     ],
   },
 
-  // ── [5] 첫 보물 — 인벤 버튼 안내 ──────────────────────────
-  //   트리거: 보물 노드에서 receiveItem 호출 시 pendingTreasureTutorial 만 set,
-  //   다음 Dungeon onMounted 에서 발화 → 인벤 버튼이 DOM 에 있는 상태에서 타겟 발사.
-  //   강제로 무기+방어구 각 1개씩 드랍되어 인벤토리에 들어가 있음.
+  // ── [5a] 보물 노드 도착 — "열기" 버튼 안내 ────────────────
+  //   트리거: 챕터 1 2층 던전 onMounted, floor.type === 'treasure'.
+  //   사용자가 "열기" 누르면 receiveItem + 즉시 advance → 3층(상점) 으로 진입.
+  prompt_enter_treasure: {
+    step: 'prompt_enter_treasure',
+    pages: [
+      {
+        title: '보물 상자',
+        body:
+          '보물 상자를 발견했어요.\n아래 "열기" 버튼을 눌러 안의 내용을 받아보세요.',
+        target: '[data-tutorial-target="enter-floor-btn"]',
+      },
+    ],
+  },
+
+  // ── [5b] 3층 상점 노드 도착 — 인벤 버튼 안내 ──────────────
+  //   트리거: 보물에서 받은 직후 advance → 3층 onMounted 에서 pendingTreasureTutorial 처리.
+  //   강제로 무기+방어구 각 1개씩 드랍되어 인벤토리에 들어가 있는 상태.
   first_treasure: {
     step: 'first_treasure',
     pages: [
       {
         title: '아이템 획득',
         body:
-          '보물 상자에서 무기와 갑옷이 나왔어요.\n인벤 버튼을 눌러 인벤토리를 열어보세요.',
+          '방금 보물에서 무기와 갑옷이 나왔어요.\n상단의 "인벤" 버튼을 눌러 확인해보세요.',
         target: '[data-tutorial-target="inventory-btn"]',
       },
     ],
@@ -131,6 +145,12 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
           '장착 버튼을 누르면 현재 장비와 자동 교체됩니다.\n빠진 장비는 인벤토리로 옮겨져요.\n원치 않으면 카드 옆 폐기 버튼으로 버릴 수도 있어요.',
         target: '[data-tutorial-target="inventory-equip-btn"]',
       },
+      {
+        title: '닫는 법',
+        body:
+          '인벤토리를 닫을 때는 우측 상단 ✕ 버튼을 누르거나,\n바깥쪽 어두운 영역을 탭하면 됩니다.\n\n지금 ✕ 버튼을 한 번 눌러볼게요.',
+        target: '[data-tutorial-target="inventory-close"]',
+      },
     ],
   },
 
@@ -147,7 +167,22 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
     ],
   },
 
-  // ── [7] 첫 상점 — 매물 / 판매 / 새로고침 (다중 페이지) ─────
+  // ── [9a] 3층 상점 노드 — 진입 버튼 안내 ──────────────────
+  //   트리거: first_status 가 닫힌 직후 completeTutorial 에서 발화.
+  //   floor.type === 'shop' 인지 triggerTutorial 가드가 한 번 더 확인.
+  prompt_enter_shop: {
+    step: 'prompt_enter_shop',
+    pages: [
+      {
+        title: '상점 진입',
+        body:
+          '인벤·상태창을 확인했어요.\n이제 아래 "진입" 버튼을 눌러 상점으로 들어가봐요.',
+        target: '[data-tutorial-target="enter-floor-btn"]',
+      },
+    ],
+  },
+
+  // ── [9b] 첫 상점 — 매물 / 판매 / 새로고침 (다중 페이지) ─────
   //   첫 진입 시 게임 스토어가 100골드를 1회 지급 — 구매 학습 가능.
   first_shop: {
     step: 'first_shop',
@@ -189,6 +224,12 @@ export const TUTORIAL_STEPS: Record<TutorialStep, TutorialStepDef> = {
         body:
           '"상세 능력치" 탭도 눌러보세요.\n공격력·방어·명중·회피·크리·관통 등 전투에 직접 쓰이는 값을 모두 볼 수 있어요.\n\n— 시너지 —\n• 마법공격력은 마력 스탯이 핵심이에요.\n• 마법 무기는 로브와 묶이면 마법공격력 시너지가 큽니다.\n• 활은 민첩 스탯과 묶이면 명중·크리가 더 잘 살아나요.',
         target: '[data-tutorial-target="status-detail-tab"]',
+      },
+      {
+        title: '닫는 법',
+        body:
+          '상태창을 닫을 때는 우측 상단 ✕ 버튼을 누르거나,\n바깥쪽 어두운 영역을 탭하면 됩니다.\n\n지금 ✕ 버튼을 한 번 눌러볼게요.',
+        target: '[data-tutorial-target="status-close"]',
       },
     ],
   },
@@ -258,11 +299,13 @@ export const TUTORIAL_KEYS: TutorialStep[] = [
   'creation_intro',
   'first_node',
   'first_combat',
+  'prompt_enter_treasure',
   'first_treasure',
   'first_inventory',
   'prompt_status',
-  'first_shop',
   'first_status',
+  'prompt_enter_shop',
+  'first_shop',
   'second_combat',
   'first_chapter_clear',
   'meta_creation',
