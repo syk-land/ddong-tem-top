@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 @layer base {
+  /* 시스템 다크모드에서 Android WebView 의 force-dark 자동 변환을 차단.
+     앱 자체가 다크 테마라 추가 변환 시 더 어두워지고 일부 글씨가 묻힘. */
+  html {
+    color-scheme: dark;
+  }
   html,
   body {
     @apply h-full bg-bg-primary text-gray-100 font-sans antialiased;

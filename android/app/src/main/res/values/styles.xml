@@ -13,6 +13,13 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!--
+          앱이 자체 다크 테마 — 시스템 다크모드일 때 WebView 의 force-dark
+          자동화가 한 번 더 어둡게 만들고 일부 텍스트가 묻힘. Android 10+ 에서
+          이 속성으로 시스템의 다크 변환 강제화를 차단. (CSS color-scheme:dark
+          과 중복 안전망)
+        -->
+        <item name="android:forceDarkAllowed">false</item>
     </style>
 
 
