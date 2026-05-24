@@ -5,25 +5,6 @@ dist/
 vite.config.d.ts
 vite.config.js
 
-# Android (Capacitor)
-android/.gradle/
-android/.idea/
-android/build/
-android/app/build/
-android/app/release/
-android/local.properties
-android/*.iml
-android/app/*.iml
-android/captures/
-
-# Android 릴리스 서명 — 절대 git 에 올리지 말 것
-android/keystore.properties
-android/keystore/
-*.jks
-*.keystore
-# 예외: 안정 SHA-1 용 debug.keystore (비밀번호 'android' = AGP 디폴트, 공개 정보)
-!android/app/debug.keystore
-
 # IDE / OS
 .vscode/
 .idea/
