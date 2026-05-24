@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
-import { realBossImageUrl, defaultBgUrl, playerImageUrl } from '@/ui/images'
+import { realBossImageUrl, defaultBgUrl, playerImageUrl, allUserAvatarKeys, isValidAvatarKey } from '@/ui/images'
 import HpMpBar from '@/ui/components/HpMpBar.vue'
 import ItemName from '@/ui/components/ItemName.vue'
 
@@ -12,6 +12,14 @@ const theme = computed(() => game.realBossTheme)
 const boss = computed(() => game.realBossMonster)
 const weak = computed(() => game.realBossWeakRecord)
 const bestDrainPct = computed(() => Math.round((game.meta.currentBossBestDrain ?? 0) * 100))
+
+// 옛 기록은 avatarKey 가 누락/무효일 수 있음 → 첫 캐릭터로 폴백
+// (playerImageUrl 의 기본 폴백 /images/user.webp 는 그룹샷이라 1인 표시에 부적합).
+const avatarUrl = computed(() => {
+  const key = weak.value?.avatarKey
+  if (key && isValidAvatarKey(key)) return playerImageUrl(key)
+  return playerImageUrl(allUserAvatarKeys()[0] ?? null)
+})
 
 function start() {
   game.enterRealBossCombat()
@@ -48,7 +56,7 @@ function start() {
         <!-- 좌: 전신 -->
         <div class="relative shrink-0 w-32 sm:w-40 min-h-[200px] bg-cyan-950/25 border-r border-cyan-500/20">
           <img
-            :src="playerImageUrl(weak.avatarKey)"
+            :src="avatarUrl"
             :alt="game.characterName(weak.avatarKey)"
             class="absolute inset-0 w-full h-full object-cover"
             @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
@@ -68,8 +76,9 @@ function start() {
             </div>
           </div>
           <div class="px-3 py-2 space-y-1.5 flex-1 flex flex-col">
-            <HpMpBar :current="weak.hp" :max="weak.maxHp" kind="hp" />
-            <HpMpBar :current="weak.mp" :max="weak.maxMp" kind="mp" />
+            <!-- 도전 시 풀 회복되므로 미리보기도 max 기준 표시 -->
+            <HpMpBar :current="weak.maxHp" :max="weak.maxHp" kind="hp" />
+            <HpMpBar :current="weak.maxMp" :max="weak.maxMp" kind="mp" />
             <!-- 무기/방어구 — 도전 화면이라 클릭 상세는 생략, 표시만 -->
             <div class="w-full bg-bg-tertiary/80 rounded-md px-2 py-1.5 border border-slate-700/50 flex items-center min-h-10">
               <ItemName :item="weak.weapon" compact />

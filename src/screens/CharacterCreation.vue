@@ -5,7 +5,8 @@ import type { Stats, StatKey } from '@/types'
 import { statColorClass } from '@/ui/colors'
 import { uniformStartingStats } from '@/core/character'
 import { mainImageUrl, allUserAvatarKeys, userAvatarUrl, userBustUrl } from '@/ui/images'
-import { START_STAT_BASE } from '@/core/realboss'
+import { describeChallengeForScale } from '@/data/challenges'
+import { startStatScale } from '@/core/realboss'
 
 // GameMonetize 서브디렉토리 호스팅 호환 — 상대경로 prefix
 const A = import.meta.env.BASE_URL.replace(/\/$/, '')
@@ -26,6 +27,12 @@ onMounted(() => {
 })
 
 const bonusAvailable = computed(() => game.meta.totalBonusStats)
+
+// 챌린지 카드 표시 — 시작 능력치 보너스가 있으면 최소/최대 스탯 챌린지의 임계값을 비례 보정.
+const displayedChallenges = computed(() => {
+  const scale = startStatScale(game.meta)
+  return game.challengeOptions.map((c) => describeChallengeForScale(c, scale))
+})
 const allocation = ref<Partial<Stats>>({})
 const used = computed(() =>
   Object.values(allocation.value).reduce((sum, v) => sum + (v ?? 0), 0)
@@ -181,10 +188,10 @@ async function editPlayerName() {
         마지막 도전: 보스 체력 <span class="text-trait-special font-mono font-bold">{{ drainPct }}/100</span> 깎음
       </div>
       <div class="text-xs text-log-reward">
-        시작 능력치 총합 50 → <span class="font-mono font-bold">{{ 50 + startBonus }}pt</span>
+        시작 능력치 총합 60 → <span class="font-mono font-bold">{{ 60 + startBonus }}pt</span>
         (+{{ startBonus }}pt 영구, 5스탯 균등 자동 분배)
       </div>
-      <div class="text-xs text-gray-500">탑을 5번 오를 때마다 진짜 보스 도전 → 깎은 만큼(최대 {{ START_STAT_BASE }}pt) 영구 누적</div>
+      <div class="text-[10px] text-gray-500">진짜 보스 도전은 이번 삶 중 가장 강한 캐릭터로 도전합니다</div>
     </div>
 
     <!-- ====================================================== -->
@@ -294,7 +301,7 @@ async function editPlayerName() {
       </div>
       <div class="p-2 grid gap-2 md:grid-cols-3">
         <div
-          v-for="(c, idx) in game.challengeOptions"
+          v-for="(c, idx) in displayedChallenges"
           :key="c.key"
           @click="toggle(c.key)"
           :class="[
@@ -323,6 +330,7 @@ async function editPlayerName() {
             <div class="text-log-reward">✦ {{ c.reward }}</div>
             <div class="text-log-damage">✖ {{ c.penalty }}</div>
           </div>
+          <div v-if="c.scaleNote" class="mt-1 text-[10px] text-amber-300/80 leading-snug">↻ {{ c.scaleNote }}</div>
         </div>
       </div>
     </div>

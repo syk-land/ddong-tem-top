@@ -11,8 +11,8 @@ import {
   pushCharacterHistory, incrementRunCounter, consumeChallengeTrigger, accumulateClearGold,
 } from '@/core/meta'
 import {
-  isChallengeDue, pickLatestRecord, makeRealBoss,
-  pickNextRealBossTheme,
+  isChallengeDue, pickChallengeRecord, makeRealBoss,
+  pickNextRealBossTheme, startStatScale,
 } from '@/core/realboss'
 import { createCombatContext, type CombatContext, advanceTick, checkActionReady, consumeAction, playerBasicAttack, monsterAttack, makeMonster, pushLog } from '@/core/combat'
 import { useSkill, getAvailableSkills, pickAutoAction } from '@/core/skills'
@@ -549,7 +549,7 @@ export const useGameStore = defineStore('game', {
       }
       // 챌린지 적용
       const challengeKeys = this.selectedChallengeKey ? [this.selectedChallengeKey] : []
-      const cctx = makeChallengeContext(challengeKeys)
+      const cctx = makeChallengeContext(challengeKeys, startStatScale(this.meta))
       applyInstantRewards(character, cctx)
       this.challengeContext = cctx
 
@@ -600,7 +600,7 @@ export const useGameStore = defineStore('game', {
         try { saveRun(loaded) } catch {}
       }
       // 챌린지 컨텍스트 재생성 (즉시 보상은 이미 적용된 상태)
-      this.challengeContext = makeChallengeContext(loaded.challengeKeys)
+      this.challengeContext = makeChallengeContext(loaded.challengeKeys, startStatScale(this.meta))
       this.savedRunExists = true
       this.screen = 'dungeon'
       return true
@@ -1083,7 +1083,19 @@ export const useGameStore = defineStore('game', {
       if (this.challengeContext) {
         evaluateFinalChallenges(this.challengeContext, this.run.character)
       }
+      // 인벤토리 일괄 자동 판매 — 클리어 직후 소지 아이템을 상점가(sellPrice 합산)로 골드 환산.
+      //   진짜보스 트리거(5만 골드 누적) + 캐릭터 히스토리에 반영되므로 빌드 가치 손실 방지.
+      const inv = this.run.inventory ?? []
+      const inventorySellGold = inv.reduce((sum: number, it: ItemInstance) => sum + (it?.sellPrice ?? 0), 0)
+      if (inventorySellGold > 0) {
+        this.run.character.gold += inventorySellGold
+        this.run.inventory = []
+      }
       this.pendingClear = computePendingBonus(this.run.character)
+      if (this.pendingClear) {
+        this.pendingClear.inventorySellGold = inventorySellGold
+        this.pendingClear.finalGold = this.run.character.gold
+      }
       // 챌린지 메타 보너스 추가 (rank 보너스 1~10 + 챌린지 metaBonus 합산, 챌린지 클리어 시만)
       if (this.challengeContext && this.pendingClear) {
         const extra = calcChallengeMetaBonus(this.challengeContext)
@@ -1104,7 +1116,7 @@ export const useGameStore = defineStore('game', {
       }).catch(() => {})
       // 런 카운터 증가 (호환용)
       incrementRunCounter(this.meta)
-      // v6: 클리어 시점 남은 골드 누적 (5만 도달 시 진짜 보스 트리거)
+      // v6: 클리어 시점 최종 골드 누적 (인벤 판매 포함, 5만 도달 시 진짜 보스 트리거)
       accumulateClearGold(this.meta, this.run.character.gold)
       this.screen = 'victory'
     },
@@ -2085,7 +2097,7 @@ export const useGameStore = defineStore('game', {
     //   * 도전 직전에 일러스트 + "진짜 보스에 도전하시겠습니까?" 확인 모달.
     //   * "예" 누른 후에만 totalGoldEarned 소진 + 도전 화면으로 진입.
     async startRealBoss() {
-      const latest = pickLatestRecord(this.meta)
+      const latest = pickChallengeRecord(this.meta)
       if (!latest) return
 
       const ok = await this.confirmModal('진짜 보스에 도전하시겠습니까?', {
@@ -2173,23 +2185,25 @@ export const useGameStore = defineStore('game', {
         this.meta.realBossDefeated = true  // 게임 클리어 (한 번이라도 100% 클리어)
         this.meta.realBossClearCount = (this.meta.realBossClearCount ?? 0) + 1
         this.meta.currentBossBestDrain = 0  // 다음 보스 신규 시작
+        // 진짜 보스 처치 비용 — 자유 분배 풀에서 60pt 차감 (clamp ≥ 0).
+        this.meta.totalBonusStats = Math.max(0, (this.meta.totalBonusStats ?? 0) - 60)
       } else if (ratio > prevBest) {
         // 부분 클리어 — 베스트 갱신된 경우만 반영. 낮은 결과는 유지.
         this.meta.currentBossBestDrain = ratio
       }
       // 불변식대로 permanentStartBonus 재계산 (직접 합산 X)
-      // legacyPermanentBonus: v2 마이그레이션으로 보존된 옛 시스템 보너스 (있으면 추가).
       this.meta.permanentStartBonus =
-        (this.meta.legacyPermanentBonus ?? 0) +
         (this.meta.realBossClearCount * 60) +
         Math.floor(60 * (this.meta.currentBossBestDrain ?? 0))
       // 이번 도전으로 얻은 실제 증가분 (≥ 0). 낮은 결과 재도전이면 0.
       this.realBossResultGain = Math.max(0, this.meta.permanentStartBonus - prevPermanentBonus)
 
       // 회귀(=불완전 처치) 시에만 누적 풀 리셋. 100% 처치는 회귀가 아니므로 보존.
+      // 새 삶이 시작되므로 도전 챔피언도 비움 — 다음 100층 클리어 시점에 새로 만들어진다.
       if (!fullClear) {
         this.meta.totalBonusStats = 0
         this.meta.allocations = {}
+        this.meta.challengeChampion = null
       }
       this.persistMeta()
       this.combat = null
