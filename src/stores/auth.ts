@@ -91,11 +91,11 @@ export const useAuthStore = defineStore('auth', {
         game.meta.realBossDefeated = cloud.realBossDefeated
         game.meta.realBossClearCount = cloud.realBossClearCount ?? 0
         game.meta.currentBossBestDrain = cloud.currentBossBestDrain ?? 0
-        game.meta.legacyPermanentBonus = cloud.legacyPermanentBonus ?? 0
         game.meta.totalGoldEarned = cloud.totalGoldEarned
         if (Array.isArray(cloud.characterHistory)) {
           game.meta.characterHistory = cloud.characterHistory
         }
+        game.meta.challengeChampion = cloud.challengeChampion ?? null
       }
       // 첫 로그인이면 로컬을 클라우드로 푸시 (이후 dirty 추적 시작점)
       await this.syncMetaToCloud()

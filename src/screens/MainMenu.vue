@@ -15,10 +15,88 @@ import {
 import { themeColorClass } from '@/ui/colors'
 import HpMpBar from '@/ui/components/HpMpBar.vue'
 import type { TowerRun } from '@/types'
+import { REAL_BOSS_ORDER } from '@/core/realboss'
+import { CHAPTER_THEMES } from '@/data/chapters'
 
 const game = useGameStore()
 const auth = useAuthStore()
 const bgUrl = mainImageUrl()
+
+// 가장 최근에 처치한 진짜 보스 이름 — 미클리어 시 '???'.
+//   클리어 순서는 REAL_BOSS_ORDER[i], 표시는 hardBoss 이름(없으면 boss).
+const latestRealBossName = computed<string>(() => {
+  const n = game.meta.realBossClearCount ?? 0
+  if (n <= 0) return '???'
+  const theme = REAL_BOSS_ORDER[(n - 1) % REAL_BOSS_ORDER.length]
+  const def = CHAPTER_THEMES[theme]
+  return def?.hardBoss?.name ?? def?.boss?.name ?? '???'
+})
+
+// 도감 12칸 — 각 슬롯의 자산/잠금 규칙은 여기서 통째로 관리.
+//   카드 1, 2: 항상 공개 (튜토리얼/인트로 컷).
+//   카드 3~12: 진짜 보스 1~10. 카드 (N+2) 공개 조건 = realBossClearCount >= N.
+//   썸네일은 보스 죽는 컷(N-2), 클릭 모달엔 [살아있음 N-1, 죽음 N-2] 페어를 좌우 네비.
+type CodexSlot = {
+  unlocked: boolean
+  label: string
+  thumb: string
+  images: string[]
+}
+const COMIC_BASE = '/images/COMIC'
+const TUTORIAL_BASE = '/images/TUTORIAL'
+
+const codexSlots = computed<CodexSlot[]>(() => {
+  const n = game.meta.realBossClearCount ?? 0
+  const slots: CodexSlot[] = []
+
+  // 1) 시작 컷 — 항상 공개. 진짜 보스 1회 이상 클리어 시 인트로 3번까지 묶음.
+  const introImages = [`${TUTORIAL_BASE}/1.webp`, `${TUTORIAL_BASE}/2.webp`]
+  if (n >= 1) introImages.push(`${TUTORIAL_BASE}/3.webp`)
+  slots.push({
+    unlocked: true,
+    label: '시작',
+    thumb: `${TUTORIAL_BASE}/1.webp`,
+    images: introImages,
+  })
+  // 2~12) 진짜 보스 1~11 — REAL_BOSS_ORDER[0..10] 전체.
+  for (let i = 0; i < REAL_BOSS_ORDER.length; i++) {
+    const bossNo = i + 1
+    const theme = REAL_BOSS_ORDER[i]
+    const def = CHAPTER_THEMES[theme]
+    const name = def?.hardBoss?.name ?? def?.boss?.name ?? '???'
+    const unlocked = n >= bossNo
+    slots.push({
+      unlocked,
+      label: unlocked ? name : '???',
+      thumb: `${COMIC_BASE}/${bossNo}-2.webp`,
+      images: [`${COMIC_BASE}/${bossNo}-1.webp`, `${COMIC_BASE}/${bossNo}-2.webp`],
+    })
+  }
+  return slots
+})
+
+// ── 도감 모달 (썸네일 클릭 시) ──
+const codexModalOpen = ref(false)
+const codexModalImages = ref<string[]>([])
+const codexModalIndex = ref(0)
+const codexModalLabel = ref('')
+
+function openCodex(slot: CodexSlot) {
+  if (!slot.unlocked) return
+  codexModalImages.value = slot.images
+  codexModalIndex.value = 0
+  codexModalLabel.value = slot.label
+  codexModalOpen.value = true
+}
+function closeCodex() {
+  codexModalOpen.value = false
+}
+function prevCodex() {
+  if (codexModalIndex.value > 0) codexModalIndex.value--
+}
+function nextCodex() {
+  if (codexModalIndex.value < codexModalImages.value.length - 1) codexModalIndex.value++
+}
 
 // 저장된 진행 미리보기 (이어하기 카드용)
 const savedRun = ref<TowerRun | null>(null)
@@ -141,8 +219,8 @@ async function resetMeta() {
             <div class="text-lg font-mono font-bold text-emerald-200 tabular-nums leading-tight">{{ game.meta.climbCount ?? 0 }}<span class="text-xs text-gray-400 ml-1">회</span></div>
           </div>
           <div class="rounded-lg border border-cyan-400/40 bg-cyan-950/30 backdrop-blur-sm px-2 py-2">
-            <div class="text-xs text-cyan-300 font-bold">⚡ 보너스</div>
-            <div class="text-lg font-mono font-bold text-log-skill tabular-nums leading-tight">+{{ game.meta.totalBonusStats }}<span class="text-xs text-gray-400 ml-1">pt</span></div>
+            <div class="text-xs text-cyan-300 font-bold">💀 찐보스</div>
+            <div class="text-sm font-bold text-log-skill leading-tight truncate" :title="latestRealBossName">{{ latestRealBossName }}</div>
           </div>
         </div>
         <button
@@ -163,7 +241,76 @@ async function resetMeta() {
           <br />
           <span class="text-log-reward">탑을 오르겠습니다</span>
         </h1>
-        <p class="text-xs text-gray-400">100층 로그라이크 · 영구 사망 · 클리어 등급 누적</p>
+      </div>
+
+      <!-- ── 진짜 보스 도감 (4×3 = 12칸, 9:15 세로 비율) ── -->
+      <div class="grid grid-cols-4 gap-2">
+        <button
+          v-for="(slot, i) in codexSlots"
+          :key="i"
+          type="button"
+          :disabled="!slot.unlocked"
+          class="relative aspect-[9/15] rounded-lg border overflow-hidden flex items-center justify-center text-center transition"
+          :class="slot.unlocked
+            ? 'border-amber-400/50 bg-bg-secondary/80 hover:border-amber-400 active:scale-95 shadow-[0_0_8px_rgba(251,191,36,0.15)]'
+            : 'border-slate-700/60 bg-black cursor-not-allowed'"
+          @click="openCodex(slot)"
+        >
+          <img
+            v-if="slot.unlocked"
+            :src="slot.thumb"
+            :alt="slot.label"
+            class="w-full h-full object-cover"
+            @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+          />
+          <span
+            v-if="slot.unlocked"
+            class="absolute inset-x-0 bottom-0 bg-black/65 text-[10px] font-bold text-amber-200 truncate px-1 py-0.5"
+          >{{ slot.label }}</span>
+          <span
+            v-else
+            class="text-xs font-mono text-gray-500"
+          >???</span>
+        </button>
+      </div>
+
+      <!-- ── 도감 모달 (썸네일 클릭) ── -->
+      <div
+        v-if="codexModalOpen"
+        class="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+        @click="closeCodex"
+      >
+        <div class="relative w-full max-w-md" @click.stop>
+          <button
+            class="absolute -top-10 right-0 text-white/80 hover:text-white text-3xl leading-none px-2"
+            aria-label="닫기"
+            @click="closeCodex"
+          >✕</button>
+          <div class="text-center mb-2 text-amber-300 font-bold text-sm">{{ codexModalLabel }}</div>
+          <div class="relative">
+            <img
+              :src="codexModalImages[codexModalIndex]"
+              :alt="codexModalLabel"
+              class="w-full rounded-lg shadow-lg"
+            />
+            <button
+              v-if="codexModalIndex > 0"
+              class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/85 text-white text-3xl rounded-full w-12 h-12 flex items-center justify-center leading-none"
+              aria-label="이전"
+              @click="prevCodex"
+            >‹</button>
+            <button
+              v-if="codexModalIndex < codexModalImages.length - 1"
+              class="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/85 text-white text-3xl rounded-full w-12 h-12 flex items-center justify-center leading-none"
+              aria-label="다음"
+              @click="nextCodex"
+            >›</button>
+          </div>
+          <div
+            v-if="codexModalImages.length > 1"
+            class="mt-2 text-center text-xs text-gray-400 font-mono tabular-nums"
+          >{{ codexModalIndex + 1 }} / {{ codexModalImages.length }}</div>
+        </div>
       </div>
 
       <!-- ── 이어하기 카드 (진행 미리보기 포함) ── -->

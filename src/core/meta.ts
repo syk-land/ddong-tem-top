@@ -1,5 +1,6 @@
 import type { MetaBonuses, Stats, StatKey, Character, TowerRun, CharacterRecord, ChapterTheme, TutorialSeen } from '@/types'
 import { computeClearScore, getClearRank } from './character'
+import { computeChallengeScore } from './realboss'
 
 const STORAGE_KEY_META = 'climetop:meta:v1'
 const STORAGE_KEY_RUN = 'climetop:run:v1'
@@ -98,9 +99,9 @@ export function loadMeta(): MetaBonuses {
             stats: migrateAllocations(rec.stats as any) as any,
           }))
         : [],
+      challengeChampion: m.challengeChampion ?? null,
       pendingStartBonus: m.pendingStartBonus ?? 0,
       permanentStartBonus: m.permanentStartBonus ?? 0,
-      legacyPermanentBonus: m.legacyPermanentBonus ?? 0,
       lastBossDrainRatio: m.lastBossDrainRatio ?? 0,
       realBossCompleted: m.realBossCompleted ?? false,
       realBossDefeated: m.realBossDefeated ?? false,
@@ -109,38 +110,25 @@ export function loadMeta(): MetaBonuses {
       totalGoldEarned: m.totalGoldEarned ?? 0,
       tutorialSeen: migrateTutorialSeen(m.tutorialSeen),
     }
-    // ── 마이그레이션: v2 보스 순서 도입 (REAL_BOSS_ORDER) 직전 진행자 ──
-    // 옛 시스템(클리어 캐릭터의 last theme 으로 보스 결정)에서 진짜 보스를 클리어
-    // 한 사용자는 새 시스템에서 고블린부터 다시 시작하지만, 쌓인 영구 보너스는
-    // 보존한다. legacyPermanentBonus 로 옮겨두면 새 클리어 보너스가 위에 누적된다.
-    //
-    // 발동 조건:
-    //   - legacyPermanentBonus 가 아직 0 (= 마이그레이션 미실행) 이고
-    //   - 옛 진행 흔적이 있다 (realBossDefeated=true 또는 옛 clearCount>0 또는 permanentStartBonus>0)
-    //
-    // 처리:
-    //   - 기존 permanentStartBonus 전체를 legacyPermanentBonus 로 이동
-    //   - realBossClearCount = 0 (고블린부터 다시)
-    //   - currentBossBestDrain = 0
-    //   - permanentStartBonus 는 그대로 유지 (= legacyPermanentBonus 와 같음)
+    // 불변식 정합성 — permanentStartBonus = clearCount×60 + floor(60×bestDrain).
     {
-      const hasOldProgress = loaded.realBossDefeated
-        || (m.realBossClearCount ?? 0) > 0
-        || (loaded.permanentStartBonus ?? 0) > 0
-      if ((loaded.legacyPermanentBonus ?? 0) === 0 && hasOldProgress) {
-        loaded.legacyPermanentBonus = loaded.permanentStartBonus ?? 0
-        loaded.realBossClearCount = 0
-        loaded.currentBossBestDrain = 0
-        // permanentStartBonus 그대로 유지 — 사용자에게 보이는 보너스 값은 동일
-      } else {
-        // 정상 진행 (이미 마이그레이션 완료된 세이브) — 불변식 정합성만 확인
-        const expected = (loaded.legacyPermanentBonus ?? 0)
-          + (loaded.realBossClearCount * 60)
-          + Math.floor(60 * (loaded.currentBossBestDrain ?? 0))
-        if (loaded.permanentStartBonus !== expected) {
-          loaded.permanentStartBonus = expected
-        }
+      const expected = (loaded.realBossClearCount * 60)
+        + Math.floor(60 * (loaded.currentBossBestDrain ?? 0))
+      if (loaded.permanentStartBonus !== expected) {
+        loaded.permanentStartBonus = expected
       }
+    }
+    // 챔피언 마이그레이션 — 옛 사용자(필드 없음) + 100층 클리어 기록이 있으면 한 번 계산.
+    //   공방 밸류 합 최대 캐릭터를 챔피언으로.
+    if (!loaded.challengeChampion) {
+      let best: CharacterRecord | null = null
+      let bestScore = -Infinity
+      for (const r of loaded.characterHistory) {
+        if (r.cleared === false) continue
+        const s = computeChallengeScore(r)
+        if (s > bestScore) { best = r; bestScore = s }
+      }
+      loaded.challengeChampion = best
     }
     // 옛 세이브 마이그레이션:
     //   tutorialSeen 필드가 없었던 옛 플레이어는 이미 게임을 진행한 상태인데
@@ -193,7 +181,7 @@ export function defaultMeta(): MetaBonuses {
     characterHistory: [],
     pendingStartBonus: 0,
     permanentStartBonus: 0,
-    legacyPermanentBonus: 0,
+    challengeChampion: null,
     lastBossDrainRatio: 0,
     realBossCompleted: false,
     realBossDefeated: false,
@@ -206,7 +194,7 @@ export function defaultMeta(): MetaBonuses {
 
 // 캐릭터를 히스토리에 적재 (최대 50개)
 //   cleared = true:  100층 클리어 — 진짜 보스 도전 후보
-//   cleared = false: 도중 사망 — 통계용. pickLatestRecord 가 거른다.
+//   cleared = false: 도중 사망 — 통계용. pickChallengeRecord 가 거른다.
 export function pushCharacterHistory(
   meta: MetaBonuses,
   character: Character,
@@ -235,6 +223,16 @@ export function pushCharacterHistory(
   meta.characterHistory.push(rec)
   if (meta.characterHistory.length > 50) {
     meta.characterHistory = meta.characterHistory.slice(-50)
+  }
+  // 챔피언 갱신 — 100층 클리어 기록만 비교 대상. 더 강한(공방 밸류 합 큰) 기록이면 교체.
+  if (cleared) {
+    if (!meta.challengeChampion) {
+      meta.challengeChampion = rec
+    } else {
+      const cur = computeChallengeScore(meta.challengeChampion)
+      const next = computeChallengeScore(rec)
+      if (next > cur) meta.challengeChampion = rec
+    }
   }
 }
 
@@ -269,6 +267,8 @@ export interface PendingClearBonus {
   rank: string
   bonus: number          // 1~10
   score: number
+  finalGold?: number     // 인벤토리 일괄 판매 후 최종 소지 골드 (UI 표시 + 진짜보스 트리거 누적용)
+  inventorySellGold?: number  // 인벤 판매로 얻은 금액 (표시용)
 }
 
 export function computePendingBonus(

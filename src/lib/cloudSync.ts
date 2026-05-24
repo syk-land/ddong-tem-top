@@ -28,7 +28,6 @@ export interface CloudMeta {
   clearCount: number
   totalBonusStats: number
   permanentStartBonus: number
-  legacyPermanentBonus: number
   realBossCompleted: boolean
   realBossDefeated: boolean
   realBossClearCount: number
@@ -36,6 +35,7 @@ export interface CloudMeta {
   totalGoldEarned: number
   // 최근 캐릭터 히스토리는 양이 많아서 별도 처리 가능 — 일단 최대 50개 그대로 저장
   characterHistory: CharacterRecord[]
+  challengeChampion?: CharacterRecord | null
   updatedAt?: unknown
 }
 
@@ -78,13 +78,13 @@ export async function saveCloudMeta(uid: string, meta: MetaBonuses): Promise<voi
     clearCount: meta.clearCount,
     totalBonusStats: meta.totalBonusStats,
     permanentStartBonus: meta.permanentStartBonus,
-    legacyPermanentBonus: meta.legacyPermanentBonus ?? 0,
     realBossCompleted: meta.realBossCompleted,
     realBossDefeated: meta.realBossDefeated,
     realBossClearCount: meta.realBossClearCount ?? 0,
     currentBossBestDrain: meta.currentBossBestDrain ?? 0,
     totalGoldEarned: meta.totalGoldEarned,
     characterHistory: meta.characterHistory ?? [],
+    challengeChampion: meta.challengeChampion ?? null,
     updatedAt: serverTimestamp(),
   }
   await setDoc(doc(firestore, 'meta', uid), payload, { merge: true })

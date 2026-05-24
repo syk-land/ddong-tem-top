@@ -313,9 +313,9 @@ export interface MetaBonuses {
   runsSinceLastChallenge: number    // 마지막 도전 이후 진행한 런 수 (0부터)
   nextChallengeAt: number           // 이 횟수 도달 시 도전 발동 (5~10 랜덤)
   characterHistory: CharacterRecord[]  // 클리어 캐릭터 누적 (최대 50)
+  challengeChampion: CharacterRecord | null  // 100층 클리어 기록 중 (atkValue + defValue) 합 최대 — 진짜보스 도전 후보 캐시
   pendingStartBonus: number         // (deprecated) 1회성 보너스 — 호환용. 0으로 유지.
-  permanentStartBonus: number       // 진짜 보스 도전 결과로 영구 누적되는 시작 스탯 +N (= legacyPermanentBonus + clearCount×60 + floor(60×bestDrain))
-  legacyPermanentBonus: number      // 시스템 개편(v2 보스 순서 도입) 이전에 쌓인 보너스 — 불변식과 별개로 영구 보존. 신규 클리어는 위에 누적
+  permanentStartBonus: number       // 진짜 보스 도전 결과로 영구 누적되는 시작 스탯 +N (= clearCount×60 + floor(60×bestDrain))
   lastBossDrainRatio: number        // 가장 최근 도전에서 깎은 비율 0~1 (UI 표시용)
   realBossCompleted: boolean        // 도전 모드 한 번이라도 전투 완료했는지 (t3 잠금 해제용)
   realBossDefeated: boolean         // 진짜 보스를 한 번이라도 깎은 비율 100% 클리어 했는지 (게임 클리어)
@@ -359,7 +359,7 @@ export interface CharacterRecord {
   stats: Stats
   score: number
   rank: string
-  // 100층 클리어 여부 — pickLatestRecord 가 사망 기록을 거르고 클리어 캐릭터로
+  // 100층 클리어 여부 — pickChallengeRecord 가 사망 기록을 거르고 클리어 캐릭터로
   // 진짜 보스에 도전하도록 한다. 옛 세이브 호환: undefined 면 true 로 간주.
   cleared?: boolean
   avatarKey: string | null
