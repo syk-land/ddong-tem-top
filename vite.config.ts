@@ -4,6 +4,9 @@ import path from 'path'
 import pkg from './package.json' with { type: 'json' }
 
 export default defineConfig({
+  // 상대 base — Firebase Hosting(도메인 루트) 과 GameMonetize 서브디렉토리
+  // (uncached.gamemonetize.com/<gameId>/...) 양쪽에서 동일하게 동작.
+  base: './',
   plugins: [vue()],
   resolve: {
     alias: {
