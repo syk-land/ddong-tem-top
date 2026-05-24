@@ -29,6 +29,9 @@ auth.initAuthListener()
 
 const currentScreen = computed(() => game.screen)
 
+// vite.config.ts 의 define 으로 빌드 시점에 박힌 버전 (= package.json 의 version)
+const appVersion = __APP_VERSION__
+
 // 페이지 로드 시 1회 스플래시. 클릭으로 닫힘. 새로고침하면 다시 표시.
 const showSplash = ref(true)
 function dismissSplash() {
@@ -146,5 +149,13 @@ onUnmounted(() => {
     <TutorialOverlay v-if="game.tutorialActive && !showSplash && !game.introVisible" />
     <!-- 최초 실행 스플래시 (클릭 시 닫힘) -->
     <SplashScreen v-if="showSplash" @dismiss="dismissSplash" />
+    <!-- 우상단 버전 배지 — 스플래시 외 모든 화면 (SpeedControl 은 좌상단). 클릭 막힘 X -->
+    <div
+      v-if="!showSplash"
+      class="fixed top-1 right-2 z-[100] text-[10px] sm:text-xs font-mono text-gray-400/70 select-none pointer-events-none tabular-nums"
+      aria-hidden="true"
+    >
+      v{{ appVersion }}
+    </div>
   </main>
 </template>

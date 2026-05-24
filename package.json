@@ -1,7 +1,7 @@
 {
   "name": "climetop",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "이번 판은 똥템으로 탑을 오르겠습니다 — 100층 로그라이크 탑 등정 RPG (Firebase Hosting)",
   "scripts": {
