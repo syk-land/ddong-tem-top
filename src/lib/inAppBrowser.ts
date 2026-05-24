@@ -27,8 +27,7 @@ const NAMES: Record<InAppBrowserKind, string> = {
 export function detectInAppBrowser(): InAppBrowserKind | null {
   if (typeof navigator === 'undefined') return null
   const ua = navigator.userAgent
-  // Capacitor 네이티브 빌드는 자체 Google Sign-In 플러그인을 쓰므로 여기서 잡지 않는다.
-  // (auth.ts 의 isNative() 분기에서 이미 다른 경로로 갈림)
+  // Firebase Hosting 웹 빌드 전용 (안드로이드 빌드는 폐기).
   if (/KAKAOTALK/i.test(ua)) return 'kakaotalk'
   // NAVER 앱 인앱: "NAVER(inapp; ...)" 형태 또는 단독 "NAVER" 토큰.
   if (/NAVER\(inapp/i.test(ua) || /; NAVER /i.test(ua)) return 'naver'

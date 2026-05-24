@@ -141,8 +141,8 @@ function onCustomSpeed(e: Event) {
   bumpActivity()
 }
 
-// 게임 종료 — SettingsScreen 과 동일 패턴. Capacitor App.exitApp 우선,
-// 웹에서는 window.close() fallback (브라우저 정책상 사용자가 직접 연 탭만 닫힘).
+// 게임 종료 — 웹 전용. window.close() 시도.
+// 브라우저 정책상 사용자가 직접 연 탭만 닫힘. (Capacitor 네이티브 분기 제거됨.)
 async function quitGame() {
   bumpActivity()
   const ok = await game.confirmModal('게임을 종료하시겠습니까?', {
@@ -152,13 +152,7 @@ async function quitGame() {
     danger: true,
   })
   if (!ok) return
-  try {
-    const { App: CapApp } = await import('@capacitor/app')
-    await CapApp.exitApp()
-    return
-  } catch {
-    try { window.close() } catch {}
-  }
+  try { window.close() } catch {}
 }
 
 function expand() {

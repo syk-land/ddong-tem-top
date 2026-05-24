@@ -87,8 +87,8 @@ function back() {
 }
 
 // ── 게임 종료 ──
-// 안드로이드(Capacitor) 에서는 App.exitApp() 으로 앱을 닫고,
-// 웹에서는 window.close() 시도 + 빈 화면 안내 (사용자가 직접 연 탭만 닫힘).
+// 웹(Firebase Hosting) 전용 — window.close() 시도. 브라우저 정책상
+// 사용자가 직접 연 탭만 close 가능. (이전 Capacitor 네이티브 분기는 제거됨.)
 async function quitGame() {
   const ok = await game.confirmModal('게임을 종료하시겠습니까?', {
     title: '종료',
@@ -97,14 +97,7 @@ async function quitGame() {
     danger: true,
   })
   if (!ok) return
-  try {
-    const { App: CapApp } = await import('@capacitor/app')
-    await CapApp.exitApp()
-    return
-  } catch {
-    // 웹 환경 fallback — 브라우저 정책상 사용자가 직접 연 탭만 close 가능.
-    try { window.close() } catch {}
-  }
+  try { window.close() } catch {}
 }
 
 onMounted(() => {

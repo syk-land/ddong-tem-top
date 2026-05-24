@@ -120,7 +120,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   crit_immune: {
     key: 'crit_immune',
-    description: '크리티컬 면역 (갑각 크랩) — 받은 크리티컬 보너스를 거의 무효화',
+    description: '크리티컬 면역 (심해 문어) — 받은 크리티컬 보너스를 거의 무효화',
     onAfterAttacked(p) {
       // 크리티컬을 추적할 수 없으므로 데미지의 40% 를 회복 (실질적으로 크리 보너스 감쇄 효과)
       const refund = Math.round(p.damage * 0.4)
@@ -181,27 +181,27 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   accuracy_debuff: {
     key: 'accuracy_debuff',
-    description: '명중 디버프 — 30% 확률로 플레이어에게 암흑 부여 (신기루 나비)',
+    description: '명중 디버프 — 30% 확률로 플레이어에게 암흑 부여 (신기루 새)',
     onBeforeAttack({ ctx }) {
       if (tryApplyStatusOnPlayer(ctx, '암흑', 0.3, 5)) {
-        pushLog(ctx, '신기루 나비: 플레이어 시야 흐림 (암흑)', 'status')
+        pushLog(ctx, '신기루 새: 플레이어 시야 흐림 (암흑)', 'status')
       }
     },
   },
 
   speed_debuff: {
     key: 'speed_debuff',
-    description: '둔화 — 30% 확률로 플레이어 둔화 (맹독 해파리)',
+    description: '둔화 — 30% 확률로 플레이어 둔화 (심해 물고기)',
     onBeforeAttack({ ctx }) {
       if (tryApplyStatusOnPlayer(ctx, '둔화', 0.3, 5)) {
-        pushLog(ctx, '맹독 해파리: 플레이어 둔화', 'status')
+        pushLog(ctx, '심해 물고기: 플레이어 둔화', 'status')
       }
     },
   },
 
   bleed_chance: {
     key: 'bleed_chance',
-    description: '출혈 — 35% 확률로 플레이어 출혈 (혈랑)',
+    description: '출혈 — 35% 확률로 플레이어 출혈 (핏빛 사도)',
     onBeforeAttack({ ctx, monster }) {
       if (tryApplyStatusOnPlayer(ctx, '출혈', 0.35, monster.atk)) {
         pushLog(ctx, `${monster.template.name}: 플레이어 출혈`, 'status')
@@ -223,7 +223,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   shock_chance: {
     key: 'shock_chance',
-    description: '감전 — 30% 확률 (썬더 버드)',
+    description: '감전 — 30% 확률 (폭풍 천사)',
     onBeforeAttack({ ctx, monster }) {
       if (tryApplyStatusOnPlayer(ctx, '감전', 0.3, monster.atk)) {
         pushLog(ctx, `${monster.template.name}: 플레이어 감전`, 'status')
@@ -288,7 +288,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   element_counter: {
     key: 'element_counter',
-    description: '원소 카운터 — 마법 공격에 대해 30% 반사 (마도 마네킹)',
+    description: '원소 카운터 — 마법 공격에 대해 30% 반사 (강화 거미 로봇)',
     onAfterAttacked(p) {
       if (!p.isMagic) return
       const reflect = Math.round(p.damage * 0.3)
@@ -300,7 +300,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   crit_vs_bleeding: {
     key: 'crit_vs_bleeding',
-    description: '출혈 플레이어에게 크리티컬 — 데미지 × 1.5 (뱀파이어 네오파이트)',
+    description: '출혈 플레이어에게 크리티컬 — 데미지 × 1.5 (흡혈 기사)',
     onBeforeAttack({ ctx, monster }) {
       const hasBleed = ctx.player.statuses.some((s) => s.kind === '출혈')
       if (hasBleed) {
@@ -321,7 +321,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   compound_atk: {
     key: 'compound_atk',
-    description: '복합 공격 — 50% 확률로 2회 연속 공격 (자동 경비 포탑)',
+    description: '복합 공격 — 50% 확률로 2회 연속 공격 (경비 거미 로봇)',
     onPlayerHit({ ctx, monster }) {
       // 첫 공격이 끝난 직후 50% 확률로 추가 1회 공격 게이지 즉시 부여
       // 단, 무한 루프 방지를 위해 이미 페이즈에 들어갔으면 스킵
@@ -366,7 +366,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   heal_pollution: {
     key: 'heal_pollution',
-    description: '회복 오염 — 플레이어 회복 ×0.3 (역병 쥐)',
+    description: '회복 오염 — 플레이어 회복 ×0.3 (역병 슬라임)',
     onSpawn({ ctx, monster }) {
       pushLog(ctx, `${monster.template.name}: 회복 오염`, 'info')
     },
@@ -401,7 +401,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   copy_player: {
     key: 'copy_player',
-    description: '플레이어 복사 — 스폰 시 플레이어 공/방을 모방 (도플갱어)',
+    description: '플레이어 복사 — 스폰 시 플레이어 공/방을 모방 (환영 슬라임)',
     onSpawn({ ctx, monster }) {
       // 플레이어의 공격력/방어%를 기반으로 보정
       // monster.def 는 % 단위 (combat.ts: effectiveDefPct = def / 100)
@@ -417,7 +417,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   petrify: {
     key: 'petrify',
-    description: '석화 — 15% 확률로 플레이어 둔화 +3스택 (바실리스크)',
+    description: '석화 — 15% 확률로 플레이어 둔화 +3스택 (맹독 거미)',
     onBeforeAttack({ ctx, monster }) {
       if (Math.random() < 0.15) {
         applyStatus(ctx.player, '둔화', monster.atk, ctx.tick, playerResistChance(ctx))
@@ -434,7 +434,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   silence_chance: {
     key: 'silence_chance',
-    description: '침묵 — 20% 확률로 플레이어 스킬 사용 20틱간 봉인 (샤도우 가고일)',
+    description: '침묵 — 20% 확률로 플레이어 스킬 사용 20틱간 봉인 (그림자 슬라임)',
     onBeforeAttack({ ctx, monster }) {
       if (Math.random() < 0.2) {
         const dur = 20
@@ -462,7 +462,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   item_block: {
     key: 'item_block',
-    description: '아이템 차단 — 처치 시 드랍 봉쇄 (그리폰). game.ts onMonsterKilled 연동 필요',
+    description: '아이템 차단 — 처치 시 드랍 봉쇄 (천공 페가수스). game.ts onMonsterKilled 연동 필요',
     onSpawn({ ctx, monster }) {
       pushLog(ctx, `${monster.template.name}: 아이템 봉쇄 (드랍 차단)`, 'info')
     },
@@ -485,7 +485,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
       const templates = theme.normalMonsters.slice(0, slots)
       const chapter = Math.max(1, Math.min(10, ctx.monsters.length + 1))
       for (const t of templates) {
-        const m = makeMonster(t, chapter, 'normal')
+        const m = makeMonster(t, chapter, 'normal', ctx.realBossClearCount ?? 0)
         m._spawnedBy = monster.template.name
         ctx.monsters.push(m)
       }
@@ -517,7 +517,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
       const templates = theme.normalMonsters.slice(0, slots)
       const chapter = 3
       for (const t of templates) {
-        const m = makeMonster(t, chapter, 'normal')
+        const m = makeMonster(t, chapter, 'normal', ctx.realBossClearCount ?? 0)
         m._spawnedBy = monster.template.name
         ctx.monsters.push(m)
       }
@@ -661,7 +661,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   laser_charge: {
     key: 'laser_charge',
-    description: '레이저 차징 — 30틱마다 차징 5틱 후 ×1.8 데미지. 평타 -20% (거대 메카닉 타이탄)',
+    description: '레이저 차징 — 30틱마다 차징 5틱 후 ×1.8 데미지. 평타 -20% (거대 메카닉 거미)',
     onSpawn({ monster }) {
       // 메카닉 타이탄: 평타는 약하지만 차징이 주력 데미지
       monster.atk = Math.round(monster.atk * 0.8)
@@ -693,7 +693,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
         if (aliveMinionCount(ctx, monster) >= MINION_CAP) return
         const theme = CHAPTER_THEMES['기계']
         const droneTemplate = theme.normalMonsters[0]  // 스파이더 마인
-        const m = makeMonster(droneTemplate, 7, 'normal')
+        const m = makeMonster(droneTemplate, 7, 'normal', ctx.realBossClearCount ?? 0)
         m._spawnedBy = monster.template.name
         ctx.monsters.push(m)
         pushLog(ctx, `${monster.template.name}: 드론 소환!`, 'enemy')
@@ -722,7 +722,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   screen_darken: {
     key: 'screen_darken',
-    description: '시야 차단 — HP 50% 에서 플레이어에게 강력한 암흑 (40틱) 적용 (실루엣 크로우)',
+    description: '시야 차단 — HP 50% 에서 플레이어에게 강력한 암흑 (40틱) 적용 (어둠의 마왕)',
     onHpThreshold({ ctx, monster, threshold }) {
       if (threshold !== 0.5) return
       // 시야 차단 = 암흑 상태 4스택 부여 (1스택 -25, 4스택 ≈ -65 명중)
@@ -764,7 +764,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
 
   lightning_rain: {
     key: 'lightning_rain',
-    description: '뇌우 — 매 10틱 광역 감전 (폭풍의 제단)',
+    description: '뇌우 — 매 10틱 광역 감전 (폭풍룡)',
     onTickStart({ ctx, monster }) {
       if (ctx.tick > 0 && ctx.tick % 10 === 0) {
         const dmg = Math.round(monster.atk * 0.5)

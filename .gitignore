@@ -5,25 +5,6 @@ dist/
 vite.config.d.ts
 vite.config.js
 
-# Android (Capacitor)
-android/.gradle/
-android/.idea/
-android/build/
-android/app/build/
-android/app/release/
-android/local.properties
-android/*.iml
-android/app/*.iml
-android/captures/
-
-# Android 릴리스 서명 — 절대 git 에 올리지 말 것
-android/keystore.properties
-android/keystore/
-*.jks
-*.keystore
-# 예외: 안정 SHA-1 용 debug.keystore (비밀번호 'android' = AGP 디폴트, 공개 정보)
-!android/app/debug.keystore
-
 # IDE / OS
 .vscode/
 .idea/
@@ -48,3 +29,11 @@ node_modules/.vite/
 
 # Claude Code 로컬 설정 (윈도우 절대경로 등 사용자별 환경)
 .claude/
+
+# bananaimages PNG 백업 (webp 변환 전 원본 + 워터마크 제거 전 백업) — webp 만 추적
+bananaimages/_png_backup/
+bananaimages/_v1_backup/
+bananaimages/_watermarked_backup/
+
+# GameMonetize 업로드 zip (build 산출물 — dist/ 에서 재생성 가능)
+climetop-gamemonetize.zip

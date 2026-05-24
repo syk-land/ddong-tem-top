@@ -109,8 +109,8 @@ monsterImageUrl(name)   // /images/MONSTER/{file}.webp
 
 ## 브라우저 호환성
 
-- 안드로이드 WebView (Capacitor): WebP 네이티브 지원 (4.0+ 부터)
 - Chrome / Edge / Firefox / Safari (14+) : 모두 지원
+- 모바일 Chrome / Samsung Internet : 모두 지원
 - 별도 PNG 폴백 불필요
 
 ---

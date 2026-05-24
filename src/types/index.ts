@@ -318,6 +318,8 @@ export interface MetaBonuses {
   lastBossDrainRatio: number        // 가장 최근 도전에서 깎은 비율 0~1 (UI 표시용)
   realBossCompleted: boolean        // 도전 모드 한 번이라도 전투 완료했는지 (t3 잠금 해제용)
   realBossDefeated: boolean         // 진짜 보스를 한 번이라도 깎은 비율 100% 클리어 했는지 (게임 클리어)
+  realBossClearCount: number        // 진짜 보스 100% 클리어 누적 횟수 — REAL_BOSS_ORDER 인덱스 + 모든 몬스터 HP×(1+0.9×N)
+  currentBossBestDrain: number      // 현재 미클리어 보스에 대한 최고 깎은 비율 0~1 — 재도전 시 max() 갱신, 완전 클리어 시 0 리셋
   totalGoldEarned: number           // 클리어 시점 남은 골드 누적 — 5만 도달 시 진짜 보스 트리거 (내부, UI 표시 X)
   // ── 튜토리얼 진행도 ──
   tutorialSeen: TutorialSeen        // 단계별 1회성 안내 노출 여부

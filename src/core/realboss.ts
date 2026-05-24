@@ -63,13 +63,35 @@ export const REAL_BOSS_HP_MULT = 3.0
 export const REAL_BOSS_ATK_MULT = 9.0  // v6.1: 1.8 → 9.0 (×5 강화). 평범 캐릭터에게 한 방 압도하도록.
 export const REAL_BOSS_DEF_MULT = 1.6
 
-export function makeRealBoss(theme: ChapterTheme): MonsterInstance {
+// 진짜 보스 등장 고정 순서 — 22장 만화 구성과 동일.
+// realBossClearCount % 11 을 인덱스로 사용 → 11회 클리어 후 다시 고블린부터 순환.
+export const REAL_BOSS_ORDER: ChapterTheme[] = [
+  '고블린', '기계', '천공', '골렘', '환영',
+  '언데드', '흡혈귀', '심해', '용암', '암흑', '맹독',
+]
+
+// 클리어 횟수에 따라 다음 진짜 보스 테마 결정 (순환).
+export function pickNextRealBossTheme(realBossClearCount: number): ChapterTheme {
+  const idx = ((realBossClearCount % REAL_BOSS_ORDER.length) + REAL_BOSS_ORDER.length) % REAL_BOSS_ORDER.length
+  return REAL_BOSS_ORDER[idx]
+}
+
+// 클리어 횟수에 따른 모든 몬스터의 HP 배수 — 클리어 1회마다 +90% 누적.
+// 0회: 1.0, 1회: 1.9, 2회: 2.8, 3회: 3.7, ...
+export const HP_MULT_PER_REAL_BOSS_CLEAR = 0.9
+export function getMonsterHpMultiplier(realBossClearCount: number): number {
+  return 1 + HP_MULT_PER_REAL_BOSS_CLEAR * Math.max(0, realBossClearCount)
+}
+
+// 진짜 보스: chapter 10 보스를 강화 + 클리어 누적 HP 멀티플라이어 적용.
+export function makeRealBoss(theme: ChapterTheme, realBossClearCount: number = 0): MonsterInstance {
   const def = CHAPTER_THEMES[theme]
   const template = def.hardBoss ?? def.boss
   // 챕터 10 보스 baseline → 추가 증폭
   // makeMonster 는 template.hpMod/atkMod/defMod 를 곱해 인스턴스를 만들므로,
   // template 을 그대로 두고 인스턴스 단계에서 후처리 강화.
-  const inst = makeMonster(template, 10, 'boss')
+  // 누적 HP 배수는 makeMonster 안에서 적용되어, 여기선 진짜 보스 전용 HP×3.0만 추가로 곱한다.
+  const inst = makeMonster(template, 10, 'boss', realBossClearCount)
   inst.maxHp = Math.round(inst.maxHp * REAL_BOSS_HP_MULT)
   inst.hp = inst.maxHp
   inst.atk = Math.round(inst.atk * REAL_BOSS_ATK_MULT)

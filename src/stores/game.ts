@@ -11,7 +11,8 @@ import {
   pushCharacterHistory, incrementRunCounter, consumeChallengeTrigger, accumulateClearGold,
 } from '@/core/meta'
 import {
-  isChallengeDue, pickLatestRecord, makeRealBoss, computeStartBonusFromDrain,
+  isChallengeDue, pickLatestRecord, makeRealBoss,
+  pickNextRealBossTheme,
 } from '@/core/realboss'
 import { createCombatContext, type CombatContext, advanceTick, checkActionReady, consumeAction, playerBasicAttack, monsterAttack, makeMonster, pushLog } from '@/core/combat'
 import { useSkill, getAvailableSkills, pickAutoAction } from '@/core/skills'
@@ -169,7 +170,9 @@ interface GameState {
   realBossWeakRecord: CharacterRecord | null
   realBossDeclinedThisSession: boolean   // 이번 세션에서 진짜 보스 도전을 거절했는지 (메뉴 무한 재트리거 방지)
   realBossInitialMaxHp: number   // 도전 시작 시 보스 최대 HP (깎은 비율 계산용)
-  realBossResultRatio: number    // 결과 화면에서 표시할 깎은 비율
+  realBossResultRatio: number    // 결과 화면에서 표시할 이번 도전 깎은 비율
+  realBossResultGain: number     // 결과 화면에서 표시할 이번 도전으로 얻은 permanentStartBonus 실제 증가분 (0 가능)
+  realBossResultPrevBest: number // 결과 화면에서 표시할 이번 도전 전 베스트 (0~1)
   // 인트로 만화 (스플래시 후 만화 → 다시보기)
   introVisible: boolean
   introPage: number              // 0=main 화면, 1=tutorial1, 2=tutorial2, 3=tutorial3
@@ -273,6 +276,8 @@ export const useGameStore = defineStore('game', {
     realBossDeclinedThisSession: false,
     realBossInitialMaxHp: 0,
     realBossResultRatio: 0,
+    realBossResultGain: 0,
+    realBossResultPrevBest: 0,
     introVisible: false,
     introPage: 1,
     introFlow: 'first',
@@ -669,10 +674,12 @@ export const useGameStore = defineStore('game', {
       const themeDef = CHAPTER_THEMES[ch.theme]
 
       // 보스/미믹은 항상 1마리, 일반은 챕터 테마의 encounterMin~Max
+      // 진짜 보스 클리어 누적 횟수만큼 모든 몬스터 HP ×(1 + 0.9×N).
+      const rbcc = this.meta.realBossClearCount ?? 0
       let monsters
       if (kind === 'boss') {
         const template = ch.isHard && themeDef.hardBoss ? themeDef.hardBoss : themeDef.boss
-        const m = makeMonster(template, chapterNum, kind)
+        const m = makeMonster(template, chapterNum, kind, rbcc)
         // 튜토리얼 — 첫 챕터 1 보스 약화 (사용자가 무조건 잡고 진행할 수 있도록).
         // first_chapter_clear 는 챕터 2 1층 진입 시 마킹되므로 챕터 1 보스 전투 시점엔 false.
         if (chapterNum === 1 && !this.meta.tutorialSeen.first_chapter_clear) {
@@ -682,7 +689,7 @@ export const useGameStore = defineStore('game', {
         }
         monsters = [m]
       } else if (kind === 'mimic') {
-        monsters = [makeMonster(themeDef.boss, chapterNum, kind)]
+        monsters = [makeMonster(themeDef.boss, chapterNum, kind, rbcc)]
       } else {
         const min = themeDef.encounterMin ?? 1
         const max = themeDef.encounterMax ?? 1
@@ -690,11 +697,11 @@ export const useGameStore = defineStore('game', {
         monsters = []
         for (let i = 0; i < count; i++) {
           const template = pickOne(themeDef.normalMonsters)
-          monsters.push(makeMonster(template, chapterNum, 'normal'))
+          monsters.push(makeMonster(template, chapterNum, 'normal', rbcc))
         }
       }
 
-      this.combat = createCombatContext(this.run.character, monsters)
+      this.combat = createCombatContext(this.run.character, monsters, this.meta.realBossClearCount ?? 0)
       const intro = monsters.length === 1
         ? `${monsters[0].template.name}와(과)의 전투!`
         : `${monsters.length}마리의 적이 등장! (${monsters.map((m) => m.template.name).join(', ')})`
@@ -726,9 +733,9 @@ export const useGameStore = defineStore('game', {
         const themeDef = CHAPTER_THEMES[currentChapter(this.run!).theme]
         const bossTemplate = themeDef.boss
         if (this.run) {
-          const monster = makeMonster(bossTemplate, chapter, 'mimic')
+          const monster = makeMonster(bossTemplate, chapter, 'mimic', this.meta.realBossClearCount ?? 0)
           monster.template = { ...bossTemplate, name: `미믹 (${bossTemplate.name} 모방)` }
-          this.combat = createCombatContext(this.run.character, monster)
+          this.combat = createCombatContext(this.run.character, monster, this.meta.realBossClearCount ?? 0)
           pushLog(this.combat, `보물상자가 미믹이었다!`, 'enemy')
           this.screen = 'combat'
         }
@@ -1488,8 +1495,8 @@ export const useGameStore = defineStore('game', {
         hpMod: (baseTemplate.hpMod ?? 1.0) * 1.2,
         atkMod: (baseTemplate.atkMod ?? 1.0) * 1.1,
       }
-      const monster = makeMonster(template, chapter + 1, 'normal')
-      this.combat = createCombatContext(this.run.character, monster)
+      const monster = makeMonster(template, chapter + 1, 'normal', this.meta.realBossClearCount ?? 0)
+      this.combat = createCombatContext(this.run.character, monster, this.meta.realBossClearCount ?? 0)
       this.combat.isPvp = true
       pushLog(this.combat, '악당 모험가와의 PVP!', 'info')
       this.screen = 'combat'
@@ -1705,8 +1712,8 @@ export const useGameStore = defineStore('game', {
         atkMod: (themeDef.boss.atkMod ?? 1.0) * 0.85,
         defMod: (themeDef.boss.defMod ?? 1.0) * 0.85,
       }
-      const monster = makeMonster(template, chapter, 'normal')
-      this.combat = createCombatContext(c, monster)
+      const monster = makeMonster(template, chapter, 'normal', this.meta.realBossClearCount ?? 0)
+      this.combat = createCombatContext(c, monster, this.meta.realBossClearCount ?? 0)
       this.combat.isPvp = true
       pushLog(this.combat, '격노한 수집가와의 전투!', 'info')
       this.screen = 'combat'
@@ -2093,10 +2100,16 @@ export const useGameStore = defineStore('game', {
         return
       }
 
+      // 도전 수락 시점에 누적 골드를 즉시 리셋 (다음 도전까지 다시 5만 누적 필요).
+      //   consumeChallengeTrigger 가 totalGoldEarned=0 + runsSinceLastChallenge=0 + nextChallengeAt 갱신 + localStorage 저장.
       consumeChallengeTrigger(this.meta)
+      // 클라우드 동기화 dirty 플래그 마킹 — 도전 시작은 명시적 sync 포인트.
+      this.persistMeta()
       this.realBossWeakRecord = latest  // (필드명은 호환 위해 유지)
-      this.realBossTheme = latest.lastChapterTheme
-      this.realBossMonster = makeRealBoss(latest.lastChapterTheme)
+      // 진짜 보스 테마: 누적 클리어 횟수에 따른 고정 순서. 11회 클리어 후 다시 고블린부터 순환.
+      const clearCount = this.meta.realBossClearCount ?? 0
+      this.realBossTheme = pickNextRealBossTheme(clearCount)
+      this.realBossMonster = makeRealBoss(this.realBossTheme, clearCount)
       this.realBossInitialMaxHp = this.realBossMonster.maxHp
       this.screen = 'realboss'
     },
@@ -2122,15 +2135,22 @@ export const useGameStore = defineStore('game', {
         statuses: [],
         actionGauge: 0,
       }
-      this.combat = createCombatContext(character, [boss])
+      this.combat = createCombatContext(character, [boss], this.meta.realBossClearCount ?? 0)
       pushLog(this.combat, `진짜 보스 [${boss.template.name}]와의 도전!`, 'info')
       this.screen = 'combat'
     },
 
     // Combat 종료 후 호출 — realboss 결과 처리.
-    //   * 깎은 비율 × 60pt 만큼 permanentStartBonus 영구 누적 (다음 캐릭터부터 시작 스탯 ↑)
-    //   * 비율 100% (완전 클리어) → realBossDefeated = true (게임 클리어)
-    //   * 누적 보너스 풀(totalBonusStats) 이 자리에서 0 리셋 — 어떤 경로로 캐릭터 생성에 가도 안전
+    //
+    // 불변식: permanentStartBonus = (realBossClearCount × 60) + floor(60 × currentBossBestDrain)
+    //   - 완전 클리어 (ratio ≥ 0.9999):
+    //       realBossClearCount += 1 (lock 60pt)
+    //       currentBossBestDrain = 0 (다음 보스 신규 시작)
+    //   - 부분 클리어 (ratio < 0.9999):
+    //       currentBossBestDrain = max(prev, ratio) — 베스트만 갱신, 낮은 결과는 무시
+    //
+    // 이전 v6.1 버그: gain 을 무조건 += 해서 같은 보스 재도전 시마다 누적되었음.
+    // 누적 보너스 풀(totalBonusStats) 은 회귀(=불완전 처치) 시에만 0 리셋.
     finishRealBossCombat() {
       const boss = this.realBossMonster
       const initialHp = this.realBossInitialMaxHp
@@ -2141,15 +2161,29 @@ export const useGameStore = defineStore('game', {
       }
       const finalHp = Math.max(0, boss.hp)
       const ratio = Math.max(0, Math.min(1, (initialHp - finalHp) / initialHp))
-      const gain = computeStartBonusFromDrain(ratio)
+      const prevPermanentBonus = this.meta.permanentStartBonus ?? 0
+      const prevBest = this.meta.currentBossBestDrain ?? 0
       this.realBossResultRatio = ratio
+      this.realBossResultPrevBest = prevBest
       this.meta.lastBossDrainRatio = ratio
-      this.meta.permanentStartBonus = (this.meta.permanentStartBonus ?? 0) + gain
       this.meta.realBossCompleted = true
       const fullClear = ratio >= 0.9999
+
       if (fullClear) {
-        this.meta.realBossDefeated = true  // 게임 클리어
+        this.meta.realBossDefeated = true  // 게임 클리어 (한 번이라도 100% 클리어)
+        this.meta.realBossClearCount = (this.meta.realBossClearCount ?? 0) + 1
+        this.meta.currentBossBestDrain = 0  // 다음 보스 신규 시작
+      } else if (ratio > prevBest) {
+        // 부분 클리어 — 베스트 갱신된 경우만 반영. 낮은 결과는 유지.
+        this.meta.currentBossBestDrain = ratio
       }
+      // 불변식대로 permanentStartBonus 재계산 (직접 합산 X)
+      this.meta.permanentStartBonus =
+        (this.meta.realBossClearCount * 60) +
+        Math.floor(60 * (this.meta.currentBossBestDrain ?? 0))
+      // 이번 도전으로 얻은 실제 증가분 (≥ 0). 낮은 결과 재도전이면 0.
+      this.realBossResultGain = Math.max(0, this.meta.permanentStartBonus - prevPermanentBonus)
+
       // 회귀(=불완전 처치) 시에만 누적 풀 리셋. 100% 처치는 회귀가 아니므로 보존.
       if (!fullClear) {
         this.meta.totalBonusStats = 0
@@ -2160,14 +2194,23 @@ export const useGameStore = defineStore('game', {
       this.screen = 'realboss_result'
     },
 
-    // 결과 화면 → 만화(t1~t3) → 캐릭터 생성
+    // 결과 화면 → 다음 흐름.
+    //   - 완전 클리어 (100%) = 회귀 아님 → 메인 메뉴로. 인트로 만화 스킵.
+    //     (탑 클리어 보너스/스탯 풀은 이미 보존됨. 사용자가 메뉴에서 '새 캐릭터'를 직접 누르면 사용 가능.)
+    //   - 부분 클리어 = 회귀 → 만화(t1~t3) → 캐릭터 생성 (기존 흐름)
     //   누적 풀 리셋은 finishRealBossCombat 에서 이미 처리. 여기선 라우팅만.
     proceedFromRealBossResult() {
+      const wasFullClear = this.realBossResultRatio >= 0.9999
       this.realBossMonster = null
       this.realBossWeakRecord = null
       this.realBossTheme = null
       this.realBossInitialMaxHp = 0
-      this.openIntroComic('afterRealBoss')
+      if (wasFullClear) {
+        // 죽지 않았으니 회귀 서사 X. 메인 메뉴로 복귀.
+        this.screen = 'menu'
+      } else {
+        this.openIntroComic('afterRealBoss')
+      }
     },
 
     // ========================================

@@ -8,7 +8,9 @@ const bgUrl = defaultBgUrl()
 
 const ratio = computed(() => game.realBossResultRatio)
 const percent = computed(() => Math.round(ratio.value * 100))
-const gain = computed(() => Math.floor(ratio.value * 60))
+const gain = computed(() => game.realBossResultGain ?? 0)
+const prevBestPct = computed(() => Math.round((game.realBossResultPrevBest ?? 0) * 100))
+const isImprovement = computed(() => ratio.value > (game.realBossResultPrevBest ?? 0))
 const totalPermanent = computed(() => game.meta.permanentStartBonus ?? 0)
 const isGameClear = computed(() => ratio.value >= 0.9999)
 
@@ -62,12 +64,18 @@ function proceed() {
         <div class="text-xs mt-0.5 opacity-70">({{ Math.round(ratio * 10000) / 100 }} / 100)</div>
       </div>
 
-      <!-- 보상 카드 — amber -->
+      <!-- 보상 카드 — amber. 이번 도전 베스트 갱신 여부에 따라 메시지 다름. -->
       <div data-tutorial-target="realboss-bonus" class="rounded-lg border-2 border-amber-400/50 bg-amber-950/20 px-3 py-2.5 space-y-1.5">
-        <div>
-          <div class="text-xs text-amber-300/80 font-bold">이번 도전 보상</div>
+        <div v-if="isImprovement">
+          <div class="text-xs text-amber-300/80 font-bold">이번 도전 보상 (베스트 갱신!)</div>
           <div class="text-amber-300 text-3xl font-bold font-mono">+{{ gain }}<span class="text-base ml-1">pt</span></div>
-          <div class="text-xs opacity-70">영구 누적</div>
+          <div v-if="prevBestPct > 0" class="text-xs opacity-70">이전 베스트 {{ prevBestPct }}% → 이번 {{ percent }}%</div>
+          <div v-else class="text-xs opacity-70">영구 누적</div>
+        </div>
+        <div v-else>
+          <div class="text-xs text-rose-300/80 font-bold">베스트 미달 — 보상 변동 없음</div>
+          <div class="text-rose-300/60 text-xl font-bold font-mono">+0<span class="text-base ml-1">pt</span></div>
+          <div class="text-xs opacity-70">이전 베스트 <span class="font-bold">{{ prevBestPct }}%</span> 유지 (이번 {{ percent }}%)</div>
         </div>
         <div class="border-t border-amber-400/20 pt-1.5">
           <div class="text-xs">누적 보너스 <span class="text-log-reward font-mono font-bold">+{{ totalPermanent }}pt</span></div>
