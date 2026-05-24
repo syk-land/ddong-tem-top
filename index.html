@@ -5,12 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0a0e1a" />
     <!--
-      앱 자체가 다크 테마 — 시스템(Android WebView) 의 force-dark 자동화가
-      "이미 어두운 페이지"를 또 한 번 어둡게 만들지 않도록 명시.
-      color-scheme=dark 면 브라우저/WebView 가 추가 변환을 건너뛴다.
+      앱 자체가 다크 테마 — 시스템(Android WebView, Samsung Internet "웹 어두운 모드")
+      의 force-dark 자동 변환이 "이미 어두운 페이지" 를 다시 어둡게 만들지 않도록 차단.
+      'only dark' 의 only 키워드는 브라우저가 우리 선언을 오버라이드하지 못하게 한다.
+      (CSS 의 color-scheme 만으로는 일부 브라우저가 사용자 설정에 따라 무시한다.)
     -->
-    <meta name="color-scheme" content="dark" />
-    <meta name="supported-color-schemes" content="dark" />
+    <meta name="color-scheme" content="only dark" />
+    <style>
+      html {
+        color-scheme: only dark;
+      }
+    </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -22,12 +27,18 @@
     <!--
       GameMonetize H5 SDK — 브라우저(Firebase Hosting) 빌드 전용 광고 네트워크.
       안드로이드(Capacitor) 빌드에선 AdMob 을 사용하므로 sdk.js 호출은 무시되어도 무방.
-      gameId 발급 절차:
-        1) https://gamemonetize.com 가입 → My Games → Add New Game
-        2) 발급된 GameId 를 아래 'REPLACE_WITH_REAL_GAMEID' 와 교체
-        3) src/lib/ads.ts 의 BYPASS_ADS 를 false 로 변경
+
+      ⚠ 현재 비활성화 — GameMonetize 콘솔의 게임 상태가 "New" (검토 전).
+         SDK 가 페이지 진입마다 광고를 시도 → 노 fill 로 "스킵" 카운트만 뜨고
+         빈 화면이 보이는 문제 때문에 잠시 로드 차단.
+
+      활성화 절차 (GameMonetize 상태가 "Active" 가 된 뒤):
+        1) 아래 두 <script> 블록의 주석을 풀어 SDK 다시 로드
+        2) src/lib/ads.ts 의 BYPASS_ADS 를 false 로 변경
+        3) showRewardedAd() 의 웹(!isNative) 분기에 sdk.showAd() 호출 코드 추가
         4) 광고 단가/노출이 사이트 트래픽 검증 후 활성화됨
     -->
+    <!--
     <script>
       window.SDK_OPTIONS = {
         gameId: '5w9to8lrnly4ouwgkjxiykiaiitznvwp',
@@ -39,6 +50,8 @@
       }
     </script>
     <script async src="https://api.gamemonetize.com/sdk.js"></script>
+    -->
+
   </head>
   <body>
     <div id="app"></div>

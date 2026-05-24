@@ -5,6 +5,13 @@ import { useAuthStore } from '@/stores/auth'
 import { mainImageUrl, playerImageUrl } from '@/ui/images'
 import { loadRun } from '@/core/meta'
 import { deleteCloudUserData } from '@/lib/cloudSync'
+import {
+  detectInAppBrowser,
+  inAppBrowserName,
+  canOpenExternal,
+  openInExternalBrowser,
+  copyUrlToClipboard,
+} from '@/lib/inAppBrowser'
 import { themeColorClass } from '@/ui/colors'
 import HpMpBar from '@/ui/components/HpMpBar.vue'
 import type { TowerRun } from '@/types'
@@ -26,7 +33,34 @@ const savedChapter = computed(() => {
   return r.chapters[r.currentChapterIndex] ?? null
 })
 
+// 인앱 브라우저 감지 — Google OAuth 가 막히므로 외부 브라우저로 유도해야 한다.
+const inAppBrowser = computed(() => detectInAppBrowser())
+
 async function loginGoogle() {
+  const kind = inAppBrowser.value
+  if (kind) {
+    const name = inAppBrowserName(kind)
+    if (canOpenExternal(kind)) {
+      const ok = await game.confirmModal(
+        `${name} 인앱 브라우저에서는 Google 로그인이 지원되지 않습니다.\n외부 브라우저(Chrome/Safari)로 열어주세요.`,
+        { title: '외부 브라우저 필요', okLabel: '외부 브라우저로 열기', cancelLabel: '취소' },
+      )
+      if (ok) openInExternalBrowser(kind)
+    } else {
+      const ok = await game.confirmModal(
+        `${name} 인앱 브라우저에서는 Google 로그인이 지원되지 않습니다.\nURL 을 복사해 Chrome/Safari 같은 외부 브라우저에서 붙여넣어 열어주세요.`,
+        { title: '외부 브라우저 필요', okLabel: 'URL 복사', cancelLabel: '취소' },
+      )
+      if (ok) {
+        const copied = await copyUrlToClipboard()
+        await game.confirmModal(
+          copied ? 'URL 이 복사됐어요. 외부 브라우저에 붙여넣어 열어주세요.' : `URL 복사에 실패했어요. 주소창에서 직접 복사해 주세요:\n${window.location.href}`,
+          { title: copied ? '복사 완료' : 'URL', okLabel: '확인' },
+        )
+      }
+    }
+    return
+  }
   try {
     await auth.login()
   } catch (e: any) {
@@ -69,7 +103,9 @@ async function resetMeta() {
   if (!ok) return
   // 로그인 상태면 Firestore 사용자 문서 (meta + leaderboard) 삭제 — 안 하면
   // reload 후 auth listener 가 cloud meta 를 다시 받아와 클라우드 값으로 덮어씀.
+  // 보류 중인 sync 타이머는 먼저 취소 (delete 직후 발화하면 cloud 가 다시 살아남).
   if (auth.uid) {
+    auth.cancelPendingSync()
     await deleteCloudUserData(auth.uid)
   }
   // climetop: 프리픽스 가진 모든 키 일괄 삭제 —
@@ -207,6 +243,14 @@ async function resetMeta() {
         <span>{{ auth.loading ? '로그인 중...' : 'Google 로 로그인' }}</span>
         <span v-if="!auth.loading" class="text-xs text-gray-500 font-normal">· 클라우드 저장</span>
       </button>
+      <!-- 인앱 브라우저 (카카오톡/네이버/페북 등) 안내 — Google OAuth 가 막히므로 미리 알려준다. -->
+      <p
+        v-if="!auth.isLoggedIn && inAppBrowser"
+        class="text-[11px] text-amber-300/90 bg-amber-950/40 border border-amber-500/40 rounded-md px-2.5 py-1.5 leading-snug"
+      >
+        ⚠ {{ inAppBrowserName(inAppBrowser) }} 인앱 브라우저에서는 Google 로그인이 막힙니다.<br />
+        버튼을 누르면 외부 브라우저(Chrome/Safari)로 여는 방법을 안내해요.
+      </p>
 
       <!-- ── 데이터 리셋 (작은 푸터 링크) ── -->
       <div class="pt-1 text-center">

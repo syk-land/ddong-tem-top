@@ -11,6 +11,16 @@ interface AuthState {
   initialized: boolean
 }
 
+// 클라우드 sync 정책 — persistMeta() 는 로컬만 저장하고 클라우드는 명시적 시점
+// (캐릭터 클리어 / 로그아웃 / 탭 숨김 / 로그인 직후) 에서만 push 한다.
+// 이 사이 변경분이 있는지는 cloudDirty 플래그로 추적. Firestore 쓰기 한도
+// (무료 20K/일) 를 크게 절약 — 게임 1 세션당 약 1 write 수준.
+//
+// 트레이드오프: 진행 중 브라우저 강제 종료 (visibilitychange 미발화) 시
+// 마지막 명시 sync 이후 변경분은 cloud 에 못 들어감. 단 localStorage 에는
+// 항상 있으므로 다음 로그인 시 _onLoggedIn 의 cloud merge 가 로컬을 push.
+let cloudDirty = false
+
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     user: null,
@@ -58,6 +68,8 @@ export const useAuthStore = defineStore('auth', {
     async logout() {
       this.loading = true
       try {
+        // 보류된 클라우드 변경이 있으면 로그아웃 전에 마지막으로 푸시.
+        await this.flushSyncMetaToCloud()
         await signOut()
         this.user = null
       } finally {
@@ -82,20 +94,42 @@ export const useAuthStore = defineStore('auth', {
           game.meta.characterHistory = cloud.characterHistory
         }
       }
-      // 첫 로그인이면 로컬을 클라우드로 푸시
-      await saveCloudMeta(user.uid, game.meta)
+      // 첫 로그인이면 로컬을 클라우드로 푸시 (이후 dirty 추적 시작점)
+      await this.syncMetaToCloud()
     },
 
-    // 외부에서 호출: 게임 진행도를 클라우드로 푸시
+    // 즉시 클라우드 푸시. dirty 플래그도 함께 해제.
     async syncMetaToCloud() {
       if (!this.user) return
+      cloudDirty = false
       const game = useGameStore()
       await saveCloudMeta(this.user.uid, game.meta)
     },
 
-    // 외부에서 호출: 리더보드 제출 (캐릭터 클리어 시점)
+    // game.persistMeta() 가 호출 — 로컬 변경이 클라우드와 어긋났음을 표시만 한다.
+    // 실제 push 는 명시 시점 (캐릭터 클리어 / 로그아웃 / 탭 숨김) 의 flush 에서 일어남.
+    queueSyncMetaToCloud() {
+      if (!this.user) return
+      cloudDirty = true
+    },
+
+    // dirty 면 즉시 push, 아니면 no-op. 명시 sync 지점에서 호출.
+    async flushSyncMetaToCloud() {
+      if (!cloudDirty) return
+      await this.syncMetaToCloud()
+    },
+
+    // dirty 플래그만 해제 (쓰기 X). 데이터 리셋 직전에 사용 — 삭제 직후
+    // flush 가 발화해 삭제된 cloud 문서가 다시 쓰여지는 걸 막는다.
+    cancelPendingSync() {
+      cloudDirty = false
+    },
+
+    // 외부에서 호출: 리더보드 제출 (캐릭터 클리어 시점).
+    // 리더보드와 meta(cloud) 의 clearCount 가 일관되도록 먼저 flush.
     async submitScore(score: number, rank: string) {
       if (!this.user) return
+      await this.flushSyncMetaToCloud()
       const game = useGameStore()
       const nickname = this.user.displayName ?? '익명'
       await submitLeaderboard(this.user.uid, nickname, { score, rank }, game.meta.clearCount)

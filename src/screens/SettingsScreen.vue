@@ -53,7 +53,9 @@ async function resetAll() {
   if (!ok) return
   // 1) 로그인 상태면 Firestore 사용자 문서 (meta + leaderboard) 삭제 — 안 하면
   //    reload 후 auth listener 가 cloud meta 를 다시 받아와 클라우드 값으로 덮어씀.
+  //    보류 중인 sync 타이머를 먼저 취소해야 delete 직후 발화로 cloud 가 다시 살아나지 않음.
   if (auth.uid) {
+    auth.cancelPendingSync()
     await deleteCloudUserData(auth.uid)
   }
   // 2) localStorage 비우기 + reload
