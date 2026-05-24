@@ -103,8 +103,28 @@ export function loadMeta(): MetaBonuses {
       lastBossDrainRatio: m.lastBossDrainRatio ?? 0,
       realBossCompleted: m.realBossCompleted ?? false,
       realBossDefeated: m.realBossDefeated ?? false,
+      realBossClearCount: m.realBossClearCount ?? (m.realBossDefeated ? 1 : 0),
+      currentBossBestDrain: m.currentBossBestDrain ?? 0,  // 옛 세이브는 0부터 — 재도전 시 다시 max 갱신
       totalGoldEarned: m.totalGoldEarned ?? 0,
       tutorialSeen: migrateTutorialSeen(m.tutorialSeen),
+    }
+    // 옛 세이브 마이그레이션 — v6.1 의 누적 버그로 permanentStartBonus 가 부풀려진 경우 보정.
+    //   불변식: permanentStartBonus = (realBossClearCount × 60) + floor(60 × currentBossBestDrain)
+    //   1) 부풀려진 경우 (> 정상값): 초과분에서 현재 보스 best partial 을 역추산
+    //   2) 정상값보다 작은 경우 (= 새 필드만 있고 partial 없음): 그대로
+    {
+      const lockedFromClears = (loaded.realBossClearCount ?? 0) * 60
+      const excess = (loaded.permanentStartBonus ?? 0) - lockedFromClears
+      if (excess > 0 && (loaded.currentBossBestDrain ?? 0) === 0) {
+        // 초과분이 있으면 현재 보스의 partial 로 변환 (0~1 클램프, ≥ 1 은 거의 없겠지만 안전)
+        const partial = Math.max(0, Math.min(1, excess / 60))
+        loaded.currentBossBestDrain = partial
+        // permanentStartBonus 도 불변식에 맞춰 재계산
+        loaded.permanentStartBonus = lockedFromClears + Math.floor(60 * partial)
+      } else if (excess < 0) {
+        // 정상값보다 작으면 (드물지만) 불변식대로 올려서 보정
+        loaded.permanentStartBonus = lockedFromClears + Math.floor(60 * (loaded.currentBossBestDrain ?? 0))
+      }
     }
     // 옛 세이브 마이그레이션:
     //   tutorialSeen 필드가 없었던 옛 플레이어는 이미 게임을 진행한 상태인데
@@ -160,6 +180,8 @@ export function defaultMeta(): MetaBonuses {
     lastBossDrainRatio: 0,
     realBossCompleted: false,
     realBossDefeated: false,
+    realBossClearCount: 0,
+    currentBossBestDrain: 0,
     totalGoldEarned: 0,
     tutorialSeen: defaultTutorialSeen(),
   }

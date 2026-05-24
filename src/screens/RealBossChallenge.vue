@@ -11,6 +11,7 @@ const bgUrl = defaultBgUrl()
 const theme = computed(() => game.realBossTheme)
 const boss = computed(() => game.realBossMonster)
 const weak = computed(() => game.realBossWeakRecord)
+const bestDrainPct = computed(() => Math.round((game.meta.currentBossBestDrain ?? 0) * 100))
 
 function start() {
   game.enterRealBossCombat()
@@ -34,6 +35,9 @@ function start() {
       <div class="px-3 py-2 text-center border-t border-rose-500/30 bg-rose-950/20">
         <div class="text-xl sm:text-2xl text-rose-200 font-bold tracking-wide">
           {{ boss.template.name }}
+        </div>
+        <div v-if="bestDrainPct > 0" class="mt-1 text-xs text-rose-300/80">
+          이 보스 베스트 깎은 비율 <span class="font-bold text-rose-200">{{ bestDrainPct }}%</span>
         </div>
       </div>
     </div>

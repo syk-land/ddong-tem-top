@@ -30,6 +30,8 @@ export interface CloudMeta {
   permanentStartBonus: number
   realBossCompleted: boolean
   realBossDefeated: boolean
+  realBossClearCount: number
+  currentBossBestDrain: number
   totalGoldEarned: number
   // 최근 캐릭터 히스토리는 양이 많아서 별도 처리 가능 — 일단 최대 50개 그대로 저장
   characterHistory: CharacterRecord[]
@@ -77,6 +79,8 @@ export async function saveCloudMeta(uid: string, meta: MetaBonuses): Promise<voi
     permanentStartBonus: meta.permanentStartBonus,
     realBossCompleted: meta.realBossCompleted,
     realBossDefeated: meta.realBossDefeated,
+    realBossClearCount: meta.realBossClearCount ?? 0,
+    currentBossBestDrain: meta.currentBossBestDrain ?? 0,
     totalGoldEarned: meta.totalGoldEarned,
     characterHistory: meta.characterHistory ?? [],
     updatedAt: serverTimestamp(),

@@ -485,7 +485,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
       const templates = theme.normalMonsters.slice(0, slots)
       const chapter = Math.max(1, Math.min(10, ctx.monsters.length + 1))
       for (const t of templates) {
-        const m = makeMonster(t, chapter, 'normal')
+        const m = makeMonster(t, chapter, 'normal', ctx.realBossClearCount ?? 0)
         m._spawnedBy = monster.template.name
         ctx.monsters.push(m)
       }
@@ -517,7 +517,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
       const templates = theme.normalMonsters.slice(0, slots)
       const chapter = 3
       for (const t of templates) {
-        const m = makeMonster(t, chapter, 'normal')
+        const m = makeMonster(t, chapter, 'normal', ctx.realBossClearCount ?? 0)
         m._spawnedBy = monster.template.name
         ctx.monsters.push(m)
       }
@@ -693,7 +693,7 @@ export const MONSTER_TRAITS: Record<string, MonsterTraitDef> = {
         if (aliveMinionCount(ctx, monster) >= MINION_CAP) return
         const theme = CHAPTER_THEMES['기계']
         const droneTemplate = theme.normalMonsters[0]  // 스파이더 마인
-        const m = makeMonster(droneTemplate, 7, 'normal')
+        const m = makeMonster(droneTemplate, 7, 'normal', ctx.realBossClearCount ?? 0)
         m._spawnedBy = monster.template.name
         ctx.monsters.push(m)
         pushLog(ctx, `${monster.template.name}: 드론 소환!`, 'enemy')

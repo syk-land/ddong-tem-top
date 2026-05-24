@@ -52,10 +52,10 @@ characterHistory.filter(r => r.cleared100).slice(-1)[0]
 ## 보스 강화 (`makeRealBoss`)
 
 ```ts
-base = (마지막 클리어한 챕터의 hardBoss 또는 챕터 10 보스)
+base = (REAL_BOSS_ORDER[realBossClearCount % 11]의 hardBoss 또는 챕터 10 보스)
 realBoss = {
   ...base,
-  hp:  base.hp  * 3.0,
+  hp:  base.hp  * 3.0 * (1 + 0.9 × realBossClearCount),
   atk: base.atk * 9.0,    // v6.1 추가 강화
   def: base.def * 1.6,
 }
@@ -63,6 +63,32 @@ realBoss = {
 
 - 챕터 10 하드 보스의 trait 묶음 그대로 (소환/반사/저주 등)
 - 일러스트: `public/images/REALBOSS/{테마}.png`
+
+### 등장 순서 (`REAL_BOSS_ORDER`)
+
+`meta.realBossClearCount` 가 인덱스 — 11회 클리어 후 다시 고블린부터 순환.
+
+```
+0: 고블린 → 1: 기계 → 2: 천공 → 3: 골렘 → 4: 환영 → 5: 언데드
+→ 6: 흡혈귀 → 7: 심해 → 8: 용암 → 9: 암흑 → 10: 맹독 → (12회: 다시 고블린)
+```
+
+### 클리어 누적 효과 — 모든 몬스터 HP +90%×N
+
+`finishRealBossCombat()` 에서 `drainRatio === 1` 인 경우에만 `realBossClearCount += 1`.
+
+`makeMonster()` 와 `makeRealBoss()` 가 이 값을 받아 HP 를 `× (1 + 0.9 × N)` 으로 스케일.
+
+| 클리어 횟수 | HP 배수 | 효과 |
+|---|---|---|
+| 0 | ×1.0 | 기본 |
+| 1 | ×1.9 | +90% |
+| 2 | ×2.8 | +180% |
+| 3 | ×3.7 | +270% |
+| 10 | ×10.0 | +900% |
+
+대상: 일반 몬스터, 챕터 보스, 미믹, 진짜 보스, PVP, 소환 미니언 — **모든 몬스터**.
+플레이어 HP/스탯은 영향 없음.
 
 ---
 
@@ -142,4 +168,4 @@ screen = 'create'                  // 다음 캐릭터 생성으로
 
 - **사망 캐릭터 풀 미포함**: 현재 100층 클리어 캐릭터만 부활 가능 — 사망 케이스 추후 결정
 - **광고 부활 불가**: 진짜 보스는 도전 모드라 한 번뿐
-- **2차 이후 보스의 외형 차이 없음**: 같은 챕터 테마 이미지 재사용 (향후 작업)
+- **부활 캐릭터의 마지막 챕터 테마는 무시됨**: v7 부터 `REAL_BOSS_ORDER` 가 우선 — 부활 캐릭터의 무기/스탯은 그대로 쓰지만 보스 자체는 누적 클리어 횟수가 결정

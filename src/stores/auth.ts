@@ -89,6 +89,8 @@ export const useAuthStore = defineStore('auth', {
         game.meta.permanentStartBonus = cloud.permanentStartBonus
         game.meta.realBossCompleted = cloud.realBossCompleted
         game.meta.realBossDefeated = cloud.realBossDefeated
+        game.meta.realBossClearCount = cloud.realBossClearCount ?? (cloud.realBossDefeated ? 1 : 0)
+        game.meta.currentBossBestDrain = cloud.currentBossBestDrain ?? 0
         game.meta.totalGoldEarned = cloud.totalGoldEarned
         if (Array.isArray(cloud.characterHistory)) {
           game.meta.characterHistory = cloud.characterHistory

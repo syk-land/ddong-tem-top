@@ -48,3 +48,10 @@ node_modules/.vite/
 
 # Claude Code 로컬 설정 (윈도우 절대경로 등 사용자별 환경)
 .claude/
+
+# bananaimages PNG 백업 (webp 변환 전 원본 + 워터마크 제거 전 백업) — webp 만 추적
+bananaimages/_png_backup/
+bananaimages/_v1_backup/
+
+# GameMonetize 업로드 zip (build 산출물 — dist/ 에서 재생성 가능)
+climetop-gamemonetize.zip

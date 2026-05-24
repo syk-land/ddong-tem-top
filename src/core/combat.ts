@@ -34,6 +34,8 @@ export interface CombatContext {
   victory: boolean
   // PVP 전투 (위기 모험가 / 탐욕 수집가) — 챌린지 트래커가 참조
   isPvp?: boolean
+  // 진짜 보스 클리어 누적 횟수 — 소환 몬스터의 HP×(1+0.9×N) 보정에 사용. 시뮬레이션은 0.
+  realBossClearCount?: number
 }
 
 // 현재 타겟 (첫 살아있는 몬스터). 모두 죽었으면 null
@@ -55,13 +57,16 @@ interface TempBuff {
   statusResistMult?: number
 }
 
-export function makeMonster(template: MonsterTemplate, chapter: number, kind: 'normal' | 'boss' | 'mimic'): MonsterInstance {
+// 진짜 보스 클리어 1회마다 모든 몬스터 HP +90% 누적. 0회: ×1.0, 1회: ×1.9, 2회: ×2.8 ...
+// 호출 측이 meta.realBossClearCount 를 그대로 넘기면 됨. 시뮬레이션 코드는 기본값(0) 사용.
+export function makeMonster(template: MonsterTemplate, chapter: number, kind: 'normal' | 'boss' | 'mimic', realBossClearCount: number = 0): MonsterInstance {
   let baseline
   if (kind === 'boss') baseline = getBossBaseline(chapter)
   else if (kind === 'mimic') baseline = getMimicBaseline(chapter)
   else baseline = getNormalMonsterBaseline(chapter)
 
-  const hp = Math.round(baseline.hp * (template.hpMod ?? 1.0))
+  const hpMult = 1 + 0.9 * Math.max(0, realBossClearCount)
+  const hp = Math.round(baseline.hp * (template.hpMod ?? 1.0) * hpMult)
   const atk = baseline.atk * (template.atkMod ?? 1.0)
   const def = baseline.def * (template.defMod ?? 1.0)
   const speed = template.speedOverride ?? baseline.speed
@@ -83,7 +88,7 @@ export function makeMonster(template: MonsterTemplate, chapter: number, kind: 'n
   }
 }
 
-export function createCombatContext(player: Character, monsters: MonsterInstance | MonsterInstance[]): CombatContext {
+export function createCombatContext(player: Character, monsters: MonsterInstance | MonsterInstance[], realBossClearCount: number = 0): CombatContext {
   const arr = Array.isArray(monsters) ? monsters : [monsters]
   const ctx: CombatContext = {
     player,
@@ -93,6 +98,7 @@ export function createCombatContext(player: Character, monsters: MonsterInstance
     buffs: new Map(),
     ended: false,
     victory: false,
+    realBossClearCount,
   }
   // trait onSpawn 발화 (HP/스탯 보정 등)
   for (const m of arr) dispatchOnSpawn(ctx, m)
