@@ -21,9 +21,9 @@ export function startStatScale(meta: MetaBonuses): number {
   return (START_STAT_BASE + bonus) / START_STAT_BASE
 }
 
-// v6: 진짜 보스 도전 조건 — 클리어 시 남은 골드 누적 5만 이상.
+// v6: 진짜 보스 도전 조건 — 클리어 시 남은 골드 누적 3만 이상.
 //   누적은 표시하지 않음 (내부 카운터). 도전 후 누적 리셋.
-export const REAL_BOSS_GOLD_THRESHOLD = 50000
+export const REAL_BOSS_GOLD_THRESHOLD = 30000
 
 export function isChallengeDue(meta: MetaBonuses): boolean {
   if (meta.characterHistory.length === 0) return false
