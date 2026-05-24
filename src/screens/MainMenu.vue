@@ -42,8 +42,10 @@ type CodexSlot = {
   thumb: string
   images: string[]
 }
-const COMIC_BASE = '/images/COMIC'
-const TUTORIAL_BASE = '/images/TUTORIAL'
+// GameMonetize 서브디렉토리 호스팅 호환 — 상대경로 prefix
+const A = import.meta.env.BASE_URL.replace(/\/$/, '')
+const COMIC_BASE = `${A}/images/COMIC`
+const TUTORIAL_BASE = `${A}/images/TUTORIAL`
 
 const codexSlots = computed<CodexSlot[]>(() => {
   const n = game.meta.realBossClearCount ?? 0
