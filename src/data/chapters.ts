@@ -43,7 +43,7 @@ export const CHAPTER_THEMES: Record<ChapterTheme, ChapterThemeDef> = {
     description: '회피, 환술',
     normalMonsters: [
       { name: '신기루 새', trait: 'accuracy_debuff' },
-      { name: '환영 짐승', trait: 'high_evasion' },
+      { name: '환영 고양이', trait: 'high_evasion' },
       { name: '환영 슬라임', trait: 'copy_player' },
     ],
     boss: { name: '환영의 지배자', trait: 'split_3' },
