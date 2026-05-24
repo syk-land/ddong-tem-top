@@ -40,11 +40,16 @@ export interface ActiveChallenge {
 
 export interface ChallengeContext {
   active: ActiveChallenge[]
+  // 시작 스탯 임계값 보정 배수 — 진짜 보스 누적 보너스에 비례 (1.0 = 보너스 0).
+  // 최소/최대 스탯 챌린지(trackAgilityBelow/AtLeast, trackLuckAtLeast, trackStrengthAtLeast)의
+  // 임계값에만 적용. 기본값 1.0.
+  startStatScale: number
 }
 
-export function makeChallengeContext(challengeKeys: string[]): ChallengeContext {
+export function makeChallengeContext(challengeKeys: string[], startStatScale: number = 1): ChallengeContext {
   return {
     active: challengeKeys.map((key) => ({ key, failed: false, counters: {} })),
+    startStatScale,
   }
 }
 
@@ -55,14 +60,14 @@ export function applyInstantRewards(character: Character, ctx: ChallengeContext)
   for (const ac of ctx.active) {
     const def = CHALLENGES_MAP[ac.key]
     if (def?.flags?.trackLuckOnly) {
-      // 운칠기삼: 행운 외 4종 스탯을 3 으로 강제, 잉여를 행운으로.
-      // 옛 코드는 ['공격력', '방어력', ...] 로 잘못 캐스팅돼 character.stats['공격력']
-      // = undefined → surplus = NaN → 행운 NaN 으로 빠지는 버그가 있었다.
+      // 운칠기삼: 행운 외 4종 스탯을 최소치로 강제, 잉여를 행운으로.
+      // 최소치 3 은 시작 스탯 베이스 60 기준 — 진짜 보스 누적 보너스에 비례 보정.
+      const minStat = Math.round(3 * (ctx.startStatScale ?? 1))
       const base: StatKey[] = ['힘', '민첩', '체력', '마력']
       let surplus = 0
       for (const k of base) {
-        surplus += Math.max(0, (character.stats[k] ?? 0) - 3)
-        character.stats[k] = 3
+        surplus += Math.max(0, (character.stats[k] ?? 0) - minStat)
+        character.stats[k] = minStat
       }
       character.stats.행운 = (character.stats.행운 ?? 0) + surplus
     }
@@ -82,6 +87,11 @@ export function applyInstantRewards(character: Character, ctx: ChallengeContext)
       character.gold += def.instantStartGold
     }
   }
+  // 스탯 임계값 챌린지 — 위반 스탯을 임계값으로 자동 고정 + 잉여/부족을 다른 스탯에 균등 보정.
+  //   below: 위반(stat > cap) → stat = cap, 잉여를 4개 스탯에 균등 분배
+  //   atLeast: 위반(stat < floor) → stat = floor, 부족분을 4개 스탯에서 차감 (가장 큰 스탯부터)
+  applyStatThresholdCaps(character, ctx)
+
   // 체력/마력 변경된 경우 maxHp/MP 재계산 — 표준 공식 (character.ts) 사용
   character.maxHp = computeMaxHp(character.stats.체력)
   character.maxMp = computeMaxMp(character.stats.마력)
@@ -119,6 +129,64 @@ export function applyInstantRewards(character: Character, ctx: ChallengeContext)
       forceTraitTier: '하급',
       forceGrade: '노말',
     })
+  }
+}
+
+// 잉여를 지정 스탯들에 균등 분배 — 처음부터 1씩 더하면서 잉여 소진.
+function distributeExcess(character: Character, others: StatKey[], excess: number) {
+  if (excess <= 0 || others.length === 0) return
+  let i = 0
+  while (excess > 0) {
+    character.stats[others[i % others.length]] += 1
+    excess -= 1
+    i += 1
+  }
+}
+
+// 부족분을 지정 스탯들에서 차감 — 매번 가장 큰 스탯에서 1씩 빼면서 음수 방지.
+function withdrawDeficit(character: Character, others: StatKey[], need: number) {
+  while (need > 0) {
+    let pickKey: StatKey | null = null
+    let pickVal = -Infinity
+    for (const k of others) {
+      const v = character.stats[k] ?? 0
+      if (v > pickVal && v > 0) { pickVal = v; pickKey = k }
+    }
+    if (!pickKey) break  // 모두 0 — 더 깎을 곳 없음
+    character.stats[pickKey] -= 1
+    need -= 1
+  }
+}
+
+// 임계값 챌린지의 cap/floor 자동 적용. instantBonus 가 모두 더해진 후 호출.
+function applyStatThresholdCaps(character: Character, ctx: ChallengeContext) {
+  const scale = ctx.startStatScale ?? 1
+  const checks: Array<{ key: keyof ChallengeFlags; stat: StatKey; mode: 'cap' | 'floor' }> = [
+    { key: 'trackAgilityBelow',    stat: '민첩', mode: 'cap'   },
+    { key: 'trackAgilityAtLeast',  stat: '민첩', mode: 'floor' },
+    { key: 'trackStrengthAtLeast', stat: '힘',   mode: 'floor' },
+    { key: 'trackLuckAtLeast',     stat: '행운', mode: 'floor' },
+  ]
+  for (const ac of ctx.active) {
+    const def = CHALLENGES_MAP[ac.key]
+    const f = def?.flags
+    if (!f) continue
+    for (const c of checks) {
+      const base = f[c.key] as number | undefined
+      if (base === undefined) continue
+      const threshold = Math.round(base * scale)
+      const cur = character.stats[c.stat] ?? 0
+      const others: StatKey[] = (['힘', '민첩', '체력', '마력', '행운'] as StatKey[]).filter((s) => s !== c.stat)
+      if (c.mode === 'cap' && cur > threshold) {
+        const excess = cur - threshold
+        character.stats[c.stat] = threshold
+        distributeExcess(character, others, excess)
+      } else if (c.mode === 'floor' && cur < threshold) {
+        const need = threshold - cur
+        character.stats[c.stat] = threshold
+        withdrawDeficit(character, others, need)
+      }
+    }
   }
 }
 
@@ -451,17 +519,18 @@ export function onTick(ctx: ChallengeContext, character: Character) {
         ac.counters.speedAlways6OrBelow = true
       }
     }
-    // v9 신규 stat track
-    if (f.trackAgilityBelow !== undefined && character.stats.민첩 > f.trackAgilityBelow) {
+    // v9 신규 stat track — 진짜 보스 누적 보너스에 비례해 임계값 자동 조정.
+    const scale = ctx.startStatScale ?? 1
+    if (f.trackAgilityBelow !== undefined && character.stats.민첩 > Math.round(f.trackAgilityBelow * scale)) {
       ac.failed = true
     }
-    if (f.trackAgilityAtLeast !== undefined && character.stats.민첩 < f.trackAgilityAtLeast) {
+    if (f.trackAgilityAtLeast !== undefined && character.stats.민첩 < Math.round(f.trackAgilityAtLeast * scale)) {
       ac.failed = true
     }
-    if (f.trackLuckAtLeast !== undefined && character.stats.행운 < f.trackLuckAtLeast) {
+    if (f.trackLuckAtLeast !== undefined && character.stats.행운 < Math.round(f.trackLuckAtLeast * scale)) {
       ac.failed = true
     }
-    if (f.trackStrengthAtLeast !== undefined && character.stats.힘 < f.trackStrengthAtLeast) {
+    if (f.trackStrengthAtLeast !== undefined && character.stats.힘 < Math.round(f.trackStrengthAtLeast * scale)) {
       ac.failed = true
     }
     // 과유불급 — 최종 공격력이 maxAtk 초과 시 챌린지 실패 (위반은 fail, 사망은 X)

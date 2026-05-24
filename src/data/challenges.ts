@@ -620,6 +620,65 @@ export const CHALLENGES_MAP: Record<string, ChallengeDef> = Object.fromEntries(
   CHALLENGES.map((c) => [c.key, c])
 )
 
+// 스탯 임계값 기반 챌린지를 시작 스탯 스케일에 맞춰 표시용으로 보정.
+//   설명·페널티 텍스트의 숫자를 effectiveThreshold 로 치환하고, 작은 노트를 덧붙인다.
+//   해당 챌린지: 만성피로/둔감(trackAgilityBelow), 크리광인(trackAgilityAtLeast),
+//                독재자의일격(trackStrengthAtLeast), 운명의주사위(trackLuckAtLeast).
+//   대상 외 챌린지는 c 를 그대로 반환.
+export interface ChallengeDisplay extends ChallengeDef {
+  scaleNote?: string
+}
+export function describeChallengeForScale(c: ChallengeDef, scale: number): ChallengeDisplay {
+  const f = c.flags
+  if (!f || scale === 1) return c
+  // 운칠기삼: 행운 외 4스탯 강제 최소치(기본 3) 도 스케일.
+  if (f.trackLuckOnly) {
+    const minStat = Math.round(3 * scale)
+    return {
+      ...c,
+      penalty: c.penalty.replace(/최소치 \d+/, `최소치 ${minStat}`),
+      scaleNote: `행운 외 4스탯은 시작 시 ${minStat} 로 자동 고정 — 잉여는 행운으로`,
+    }
+  }
+  // 트랙 타입과 한국어 스탯명, 비교 방향 매핑.
+  const targets: Array<{ key: keyof ChallengeFlags; stat: '민첩' | '힘' | '행운'; mode: 'below' | 'atLeast' }> = [
+    { key: 'trackAgilityBelow',    stat: '민첩', mode: 'below'   },
+    { key: 'trackAgilityAtLeast',  stat: '민첩', mode: 'atLeast' },
+    { key: 'trackStrengthAtLeast', stat: '힘',   mode: 'atLeast' },
+    { key: 'trackLuckAtLeast',     stat: '행운', mode: 'atLeast' },
+  ]
+  for (const t of targets) {
+    const base = f[t.key] as number | undefined
+    if (base === undefined) continue
+    const eff = Math.round(base * scale)
+    if (t.mode === 'below') {
+      // "민첩 N 이하" / "민첩 (N+1) 이상 시 실패" 패턴 치환.
+      const reDesc = new RegExp(`${t.stat} \\d+ 이하`)
+      const rePen = new RegExp(`${t.stat} \\d+ 이상`)
+      return {
+        ...c,
+        description: c.description.replace(reDesc, `${t.stat} ${eff} 이하`),
+        penalty: c.penalty.replace(rePen, `${t.stat} ${eff + 1} 이상`),
+        scaleNote: `${t.stat} 은 시작 시 ${eff} 로 자동 고정 — 잉여는 나머지 스탯에 균등 분배`,
+      }
+    } else {
+      // "힘 N 이상" / "힘 (N-1) 이하 시 실패" 또는 "민첩 N 미만" 패턴 치환.
+      const reDesc = new RegExp(`${t.stat} \\d+ 이상`)
+      const rePenLow = new RegExp(`${t.stat} \\d+ 이하`)
+      const rePenLt = new RegExp(`${t.stat} \\d+ 미만`)
+      return {
+        ...c,
+        description: c.description.replace(reDesc, `${t.stat} ${eff} 이상`),
+        penalty: c.penalty
+          .replace(rePenLow, `${t.stat} ${eff - 1} 이하`)
+          .replace(rePenLt, `${t.stat} ${eff} 미만`),
+        scaleNote: `${t.stat} 은 시작 시 ${eff} 로 자동 보강 — 부족분은 큰 스탯부터 차감`,
+      }
+    }
+  }
+  return c
+}
+
 export const INSTANT_CHALLENGES = CHALLENGES.filter((c) => c.category === 'instant')
 export const RISK_CHALLENGES = CHALLENGES.filter((c) => c.category === 'risk')
 
