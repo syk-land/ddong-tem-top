@@ -36,7 +36,7 @@ function confirm() {
           class="mx-auto h-24 w-auto drop-shadow-[0_0_12px_rgba(251,191,36,0.5)]"
         />
         <div :class="[rankColorClass[pending.rank], 'text-6xl font-bold tracking-wider leading-none']">{{ pending.rank }}</div>
-        <div class="text-xs text-gray-400">점수 <span class="text-gray-200 font-mono font-bold">{{ pending.score }} / 100</span></div>
+        <div class="text-xs text-gray-400">점수 <span class="text-gray-200 font-mono font-bold">{{ pending.score }} / 32</span></div>
       </div>
 
       <!-- 보너스 카드 — log-reward 액센트 -->
@@ -50,6 +50,10 @@ function confirm() {
       </div>
 
       <button class="btn-primary w-full min-h-12 text-base font-bold" @click="confirm">확정 → 메인 메뉴</button>
+
+      <div v-if="pending.finalGold !== undefined" class="text-xs text-stat-luck font-mono font-bold tabular-nums">
+        ⬢ {{ pending.finalGold.toLocaleString() }}G
+      </div>
     </div>
   </section>
 </template>
