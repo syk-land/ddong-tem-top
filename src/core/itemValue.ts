@@ -70,12 +70,14 @@ export interface ItemValueBreakdown {
 export function computeItemValue(
   item: ItemInstance | null,
   character?: Character | null,
-  opts: { chapter?: number } = {},
+  opts: { chapter?: number; vsBoss?: boolean } = {},
 ): ItemValueBreakdown {
   if (!item) return { atkValue: 0, defValue: 0, atkParts: [], defParts: [] }
+  const chapter = opts.chapter ?? DEFAULT_CHAPTER
+  const vsBoss = opts.vsBoss ?? false
   return item.kind === 'weapon'
-    ? computeWeaponValue(item, character, opts.chapter ?? DEFAULT_CHAPTER)
-    : computeArmorValue(item, character, opts.chapter ?? DEFAULT_CHAPTER)
+    ? computeWeaponValue(item, character, chapter, vsBoss)
+    : computeArmorValue(item, character, chapter, vsBoss)
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -87,6 +89,7 @@ function computeWeaponValue(
   w: ItemInstance,
   character: Character | null | undefined,
   chapter: number,
+  vsBoss: boolean = false,
 ): ItemValueBreakdown {
   const base = WEAPONS[w.baseKey]
   const td = WEAPON_TRAITS[w.trait]
@@ -97,9 +100,15 @@ function computeWeaponValue(
 
   const stats = character?.stats ?? DEFAULT_STATS
 
-  // 적 (v9 baseline)
-  const enemyDef = 3 + chapter * 1.0   // ch1=4%, ch5=8%, ch10=13%
-  const enemyEva = 5 + chapter * 1     // ch1=6, ch5=10, ch10=15
+  // 적 baseline — vsBoss=true 면 진짜보스(챕터10 hardBoss × realBoss multipliers) 기준.
+  //   진짜보스 def = (3 + ch×1.0) × 1.55(보스) × 1.6(REAL_BOSS_DEF_MULT) = ch10 ≈ 32.2%
+  //   진짜보스 eva = (5 + ch×1.0) + 5(보스)                              = ch10 = 20
+  const enemyDef = vsBoss
+    ? (3 + chapter * 1.0) * 1.55 * 1.6
+    : 3 + chapter * 1.0          // ch1=4%, ch5=8%, ch10=13%
+  const enemyEva = vsBoss
+    ? (5 + chapter * 1) + 5
+    : 5 + chapter * 1            // ch1=6, ch5=10, ch10=15
 
   // ── 공격력 (v9.x 곱셈) ──
   const atkPct = (td.effects.공격력_pct ?? 0) + (td.effects.전스탯_pct ?? 0)
@@ -251,6 +260,7 @@ function computeArmorValue(
   a: ItemInstance,
   character: Character | null | undefined,
   chapter: number,
+  vsBoss: boolean = false,
 ): ItemValueBreakdown {
   const base = ARMORS[a.baseKey as keyof typeof ARMORS]
   const td = ARMOR_TRAITS[a.trait]
@@ -261,10 +271,17 @@ function computeArmorValue(
 
   const stats = character?.stats ?? DEFAULT_STATS
 
-  // 적 baseline (현재 챕터의 일반 몬스터 — stats.ts/data/chapters.ts 와 동일 식)
-  const enemyAtk = 8 + 1.2 * chapter
-  const enemyTicks = 10
-  const enemyAcc = 30 + 3 * chapter
+  // 적 baseline — vsBoss=true 면 진짜보스(챕터10 보스 × realBoss multipliers) 기준.
+  //   진짜보스 atk   = (8 + ch×1.2) × 1.7(보스) × 5.0(REAL_BOSS_ATK_MULT) = ch10 = 170
+  //   보스 ticks     = 8 (일반 10보다 빠름)
+  //   보스 acc       = (30 + ch×3) + 10(보스)                            = ch10 = 70
+  const enemyAtk = vsBoss
+    ? (8 + 1.2 * chapter) * 1.7 * 5.0
+    : 8 + 1.2 * chapter
+  const enemyTicks = vsBoss ? 8 : 10
+  const enemyAcc = vsBoss
+    ? (30 + 3 * chapter) + 10
+    : 30 + 3 * chapter
 
   // ── 방어% 계산 ──
   const defPctTrait = (td.effects.방어력_pct ?? 0) + (td.effects.전스탯_pct ?? 0)
