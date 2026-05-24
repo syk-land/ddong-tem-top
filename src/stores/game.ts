@@ -2178,7 +2178,9 @@ export const useGameStore = defineStore('game', {
         this.meta.currentBossBestDrain = ratio
       }
       // 불변식대로 permanentStartBonus 재계산 (직접 합산 X)
+      // legacyPermanentBonus: v2 마이그레이션으로 보존된 옛 시스템 보너스 (있으면 추가).
       this.meta.permanentStartBonus =
+        (this.meta.legacyPermanentBonus ?? 0) +
         (this.meta.realBossClearCount * 60) +
         Math.floor(60 * (this.meta.currentBossBestDrain ?? 0))
       // 이번 도전으로 얻은 실제 증가분 (≥ 0). 낮은 결과 재도전이면 0.
