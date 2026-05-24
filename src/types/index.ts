@@ -314,11 +314,12 @@ export interface MetaBonuses {
   nextChallengeAt: number           // 이 횟수 도달 시 도전 발동 (5~10 랜덤)
   characterHistory: CharacterRecord[]  // 클리어 캐릭터 누적 (최대 50)
   pendingStartBonus: number         // (deprecated) 1회성 보너스 — 호환용. 0으로 유지.
-  permanentStartBonus: number       // 진짜 보스 도전 결과로 영구 누적되는 시작 스탯 +N
+  permanentStartBonus: number       // 진짜 보스 도전 결과로 영구 누적되는 시작 스탯 +N (= legacyPermanentBonus + clearCount×60 + floor(60×bestDrain))
+  legacyPermanentBonus: number      // 시스템 개편(v2 보스 순서 도입) 이전에 쌓인 보너스 — 불변식과 별개로 영구 보존. 신규 클리어는 위에 누적
   lastBossDrainRatio: number        // 가장 최근 도전에서 깎은 비율 0~1 (UI 표시용)
   realBossCompleted: boolean        // 도전 모드 한 번이라도 전투 완료했는지 (t3 잠금 해제용)
   realBossDefeated: boolean         // 진짜 보스를 한 번이라도 깎은 비율 100% 클리어 했는지 (게임 클리어)
-  realBossClearCount: number        // 진짜 보스 100% 클리어 누적 횟수 — REAL_BOSS_ORDER 인덱스 + 모든 몬스터 HP×(1+0.9×N)
+  realBossClearCount: number        // (v2 도입 후) 진짜 보스 100% 클리어 누적 횟수 — REAL_BOSS_ORDER 인덱스 + 모든 몬스터 HP×(1+0.9×N)
   currentBossBestDrain: number      // 현재 미클리어 보스에 대한 최고 깎은 비율 0~1 — 재도전 시 max() 갱신, 완전 클리어 시 0 리셋
   totalGoldEarned: number           // 클리어 시점 남은 골드 누적 — 5만 도달 시 진짜 보스 트리거 (내부, UI 표시 X)
   // ── 튜토리얼 진행도 ──

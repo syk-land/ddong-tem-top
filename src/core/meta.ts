@@ -100,30 +100,46 @@ export function loadMeta(): MetaBonuses {
         : [],
       pendingStartBonus: m.pendingStartBonus ?? 0,
       permanentStartBonus: m.permanentStartBonus ?? 0,
+      legacyPermanentBonus: m.legacyPermanentBonus ?? 0,
       lastBossDrainRatio: m.lastBossDrainRatio ?? 0,
       realBossCompleted: m.realBossCompleted ?? false,
       realBossDefeated: m.realBossDefeated ?? false,
-      realBossClearCount: m.realBossClearCount ?? (m.realBossDefeated ? 1 : 0),
-      currentBossBestDrain: m.currentBossBestDrain ?? 0,  // 옛 세이브는 0부터 — 재도전 시 다시 max 갱신
+      realBossClearCount: m.realBossClearCount ?? 0,
+      currentBossBestDrain: m.currentBossBestDrain ?? 0,
       totalGoldEarned: m.totalGoldEarned ?? 0,
       tutorialSeen: migrateTutorialSeen(m.tutorialSeen),
     }
-    // 옛 세이브 마이그레이션 — v6.1 의 누적 버그로 permanentStartBonus 가 부풀려진 경우 보정.
-    //   불변식: permanentStartBonus = (realBossClearCount × 60) + floor(60 × currentBossBestDrain)
-    //   1) 부풀려진 경우 (> 정상값): 초과분에서 현재 보스 best partial 을 역추산
-    //   2) 정상값보다 작은 경우 (= 새 필드만 있고 partial 없음): 그대로
+    // ── 마이그레이션: v2 보스 순서 도입 (REAL_BOSS_ORDER) 직전 진행자 ──
+    // 옛 시스템(클리어 캐릭터의 last theme 으로 보스 결정)에서 진짜 보스를 클리어
+    // 한 사용자는 새 시스템에서 고블린부터 다시 시작하지만, 쌓인 영구 보너스는
+    // 보존한다. legacyPermanentBonus 로 옮겨두면 새 클리어 보너스가 위에 누적된다.
+    //
+    // 발동 조건:
+    //   - legacyPermanentBonus 가 아직 0 (= 마이그레이션 미실행) 이고
+    //   - 옛 진행 흔적이 있다 (realBossDefeated=true 또는 옛 clearCount>0 또는 permanentStartBonus>0)
+    //
+    // 처리:
+    //   - 기존 permanentStartBonus 전체를 legacyPermanentBonus 로 이동
+    //   - realBossClearCount = 0 (고블린부터 다시)
+    //   - currentBossBestDrain = 0
+    //   - permanentStartBonus 는 그대로 유지 (= legacyPermanentBonus 와 같음)
     {
-      const lockedFromClears = (loaded.realBossClearCount ?? 0) * 60
-      const excess = (loaded.permanentStartBonus ?? 0) - lockedFromClears
-      if (excess > 0 && (loaded.currentBossBestDrain ?? 0) === 0) {
-        // 초과분이 있으면 현재 보스의 partial 로 변환 (0~1 클램프, ≥ 1 은 거의 없겠지만 안전)
-        const partial = Math.max(0, Math.min(1, excess / 60))
-        loaded.currentBossBestDrain = partial
-        // permanentStartBonus 도 불변식에 맞춰 재계산
-        loaded.permanentStartBonus = lockedFromClears + Math.floor(60 * partial)
-      } else if (excess < 0) {
-        // 정상값보다 작으면 (드물지만) 불변식대로 올려서 보정
-        loaded.permanentStartBonus = lockedFromClears + Math.floor(60 * (loaded.currentBossBestDrain ?? 0))
+      const hasOldProgress = loaded.realBossDefeated
+        || (m.realBossClearCount ?? 0) > 0
+        || (loaded.permanentStartBonus ?? 0) > 0
+      if ((loaded.legacyPermanentBonus ?? 0) === 0 && hasOldProgress) {
+        loaded.legacyPermanentBonus = loaded.permanentStartBonus ?? 0
+        loaded.realBossClearCount = 0
+        loaded.currentBossBestDrain = 0
+        // permanentStartBonus 그대로 유지 — 사용자에게 보이는 보너스 값은 동일
+      } else {
+        // 정상 진행 (이미 마이그레이션 완료된 세이브) — 불변식 정합성만 확인
+        const expected = (loaded.legacyPermanentBonus ?? 0)
+          + (loaded.realBossClearCount * 60)
+          + Math.floor(60 * (loaded.currentBossBestDrain ?? 0))
+        if (loaded.permanentStartBonus !== expected) {
+          loaded.permanentStartBonus = expected
+        }
       }
     }
     // 옛 세이브 마이그레이션:
@@ -177,6 +193,7 @@ export function defaultMeta(): MetaBonuses {
     characterHistory: [],
     pendingStartBonus: 0,
     permanentStartBonus: 0,
+    legacyPermanentBonus: 0,
     lastBossDrainRatio: 0,
     realBossCompleted: false,
     realBossDefeated: false,

@@ -28,6 +28,7 @@ export interface CloudMeta {
   clearCount: number
   totalBonusStats: number
   permanentStartBonus: number
+  legacyPermanentBonus: number
   realBossCompleted: boolean
   realBossDefeated: boolean
   realBossClearCount: number
@@ -77,6 +78,7 @@ export async function saveCloudMeta(uid: string, meta: MetaBonuses): Promise<voi
     clearCount: meta.clearCount,
     totalBonusStats: meta.totalBonusStats,
     permanentStartBonus: meta.permanentStartBonus,
+    legacyPermanentBonus: meta.legacyPermanentBonus ?? 0,
     realBossCompleted: meta.realBossCompleted,
     realBossDefeated: meta.realBossDefeated,
     realBossClearCount: meta.realBossClearCount ?? 0,
