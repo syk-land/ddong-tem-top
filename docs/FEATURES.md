@@ -14,17 +14,15 @@
 | 3 | [캐릭터 외형 & 이름](./features/auto-avatar.md) | 거지템 모에 10명 중 외형 선택 + 추천/사용자 이름 1개 영구 저장, 던전=전신·전투=흉상 |
 | 4 | [자동 진입](./features/auto-enter.md) | 광고 1회로 등반당 해금, 일반 몬스터 / 보스 / 회복샘 자동 진입 |
 | 5 | [설정 패널 UX](./features/settings-panel.md) | 사운드 / 클라우드 / 인트로 / 데이터 리셋 — 기본 접힘, 모달 위에서 자동 흐려짐 |
-| 6 | [안드로이드 뒤로가기 = 취소](./features/back-button.md) | Capacitor backButton → 모달/상점 우선 닫기, 데스크탑 ESC 동일 |
-| 7 | [안드로이드 릴리스 서명](./features/release-signing.md) | `keystore.properties` 분리 + `versionCode` 매뉴얼 +1로 덮어쓰기 설치 가능 |
-| 8 | [자동 장착](./features/auto-equip.md) | 현재 비활성 — 모든 장비는 수동 선택 |
-| 9 | [데이터 리셋](./features/data-reset.md) | 모든 localStorage 키 비우고 새로고침 — 인트로 만화도 재표시 |
-| 10 | [이미지 워터마크 제거](./features/watermark-removal.md) | Pillow + clone stamp 인페인트, 노란 박스 마킹 검출 지원 |
-| 11 | [Firebase Google 로그인 + 클라우드 저장](./features/firebase-auth.md) | Firestore 진행도 동기화 + 리더보드. 웹 popup / 안드 네이티브 자동 분기 |
-| 12 | [모바일 UI 전체 정비](./features/ui-overhaul.md) | 색 액센트 톤 통일 + 카드 위계 + 탭 모달 + 전투력 % 비교 |
-| 13 | [자동화 모드 (dev)](./features/auto-mode.md) | `combatSpeed ≥ 5` 진입 시 자동 진입·매수·장착·이벤트 거부 + tick 배치 처리. 5~999 자유 |
-| 14 | [WebP 이미지 파이프라인](./features/webp-pipeline.md) | 모든 일러스트/아이콘 WebP 화 + 캐릭터 그리드 분할 자동화. PNG 대비 -90~-95% 용량 |
-| 15 | [시스템 다크모드 강제 변환 차단](./features/dark-mode-block.md) | `color-scheme: dark` 메타·CSS + `forceDarkAllowed=false` 로 추가 어둡게 처리 차단 |
-| 16 | [v10 밸런스 리밸런싱](./features/v10-balance.md) | 전투 템포 1초당 10 tick + HP/MP 풀 ×2 + 챕터 1~4 보스 약화 + 행운 골드 보너스 제거 |
+| 6 | [자동 장착](./features/auto-equip.md) | 현재 비활성 — 모든 장비는 수동 선택 |
+| 7 | [데이터 리셋](./features/data-reset.md) | 모든 localStorage 키 비우고 새로고침 — 인트로 만화도 재표시 |
+| 8 | [이미지 워터마크 제거](./features/watermark-removal.md) | Pillow + clone stamp 인페인트, 노란 박스 마킹 검출 지원 |
+| 9 | [Firebase Google 로그인 + 클라우드 저장](./features/firebase-auth.md) | Firestore 진행도 동기화 + 리더보드. 웹 popup |
+| 10 | [모바일 UI 전체 정비](./features/ui-overhaul.md) | 색 액센트 톤 통일 + 카드 위계 + 탭 모달 + 전투력 % 비교 |
+| 11 | [자동화 모드 (dev)](./features/auto-mode.md) | `combatSpeed ≥ 5` 진입 시 자동 진입·매수·장착·이벤트 거부 + tick 배치 처리. 5~999 자유 |
+| 12 | [WebP 이미지 파이프라인](./features/webp-pipeline.md) | 모든 일러스트/아이콘 WebP 화 + 캐릭터 그리드 분할 자동화. PNG 대비 -90~-95% 용량 |
+| 13 | [시스템 다크모드 강제 변환 차단](./features/dark-mode-block.md) | `color-scheme: dark` 메타·CSS 로 모바일 브라우저 강제 다크화 차단 |
+| 14 | [v10 밸런스 리밸런싱](./features/v10-balance.md) | 전투 템포 1초당 10 tick + HP/MP 풀 ×2 + 챕터 1~4 보스 약화 + 행운 골드 보너스 제거 |
 
 ---
 
@@ -55,9 +53,9 @@
 | --- | --- |
 | `src/core/realboss.ts` | `isChallengeDue / pickLatestRecord / makeRealBoss / computeStartBonusFromDrain` |
 | `src/lib/firebase.ts` | Firebase 앱 / Auth / Firestore 초기화 |
-| `src/lib/auth.ts` | `signInWithGoogle / signOut / onAuthChange` — Capacitor 네이티브 / 웹 popup 자동 분기 |
+| `src/lib/auth.ts` | `signInWithGoogle / signOut / onAuthChange` — 웹 popup (Firebase Hosting only) |
 | `src/lib/cloudSync.ts` | Firestore CRUD — 프로필 / 메타 / 리더보드 |
-| `src/lib/ads.ts` | AdMob 보상형 광고 (revive / fastSpeed / autoEnter) |
+| `src/lib/ads.ts` | GameMonetize 보상형 광고 (revive / fastSpeed / autoEnter) |
 | `src/stores/auth.ts` | Pinia auth store — 로그인 시 자동 머지 + 동기화 + 리더보드 제출 |
 
 ## 스키마 — `MetaBonuses`
@@ -111,19 +109,15 @@ interface MetaBonuses {
 
 인트로 만화는 `introVisible` 오버레이 방식 (라우팅 값 아님).
 
-## 안드로이드 빌드 흐름 요약
+## 배포 (Firebase Hosting)
 
-### CI 디버그 빌드 (테스트용)
-1. main 브랜치 push → GitHub Actions 자동 실행
-2. `android/app/debug.keystore` 로 안정 서명 (= Firebase 등록된 SHA-1 과 일치)
-3. Artifacts 에서 디버그 APK 다운로드 → 폰 설치
+```bash
+npm run deploy           # build + Firebase Hosting 배포
+npm run deploy:hosting   # 호스팅만 (dist/ 가 빌드돼 있을 때)
+npm run deploy:firestore # Firestore rules 만
+```
 
-### 릴리스 빌드 (Play Store 용 AAB)
-1. (1회만) [release-signing](./features/release-signing.md) 셋업
-2. `keystore.properties`에서 `VERSION_CODE` +1
-3. `npm run android:bundle` 또는 Android Studio "Generate Signed Bundle"
-4. `android/app/build/outputs/bundle/release/app-release.aab` → Play Console 업로드
-5. release SHA-1 도 Firebase 콘솔에 추가 등록 필요 (Google 로그인 동작)
+요구사항: `npm i -g firebase-tools && firebase login` 1회 셋업. `.firebaserc` 의 프로젝트로 deploy.
 
 ## 알려진 제약 / 향후 작업
 

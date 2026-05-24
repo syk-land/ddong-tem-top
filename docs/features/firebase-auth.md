@@ -1,6 +1,6 @@
 # Firebase Google 로그인 + 클라우드 저장
 
-> Google 로그인 → Firestore 진행도 동기화 + 리더보드. 웹 popup / 안드 네이티브 자동 분기.
+> Google 로그인 → Firestore 진행도 동기화 + 리더보드. Firebase Hosting 웹 단일.
 
 코드: `src/lib/firebase.ts`, `src/lib/auth.ts`, `src/lib/cloudSync.ts`, `src/stores/auth.ts`, `firestore.rules`
 
@@ -10,25 +10,18 @@
 
 **Google 로그인 단일 옵션** (Apple/익명 미지원).
 
-### 플랫폼 분기 (`auth.ts`)
+### `auth.ts` 구현
 
 ```ts
 async function signInWithGoogle() {
-  if (Capacitor.isNativePlatform()) {
-    // 안드로이드: @capacitor-firebase/authentication 플러그인
-    const result = await FirebaseAuthentication.signInWithGoogle()
-    const credential = GoogleAuthProvider.credential(result.credential.idToken)
-    return await signInWithCredential(firebaseAuth, credential)
-  } else {
-    // 웹: firebase/auth popup
-    return await signInWithPopup(firebaseAuth, new GoogleAuthProvider())
-  }
+  const provider = new GoogleAuthProvider()
+  const userCred = await signInWithPopup(firebaseAuth, provider)
+  return userCred.user
 }
 ```
 
 ### SDK
-- 웹: `firebase/auth` 모듈 (JS SDK)
-- 안드로이드: `@capacitor-firebase/authentication` 플러그인 (네이티브 GoogleSignIn → idToken → Firebase credential)
+- `firebase/auth` 모듈 (JS SDK) — popup 기반 OAuth
 
 ---
 
@@ -132,16 +125,12 @@ const firebaseConfig = {
 
 ---
 
-## SHA-1 등록 필요
+## 호스팅 도메인 설정
 
-안드로이드 Google 로그인은 **앱 서명 SHA-1** 이 Firebase 콘솔에 등록되어야 한다:
-
-| 환경 | keystore | SHA-1 |
-|---|---|---|
-| 디버그 | `android/app/debug.keystore` (커밋됨, 비번 `android`) | Firebase 에 등록 ✓ |
-| 릴리스 | `android/keystore/release.jks` (별도 백업) | **추가 등록 필요** |
-
-자세히: [release-signing.md](release-signing.md)
+웹 popup 로그인은 Firebase Console → Authentication → Settings → **승인된 도메인** 에 호스팅 URL 추가 필요:
+- `localhost` (dev)
+- `ddongtop-bea1d.web.app` / `ddongtop-bea1d.firebaseapp.com` (Firebase Hosting 기본)
+- 커스텀 도메인 (사용 시)
 
 ---
 

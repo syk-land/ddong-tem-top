@@ -116,7 +116,7 @@ export function pushLog(ctx: CombatContext, text: string, kind: LogKind = 'info'
 //
 // 효과:
 //   heal_reduction  (구울)    : ×0.5
-//   heal_pollution  (역병 쥐) : ×0.3 (오염 — 더 강함)
+//   heal_pollution  (역병 슬라임) : ×0.3 (오염 — 더 강함)
 //   heal_reverse    (보스)    : ×-1  (역전)
 //
 // 여러 효과가 동시 존재 시 곱셈 누적. 살아있는 적만 영향.

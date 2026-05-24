@@ -197,7 +197,7 @@
     클릭이 통과한다. 카드 내부의 CTA 버튼만 `pointer-events-auto` 로 개별 활성화.
     **닫기 X 는 제거** — 사용자가 튜토리얼 단계를 임의 종료할 수 있는 경로는 좌상단
     "튜토리얼 전체 건너뛰기" 단일 경로만 남김.
-  - 진행은 **명시적 "다음 →" 버튼 / 타겟 직접 클릭 / 안드로이드 뒤로가기 / Esc** 로만
+  - 진행은 **명시적 "다음 →" 버튼 / 타겟 직접 클릭 / 브라우저 뒤로가기 / Esc** 로만
   - 단계 활성 동안 **게임 자동 일시정지**: `tickStep` 이 `tutorialActive` 시
     no-op, Combat.vue 의 자동 틱 watcher 가 `paused || tutorialActive` 로 멈춤,
     Dungeon 의 자동 진입 카운트다운도 `tutorialActive` 시 보류
@@ -252,7 +252,7 @@ receiveItem 시점 (Combat 화면) 엔 인벤 버튼이 DOM 에 없으므로 그
 이때 Dungeon 컴포넌트는 floor 변경 시 재mount 되지 않으므로 (같은 라우트 내 상태만 갱신), `clearItemAnnounce` 안에서 `triggerTutorial('first_treasure')` 를 직접 호출해 동일 효과를 낸다. `triggerTutorial` 가드가 `chapter === 1 && currentFloor === 2 && floor.type === 'shop'` 인지 한 번 더 확인하므로 잘못된 위치에서 발화하지 않는다.
 
 ### 닫기 동작
-- 안드로이드 뒤로가기 / Esc → `completeTutorial()` 호출 (가장 우선)
+- 브라우저 뒤로가기 / Esc → `completeTutorial()` 호출 (가장 우선)
 - 백드롭 클릭 → 다음 페이지 또는 닫기
 - CTA 클릭 → 다음 페이지 또는 닫기
 
