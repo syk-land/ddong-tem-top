@@ -3,12 +3,14 @@ name: Cleanup Actions Storage
 # main 브랜치는 워크플로우별로 최신 KEEP_MAIN_RECENT 개만 남기고,
 # 그 외 브랜치는 워크플로우별로 최신 1개만 남기고
 # 나머지 run + artifact 를 모두 삭제합니다.
+# 단, 본 cleanup 워크플로우 자체의 run 은 "현재 실행 중인 1개" 만 남깁니다
+# (유지보수성 run 이라 이력 보존 가치가 낮음).
 #
 # 사용 방법:
 #   1. Actions 탭 → "Cleanup Actions Storage" → Run workflow
 #      - dry_run: true  로 먼저 돌려서 무엇이 지워질지 확인
 #      - dry_run: false 로 실제 삭제
-#      - keep_main_recent: main 브랜치 보존 개수 (기본 10)
+#      - keep_main_recent: main 브랜치 보존 개수 (기본 5)
 #   2. 스케줄(매일 새벽 3시 UTC)로도 자동 실행됨
 
 on:
@@ -25,7 +27,7 @@ on:
       keep_main_recent:
         description: 'main 브랜치 보존 개수 (워크플로우별)'
         required: false
-        default: '10'
+        default: '5'
         type: string
   schedule:
     # 매일 03:00 UTC (KST 12:00)
@@ -44,13 +46,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
-          KEEP_MAIN_RECENT: ${{ github.event_name == 'workflow_dispatch' && inputs.keep_main_recent || '10' }}
+          KEEP_MAIN_RECENT: ${{ github.event_name == 'workflow_dispatch' && inputs.keep_main_recent || '5' }}
+          SELF_WORKFLOW: ${{ github.workflow }}
+          SELF_RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
 
           KEEP_BRANCH="main"
           echo "Repository: $REPO"
           echo "Keep branch: $KEEP_BRANCH (recent $KEEP_MAIN_RECENT per workflow)"
+          echo "Self workflow: $SELF_WORKFLOW (run=$SELF_RUN_ID) — keeps only current run"
           echo "Dry run: $DRY_RUN"
           echo "----------------------------------------"
 
@@ -69,21 +74,26 @@ jobs:
               --jq '[.workflow_runs[] | {id, head_branch, created_at, status, conclusion}]' \
               | jq -s 'add // []')
 
-            # 보존 대상 id 집합 (개행 구분)
-            #  - main 브랜치: 워크플로우별 최신 KEEP_MAIN_RECENT 개
-            #  - 그 외 브랜치: 워크플로우별 최신 1개
-            keep_ids=$(echo "$runs_json" | jq -r \
-              --arg keep "$KEEP_BRANCH" \
-              --argjson n "$KEEP_MAIN_RECENT" '
-              (
-                [.[] | select(.head_branch == $keep)]
-                | sort_by(.created_at) | reverse | .[0:$n] | .[].id
-              ),
-              (
-                [.[] | select(.head_branch != $keep)]
-                | sort_by(.created_at) | reverse | .[0:1] | .[].id
-              )
-            ')
+            # 본 cleanup 워크플로우 자기 자신은 "현재 실행 중인 run 1개" 만 보존
+            # (이력 보존 가치가 낮은 유지보수성 run)
+            if [ "$wf_name" = "$SELF_WORKFLOW" ]; then
+              keep_ids="$SELF_RUN_ID"
+            else
+              # main 브랜치: 워크플로우별 최신 KEEP_MAIN_RECENT 개
+              # 그 외 브랜치: 워크플로우별 최신 1개
+              keep_ids=$(echo "$runs_json" | jq -r \
+                --arg keep "$KEEP_BRANCH" \
+                --argjson n "$KEEP_MAIN_RECENT" '
+                (
+                  [.[] | select(.head_branch == $keep)]
+                  | sort_by(.created_at) | reverse | .[0:$n] | .[].id
+                ),
+                (
+                  [.[] | select(.head_branch != $keep)]
+                  | sort_by(.created_at) | reverse | .[0:1] | .[].id
+                )
+              ')
+            fi
 
             echo "$runs_json" | jq -c '.[]' | while read -r run; do
               run_id=$(echo "$run" | jq -r '.id')
@@ -91,8 +101,13 @@ jobs:
               created=$(echo "$run" | jq -r '.created_at')
 
               if echo "$keep_ids" | grep -qx "$run_id"; then
-                tag="[main]"
-                [ "$branch" != "$KEEP_BRANCH" ] && tag="[latest non-main]"
+                if [ "$wf_name" = "$SELF_WORKFLOW" ]; then
+                  tag="[self/current]"
+                elif [ "$branch" = "$KEEP_BRANCH" ]; then
+                  tag="[main]"
+                else
+                  tag="[latest non-main]"
+                fi
                 echo "  KEEP  run=$run_id branch=$branch ($created) $tag"
                 continue
               fi
