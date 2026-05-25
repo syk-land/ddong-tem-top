@@ -58,7 +58,9 @@ export const useAuthStore = defineStore('auth', {
       this.initialized = true
       onAuthChange((user) => {
         this.user = user
-        if (user) this._onLoggedIn(user).catch((e) => console.warn('post-login sync failed', e))
+        // 세션 복원(페이지 reload/재접속)에서는 덮어쓰기 모달을 띄우지 않는다.
+        // 모달은 사용자가 방금 명시적으로 로그인을 누른 경우에만 의미가 있음.
+        if (user) this._onLoggedIn(user, false).catch((e) => console.warn('post-login sync failed', e))
       })
     },
 
@@ -68,7 +70,7 @@ export const useAuthStore = defineStore('auth', {
       try {
         const user = await signInWithGoogle()
         this.user = user
-        await this._onLoggedIn(user)
+        await this._onLoggedIn(user, true)
       } catch (e: any) {
         this.error = e?.message ?? String(e)
         throw e
@@ -93,11 +95,16 @@ export const useAuthStore = defineStore('auth', {
     //   예 → 클라우드 → 로컬 머지 + localStorage 저장 + 페이지 reload (UI 즉시 갱신)
     //   아니오 → 어느 쪽도 건드리지 않음 (로컬/클라우드 둘 다 그대로 유지)
     //   클라우드 == 로컬 또는 클라우드 없음 → 모달 없이 한 번 sync (첫 로그인 케이스)
-    async _onLoggedIn(user: User) {
+    //
+    // interactive=false (페이지 reload 로 인한 세션 복원) 인 경우 덮어쓰기 모달을 띄우지 않는다.
+    // 모달은 사용자가 방금 로그인 버튼을 눌렀을 때만 의미가 있음. 세션 복원 경로에서는
+    // cloud 가 다르더라도 무시하고, cloud 가 없을 때만 로컬을 한 번 push 한다.
+    async _onLoggedIn(user: User, interactive: boolean) {
       await upsertUserProfile(user)
       const game = useGameStore()
       const cloud = await loadCloudMeta(user.uid)
       if (cloud && cloudDiffersFromLocal(cloud, game.meta)) {
+        if (!interactive) return
         const localLine = `로컬 — 클리어 ${game.meta.clearCount}회 · 보너스 +${game.meta.totalBonusStats}pt · 라운드 ${game.meta.realBossClearCount ?? 0}`
         const cloudLine = `클라우드 — 클리어 ${cloud.clearCount}회 · 보너스 +${cloud.totalBonusStats}pt · 라운드 ${cloud.realBossClearCount ?? 0}`
         const overwrite = await game.confirmModal(
