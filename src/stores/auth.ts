@@ -1,7 +1,19 @@
 import { defineStore } from 'pinia'
 import type { User } from 'firebase/auth'
 import { signInWithGoogle, signOut, onAuthChange } from '@/lib/auth'
-import { upsertUserProfile, saveCloudMeta, loadCloudMeta, submitLeaderboard } from '@/lib/cloudSync'
+import { upsertUserProfile, saveCloudMeta, loadCloudMeta, submitLeaderboard, type CloudMeta } from '@/lib/cloudSync'
+import type { MetaBonuses } from '@/types'
+
+// 클라우드와 로컬 meta 핵심 필드 비교 — 다를 때만 사용자 확인 모달을 띄운다.
+function cloudDiffersFromLocal(cloud: CloudMeta, local: MetaBonuses): boolean {
+  return cloud.clearCount !== local.clearCount
+    || cloud.totalBonusStats !== local.totalBonusStats
+    || cloud.permanentStartBonus !== local.permanentStartBonus
+    || (cloud.realBossClearCount ?? 0) !== (local.realBossClearCount ?? 0)
+    || (cloud.currentBossBestDrain ?? 0) !== (local.currentBossBestDrain ?? 0)
+    || cloud.totalGoldEarned !== local.totalGoldEarned
+    || cloud.realBossDefeated !== local.realBossDefeated
+}
 import { useGameStore } from './game'
 
 interface AuthState {
@@ -78,13 +90,14 @@ export const useAuthStore = defineStore('auth', {
     },
 
     // 로그인 직후: 프로필 upsert + 클라우드 meta 발견 시 사용자에게 덮어쓰기 확인.
-    //   예 → 클라우드 → 로컬 덮어씀 (기기 변경/재설치 시 복원 유즈케이스)
-    //   아니오 → 로컬 데이터 유지 → 곧이은 syncMetaToCloud 가 로컬을 클라우드로 덮어씀
+    //   예 → 클라우드 → 로컬 머지 + localStorage 저장 + 페이지 reload (UI 즉시 갱신)
+    //   아니오 → 어느 쪽도 건드리지 않음 (로컬/클라우드 둘 다 그대로 유지)
+    //   클라우드 == 로컬 또는 클라우드 없음 → 모달 없이 한 번 sync (첫 로그인 케이스)
     async _onLoggedIn(user: User) {
       await upsertUserProfile(user)
       const game = useGameStore()
       const cloud = await loadCloudMeta(user.uid)
-      if (cloud) {
+      if (cloud && cloudDiffersFromLocal(cloud, game.meta)) {
         const localLine = `로컬 — 클리어 ${game.meta.clearCount}회 · 보너스 +${game.meta.totalBonusStats}pt · 라운드 ${game.meta.realBossClearCount ?? 0}`
         const cloudLine = `클라우드 — 클리어 ${cloud.clearCount}회 · 보너스 +${cloud.totalBonusStats}pt · 라운드 ${cloud.realBossClearCount ?? 0}`
         const overwrite = await game.confirmModal(
@@ -104,10 +117,16 @@ export const useAuthStore = defineStore('auth', {
             game.meta.characterHistory = cloud.characterHistory
           }
           game.meta.challengeChampion = cloud.challengeChampion ?? null
+          game.persistMeta()
+          // UI 즉시 갱신 — Vue/Pinia 일부 화면이 onMounted 시점 값에 의존하므로 reload 가 가장 안전.
+          window.location.reload()
+          return
         }
+        // 로컬 유지 — 로컬/클라우드 어느 쪽도 건드리지 않음. 이후 사용자가 직접 진행하면
+        // 그 시점의 변경분이 정상 sync 경로로 클라우드에 push 된다.
+        return
       }
-      // 클라우드 → 로컬 머지 후(또는 로컬 유지 후) 현재 로컬 상태를 클라우드로 push.
-      // 사용자가 "로컬 유지" 선택 시 → 로컬이 클라우드를 덮어쓰는 효과.
+      // 클라우드 없음 또는 동일 — 일반 sync (첫 로그인의 초기 push 또는 동기화 유지).
       await this.syncMetaToCloud()
     },
 
