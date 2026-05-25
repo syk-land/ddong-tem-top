@@ -11,7 +11,7 @@ export const CHAPTER_THEMES: Record<ChapterTheme, ChapterThemeDef> = {
       { name: '고블린 주술사', atkMod: 0.9, defMod: 0.7 },
     ],
     boss: { name: '고블린 족장', hpMod: 1.1, trait: 'summon_minions' },
-    hardBoss: { name: '고블린 해방군 사령관', hpMod: 3.5, atkMod: 1.15, trait: 'summon_minions' },
+    hardBoss: { name: '고블린 해방군 사령관', atkMod: 0.03, defMod: 0.05, trait: 'summon_minions' },
     encounterMin: 2, encounterMax: 3,
   },
   골렘: {
@@ -23,7 +23,7 @@ export const CHAPTER_THEMES: Record<ChapterTheme, ChapterThemeDef> = {
       { name: '룬 골렘', defMod: 1.2, element: '번개', trait: 'magic_attacker' },
     ],
     boss: { name: '고대 거신 골렘', hpMod: 1.2, defMod: 1.5 },
-    hardBoss: { name: '고대 마도 골렘 군주', hpMod: 1.6, defMod: 1.6, trait: 'magic_immune' },
+    hardBoss: { name: '고대 마도 골렘 군주', atkMod: 3.0, defMod: 1.8, trait: 'magic_immune' },
     encounterMin: 1, encounterMax: 1,
   },
   언데드: {
@@ -35,7 +35,7 @@ export const CHAPTER_THEMES: Record<ChapterTheme, ChapterThemeDef> = {
       { name: '구울', trait: 'heal_reduction' },
     ],
     boss: { name: '리치왕', hpMod: 1.2, trait: 'summon_undead' },
-    hardBoss: { name: '저주받은 리치 황제', hpMod: 1.4, trait: 'max_hp_curse' },
+    hardBoss: { name: '저주받은 리치 황제', atkMod: 11.5, defMod: 4.5, trait: 'max_hp_curse' },
     encounterMin: 2, encounterMax: 3,
   },
   환영: {
@@ -47,7 +47,7 @@ export const CHAPTER_THEMES: Record<ChapterTheme, ChapterThemeDef> = {
       { name: '환영 슬라임', trait: 'copy_player' },
     ],
     boss: { name: '환영의 지배자', trait: 'split_3' },
-    hardBoss: { name: '신기루 군주', hpMod: 2.5, trait: 'split_3_reflect' },
+    hardBoss: { name: '신기루 군주', atkMod: 9.5, defMod: 4.5, trait: 'split_3_reflect' },
     encounterMin: 1, encounterMax: 2,
   },
   흡혈귀: {
@@ -59,7 +59,7 @@ export const CHAPTER_THEMES: Record<ChapterTheme, ChapterThemeDef> = {
       { name: '흡혈 기사', trait: 'crit_vs_bleeding' },
     ],
     boss: { name: '백작 블러드 로드', trait: 'blood_strike' },
-    hardBoss: { name: '진조 블러드 로드', hpMod: 1.2, trait: 'blood_strike_amplified' },
+    hardBoss: { name: '진조 블러드 로드', atkMod: 12.3, defMod: 4.8, trait: 'blood_strike_amplified' },
     encounterMin: 1, encounterMax: 2,
   },
   심해: {
@@ -71,7 +71,7 @@ export const CHAPTER_THEMES: Record<ChapterTheme, ChapterThemeDef> = {
       { name: '심해 문어', trait: 'crit_immune' },
     ],
     boss: { name: '크라켄', trait: 'bind' },
-    hardBoss: { name: '심해의 압박자', hpMod: 0.2, trait: 'bind_oxygen' },
+    hardBoss: { name: '심해의 압박자', atkMod: 4.5, defMod: 2.0, trait: 'bind_oxygen' },
     encounterMin: 1, encounterMax: 1,
   },
   기계: {
@@ -83,7 +83,7 @@ export const CHAPTER_THEMES: Record<ChapterTheme, ChapterThemeDef> = {
       { name: '강화 거미 로봇', trait: 'element_counter' },
     ],
     boss: { name: '거대 메카닉 거미', trait: 'laser_charge' },
-    hardBoss: { name: '자동화 공장 코어', hpMod: 4.0, trait: 'spawn_drones' },
+    hardBoss: { name: '자동화 공장 코어', atkMod: 1.0, defMod: 1.0, trait: 'spawn_drones' },
     encounterMin: 2, encounterMax: 3,
   },
   용암: {
@@ -95,7 +95,7 @@ export const CHAPTER_THEMES: Record<ChapterTheme, ChapterThemeDef> = {
       { name: '파이어 엘리멘탈', element: '불', trait: 'magic_attacker' },
     ],
     boss: { name: '화염의 군주 이프리트', element: '불', trait: 'burn_aura' },
-    hardBoss: { name: '종말의 화신', element: '불', hpMod: 0.45, atkMod: 0.7, trait: 'reflect_all_atk' },
+    hardBoss: { name: '종말의 화신', element: '불', atkMod: 11.5, defMod: 5.0, trait: 'burn_aura' },
     encounterMin: 1, encounterMax: 2,
   },
   암흑: {
@@ -107,7 +107,7 @@ export const CHAPTER_THEMES: Record<ChapterTheme, ChapterThemeDef> = {
       { name: '암흑 정령', trait: 'gold_curse' },
     ],
     boss: { name: '어둠의 마왕', trait: 'screen_darken' },
-    hardBoss: { name: '공허의 군주', hpMod: 0.7, trait: 'silence_all' },
+    hardBoss: { name: '공허의 군주', atkMod: 12.0, defMod: 5.0, trait: 'silence_all' },
     encounterMin: 1, encounterMax: 2,
   },
   천공: {
@@ -119,7 +119,7 @@ export const CHAPTER_THEMES: Record<ChapterTheme, ChapterThemeDef> = {
       { name: '폭풍 천사', element: '번개', trait: 'shock_chance' },
     ],
     boss: { name: '천공의 용', trait: 'aerial_invincible' },
-    hardBoss: { name: '폭풍룡', hpMod: 0.85, trait: 'lightning_rain' },
+    hardBoss: { name: '폭풍룡', atkMod: 0.10, defMod: 0.10, trait: 'lightning_rain' },
     encounterMin: 1, encounterMax: 2,
   },
   맹독: {
@@ -131,7 +131,7 @@ export const CHAPTER_THEMES: Record<ChapterTheme, ChapterThemeDef> = {
       { name: '맹독 거미', trait: 'petrify' },
     ],
     boss: { name: '독룡 히드라', trait: 'poison_aura' },
-    hardBoss: { name: '치명적 역병 그 자체', hpMod: 0.7, trait: 'heal_reverse' },
+    hardBoss: { name: '치명적 역병 그 자체', atkMod: 11.0, defMod: 5.0, trait: 'heal_reverse' },
     encounterMin: 2, encounterMax: 3,
   },
 }

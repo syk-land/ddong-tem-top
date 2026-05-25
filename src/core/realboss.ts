@@ -61,9 +61,13 @@ export function pickChallengeRecord(meta: MetaBonuses): CharacterRecord | null {
 // 시뮬레이션 기반 권장값:
 //   레전드 상급(coef 3.0+) 무기 + 능력치 120pt 캐릭터의 DPS 시 ~30턴 클리어 → HP 약 +3.0배
 //   능력치 90pt 평범한 캐릭터는 보스 ATK가 압도 → HP 거의 못 깎음
-export const REAL_BOSS_HP_MULT = 3.0
-export const REAL_BOSS_ATK_MULT = 5.0  // v6.1: 9.0 → 5.0 완화. 한방 위험 감소.
-export const REAL_BOSS_DEF_MULT = 1.6
+// 라운드 보스 HP = 3520 × boss.hpMod × HARD_BOSS_HP_MULT × 누적 × REAL_BOSS_HP_MULT.
+// hardBoss 의 hpMod/atkMod/defMod 시뮬 fitting을 폐기하고 가짜 보스 (theme.boss) 기준으로
+// 단순화 — 라운드 보스 stat은 multipliers 만으로 결정.
+export const HARD_BOSS_HP_MULT = 2.5  // 가짜 → 라운드 변환
+export const REAL_BOSS_HP_MULT = 2.5  // 라운드 보스 전용 추가 HP 배수
+export const REAL_BOSS_ATK_MULT = 7.0  // ATK 배수 (시뮬 기반 조정)
+export const REAL_BOSS_DEF_MULT = 1.0  // DEF 배수 (시뮬 기반 조정)
 
 // 진짜 보스 등장 고정 순서 — 22장 만화 구성과 동일.
 // realBossClearCount % 11 을 인덱스로 사용 → 11회 클리어 후 다시 고블린부터 순환.
@@ -85,19 +89,32 @@ export function getMonsterHpMultiplier(realBossClearCount: number): number {
   return 1 + HP_MULT_PER_REAL_BOSS_CLEAR * Math.max(0, realBossClearCount)
 }
 
-// 진짜 보스: chapter 10 보스를 강화 + 클리어 누적 HP 멀티플라이어 적용.
+// 라운드 보스 = 가짜 보스(theme.boss) 베이스 + 단순화된 multipliers.
+//   HP  = 3520 × boss.hpMod × HARD_BOSS_HP_MULT × (1+0.9·N) × REAL_BOSS_HP_MULT
+//   ATK = 34 × boss.atkMod × REAL_BOSS_ATK_MULT
+//   DEF = 20.15 × boss.defMod × REAL_BOSS_DEF_MULT
+//   이름/trait은 hardBoss 정의에서 override (라운드 보스 시그니처).
 export function makeRealBoss(theme: ChapterTheme, realBossClearCount: number = 0): MonsterInstance {
   const def = CHAPTER_THEMES[theme]
-  const template = def.hardBoss ?? def.boss
-  // 챕터 10 보스 baseline → 추가 증폭
-  // makeMonster 는 template.hpMod/atkMod/defMod 를 곱해 인스턴스를 만들므로,
-  // template 을 그대로 두고 인스턴스 단계에서 후처리 강화.
-  // 누적 HP 배수는 makeMonster 안에서 적용되어, 여기선 진짜 보스 전용 HP×3.0만 추가로 곱한다.
-  const inst = makeMonster(template, 10, 'boss', realBossClearCount)
-  inst.maxHp = Math.round(inst.maxHp * REAL_BOSS_HP_MULT)
+  // 베이스는 항상 가짜 보스(theme.boss) — 누적 HP 배수는 makeMonster 안에서 자동 적용
+  const inst = makeMonster(def.boss, 10, 'boss', realBossClearCount)
+  // 라운드 보스 전용 multipliers
+  inst.maxHp = Math.round(inst.maxHp * HARD_BOSS_HP_MULT * REAL_BOSS_HP_MULT)
   inst.hp = inst.maxHp
   inst.atk = Math.round(inst.atk * REAL_BOSS_ATK_MULT)
   inst.def = Math.round(inst.def * REAL_BOSS_DEF_MULT)
+  // 라운드 보스 시그니처 — hardBoss 정의에서 이름·trait·element override
+  // + 라운드 보스 전용 atkMod/defMod (hardBoss에 명시) 적용
+  if (def.hardBoss) {
+    inst.template = {
+      ...inst.template,
+      name: def.hardBoss.name,
+      trait: def.hardBoss.trait ?? inst.template.trait,
+      ...(def.hardBoss.element ? { element: def.hardBoss.element } : {}),
+    }
+    if (def.hardBoss.atkMod !== undefined) inst.atk = Math.round(inst.atk * def.hardBoss.atkMod)
+    if (def.hardBoss.defMod !== undefined) inst.def = Math.round(inst.def * def.hardBoss.defMod)
+  }
   return inst
 }
 
