@@ -2206,6 +2206,15 @@ export const useGameStore = defineStore('game', {
         this.meta.challengeChampion = null
       }
       this.persistMeta()
+      // 전투 중 max_hp_curse(리치) 등 일회성 디버프로 깎인 캐릭터 능력치를 record 값으로 복원.
+      // 다음 라운드 도전 / 결과 화면에 정상 값이 보이도록.
+      if (this.combat?.player && this.realBossWeakRecord) {
+        this.combat.player.maxHp = this.realBossWeakRecord.maxHp
+        this.combat.player.hp = this.combat.player.maxHp
+        this.combat.player.maxMp = this.realBossWeakRecord.maxMp
+        this.combat.player.mp = this.combat.player.maxMp
+        this.combat.player.statuses = []
+      }
       this.combat = null
       this.screen = 'realboss_result'
     },
