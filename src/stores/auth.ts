@@ -77,27 +77,37 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    // 로그인 직후: 프로필 upsert + 클라우드 meta 로 로컬 meta 갱신 시도
+    // 로그인 직후: 프로필 upsert + 클라우드 meta 발견 시 사용자에게 덮어쓰기 확인.
+    //   예 → 클라우드 → 로컬 덮어씀 (기기 변경/재설치 시 복원 유즈케이스)
+    //   아니오 → 로컬 데이터 유지 → 곧이은 syncMetaToCloud 가 로컬을 클라우드로 덮어씀
     async _onLoggedIn(user: User) {
       await upsertUserProfile(user)
       const game = useGameStore()
       const cloud = await loadCloudMeta(user.uid)
-      // 클라우드가 더 진행돼 있으면 (clearCount 기준) 클라우드 → 로컬 머지
-      if (cloud && cloud.clearCount > game.meta.clearCount) {
-        game.meta.clearCount = cloud.clearCount
-        game.meta.totalBonusStats = cloud.totalBonusStats
-        game.meta.permanentStartBonus = cloud.permanentStartBonus
-        game.meta.realBossCompleted = cloud.realBossCompleted
-        game.meta.realBossDefeated = cloud.realBossDefeated
-        game.meta.realBossClearCount = cloud.realBossClearCount ?? 0
-        game.meta.currentBossBestDrain = cloud.currentBossBestDrain ?? 0
-        game.meta.totalGoldEarned = cloud.totalGoldEarned
-        if (Array.isArray(cloud.characterHistory)) {
-          game.meta.characterHistory = cloud.characterHistory
+      if (cloud) {
+        const localLine = `로컬 — 클리어 ${game.meta.clearCount}회 · 보너스 +${game.meta.totalBonusStats}pt · 라운드 ${game.meta.realBossClearCount ?? 0}`
+        const cloudLine = `클라우드 — 클리어 ${cloud.clearCount}회 · 보너스 +${cloud.totalBonusStats}pt · 라운드 ${cloud.realBossClearCount ?? 0}`
+        const overwrite = await game.confirmModal(
+          `클라우드에 저장된 데이터가 있어요.\n로컬 데이터를 클라우드 데이터로 덮어쓸까요?\n\n${localLine}\n${cloudLine}`,
+          { title: '클라우드 데이터 복원', okLabel: '클라우드로 덮어쓰기', cancelLabel: '로컬 유지' },
+        )
+        if (overwrite) {
+          game.meta.clearCount = cloud.clearCount
+          game.meta.totalBonusStats = cloud.totalBonusStats
+          game.meta.permanentStartBonus = cloud.permanentStartBonus
+          game.meta.realBossCompleted = cloud.realBossCompleted
+          game.meta.realBossDefeated = cloud.realBossDefeated
+          game.meta.realBossClearCount = cloud.realBossClearCount ?? 0
+          game.meta.currentBossBestDrain = cloud.currentBossBestDrain ?? 0
+          game.meta.totalGoldEarned = cloud.totalGoldEarned
+          if (Array.isArray(cloud.characterHistory)) {
+            game.meta.characterHistory = cloud.characterHistory
+          }
+          game.meta.challengeChampion = cloud.challengeChampion ?? null
         }
-        game.meta.challengeChampion = cloud.challengeChampion ?? null
       }
-      // 첫 로그인이면 로컬을 클라우드로 푸시 (이후 dirty 추적 시작점)
+      // 클라우드 → 로컬 머지 후(또는 로컬 유지 후) 현재 로컬 상태를 클라우드로 push.
+      // 사용자가 "로컬 유지" 선택 시 → 로컬이 클라우드를 덮어쓰는 효과.
       await this.syncMetaToCloud()
     },
 
