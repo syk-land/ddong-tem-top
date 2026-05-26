@@ -2,8 +2,10 @@
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import ItemDetail from './ItemDetail.vue'
+import { useI18n } from '@/lib/i18n'
 
 const game = useGameStore()
+const { t } = useI18n()
 
 // 큐 전체를 한 모달에 나열 — 한 번의 "확인" 으로 비움.
 // (이전엔 아이템마다 모달이 따로 떠서 다중 드랍 시 N번 확인해야 했음)
@@ -28,7 +30,7 @@ function confirmAll() {
     >
       <h3 class="text-base font-bold text-amber-300 flex items-center gap-1.5 shrink-0">
         <span>🎁</span>
-        <span>아이템 획득{{ items.length > 1 ? ` (${items.length})` : '' }}</span>
+        <span>{{ t('itemAnnounce.title', '아이템 획득') }}{{ items.length > 1 ? ` (${items.length})` : '' }}</span>
       </h3>
 
       <div class="overflow-y-auto space-y-2 pr-1">
@@ -44,7 +46,7 @@ function confirmAll() {
       <button
         class="shrink-0 w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 active:bg-amber-600 font-bold text-zinc-900 transition-colors"
         @click="confirmAll"
-      >확인</button>
+      >{{ t('common.ok', '확인') }}</button>
     </div>
   </div>
 </template>

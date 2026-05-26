@@ -6,8 +6,18 @@ import type { ItemInstance } from '@/types'
 import { themeBgUrl, shopIconUrl } from '@/ui/images'
 import { canEquipItem } from '@/core/challengeRuntime'
 import { CHALLENGES_MAP } from '@/data/challenges'
+import { useI18n } from '@/lib/i18n'
 
 const game = useGameStore()
+const { t, td } = useI18n()
+
+// 아이템 표시명 — '{trait} {grade} {baseKey}' 한국어 / 또는 영어 매핑
+function itemLabel(it: ItemInstance): string {
+  const trait = td(it.kind === 'weapon' ? 'trait.weapon' : 'trait.armor', it.trait)
+  const grade = td('grade', it.grade)
+  const base = td(it.kind === 'weapon' ? 'weapon' : 'armor', it.baseKey)
+  return `${trait} ${grade} ${base}`
+}
 
 // 첫 상점 — 구매/판매/새로고침 안내 + 학습용 100G 1회 지급 + 매물 명중 강제는 createShop 쪽에서 처리
 onMounted(() => {
@@ -35,8 +45,8 @@ async function buy(itemId: string) {
   if (!item) return
   if (player.value.gold < item.buyPrice) return
   const ok = await game.confirmModal(
-    `${item.trait} ${item.grade} ${item.baseKey}\n\n${item.buyPrice}G에 구매?`,
-    { title: '장비 구매', okLabel: '구매' }
+    t('shop.buyConfirmBody', `${itemLabel(item)}\n\n${item.buyPrice}G에 구매?`, { item: itemLabel(item), gold: item.buyPrice }),
+    { title: t('shop.buyConfirmTitle', '장비 구매'), okLabel: t('shop.buyBtn', '구매') }
   )
   if (!ok) return
   await game.buyItemAndEquip(item)
@@ -52,27 +62,33 @@ function leave() {
 }
 async function sellSlot(slot: 'weapon' | 'armor') {
   if (sellForbidden.value) {
-    await game.alertModal('파괴주의자 챌린지로 인해 장비를 판매할 수 없습니다.', '판매 불가')
+    await game.alertModal(
+      t('shop.sellForbiddenBody', '파괴주의자 챌린지로 인해 장비를 판매할 수 없습니다.'),
+      t('shop.sellForbiddenTitle', '판매 불가'),
+    )
     return
   }
   const item = player.value[slot]
   if (!item) return
   const ok = await game.confirmModal(
-    `${item.trait} ${item.grade} ${item.baseKey}\n\n${item.buyback}G에 판매?`,
-    { title: '장비 판매', okLabel: '판매' }
+    t('shop.sellConfirmBody', `${itemLabel(item)}\n\n${item.buyback}G에 판매?`, { item: itemLabel(item), gold: item.buyback }),
+    { title: t('shop.sellConfirmTitle', '장비 판매'), okLabel: t('shop.sellBtn', '판매') }
   )
   if (ok) game.sellEquipped(slot)
 }
 async function sellInventory(idx: number) {
   if (sellForbidden.value) {
-    await game.alertModal('파괴주의자 챌린지로 인해 장비를 판매할 수 없습니다.', '판매 불가')
+    await game.alertModal(
+      t('shop.sellForbiddenBody', '파괴주의자 챌린지로 인해 장비를 판매할 수 없습니다.'),
+      t('shop.sellForbiddenTitle', '판매 불가'),
+    )
     return
   }
   const item = inventory.value[idx]
   if (!item) return
   const ok = await game.confirmModal(
-    `${item.trait} ${item.grade} ${item.baseKey}\n\n${item.buyback}G에 판매?`,
-    { title: '인벤토리 판매', okLabel: '판매' }
+    t('shop.sellConfirmBody', `${itemLabel(item)}\n\n${item.buyback}G에 판매?`, { item: itemLabel(item), gold: item.buyback }),
+    { title: t('shop.sellInvConfirmTitle', '인벤토리 판매'), okLabel: t('shop.sellBtn', '판매') }
   )
   if (ok) game.sellFromInventory(idx)
 }
@@ -96,18 +112,24 @@ const sellForbidden = computed(() => {
 
 async function sellAll() {
   if (sellForbidden.value) {
-    await game.alertModal('파괴주의자 챌린지로 인해 장비를 판매할 수 없습니다.', '판매 불가')
+    await game.alertModal(
+      t('shop.sellForbiddenBody', '파괴주의자 챌린지로 인해 장비를 판매할 수 없습니다.'),
+      t('shop.sellForbiddenTitle', '판매 불가'),
+    )
     return
   }
   if (inventory.value.length === 0) return
   const total = totalBuyback.value
   const ok = await game.confirmModal(
-    `인벤토리 ${inventory.value.length}개 아이템을 모두 ${total}G에 일괄 판매합니다.`,
-    { title: '전부 판매', okLabel: '전부 판매' }
+    t('shop.sellAllConfirmBody', `인벤토리 ${inventory.value.length}개 아이템을 모두 ${total}G에 일괄 판매합니다.`, { count: inventory.value.length, gold: total }),
+    { title: t('shop.sellAllConfirmTitle', '전부 판매'), okLabel: t('shop.sellAllBtn', '전부 판매') }
   )
   if (!ok) return
   const got = game.sellAllFromInventory()
-  await game.alertModal(`+${got}G 획득`, '판매 완료')
+  await game.alertModal(
+    t('shop.sellAllDoneBody', `+${got}G 획득`, { gold: got }),
+    t('shop.sellAllDoneTitle', '판매 완료'),
+  )
 }
 
 void bgUrl  // 추후 배경 활용 여지
@@ -119,17 +141,17 @@ void bgUrl  // 추후 배경 활용 여지
     <div class="relative rounded-lg border border-amber-400/50 backdrop-blur-sm overflow-hidden shadow-[0_0_18px_rgba(251,191,36,0.18)] min-h-24">
       <img
         :src="shopIconUrl()"
-        alt="황금고블린"
+        :alt="t('shop.shopkeeperAlt', '황금고블린')"
         class="absolute inset-0 w-full h-full object-cover"
       />
-      <!-- 다크 그라데이션 — 좌우 정보 가독성 -->
+      <!-- 다크 그라데이션 -->
       <div class="absolute inset-0 bg-gradient-to-r from-bg-secondary/85 via-bg-secondary/20 to-bg-secondary/85"></div>
       <!-- 콘텐츠 -->
       <div class="relative flex items-center gap-2.5 px-3 py-2 min-h-24">
         <div class="flex-1 min-w-0">
-          <div class="text-base font-bold text-amber-300 truncate drop-shadow">황금고블린 상점</div>
+          <div class="text-base font-bold text-amber-300 truncate drop-shadow">{{ t('shop.title', '황금고블린 상점') }}</div>
           <div class="text-xs text-amber-100/80 drop-shadow">
-            새로고침
+            {{ t('shop.refreshLabel', '새로고침') }}
             <span class="font-mono tabular-nums text-amber-50">{{ refresh.charges }}</span>
             <span class="text-amber-100/40"> / {{ refresh.cap }}</span>
           </div>
@@ -148,13 +170,13 @@ void bgUrl  // 추후 배경 활용 여지
     <!-- 장착 중 (판매) -->
     <div data-tutorial-target="shop-sell" class="rounded-lg border border-amber-400/30 bg-bg-secondary/60 backdrop-blur-sm overflow-hidden">
       <div class="px-3 py-1.5 bg-amber-950/40 border-b border-amber-400/20 flex items-center justify-between">
-        <span class="text-xs font-bold text-amber-300">💰 장착 중 (판매)</span>
+        <span class="text-xs font-bold text-amber-300">{{ t('shop.equipped.header', '💰 장착 중 (판매)') }}</span>
       </div>
       <div class="p-2 space-y-2">
         <div class="bg-bg-tertiary/60 rounded-md p-2 border border-slate-700/40 flex items-stretch gap-2">
           <div class="flex-1 min-w-0">
             <ItemDetail v-if="player.weapon" :item="player.weapon" :character="player" />
-            <div v-else class="text-sm text-gray-500 italic text-center py-6">미 착용</div>
+            <div v-else class="text-sm text-gray-500 italic text-center py-6">{{ t('shop.empty.weapon', '미 착용') }}</div>
           </div>
           <button
             v-if="player.weapon"
@@ -164,16 +186,16 @@ void bgUrl  // 추후 배경 활용 여지
                 : 'bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 border-amber-400/40']"
             :disabled="sellForbidden"
             @click="sellSlot('weapon')"
-            :title="`${player.weapon.buyback}G 판매`"
+            :title="t('shop.sellTooltip', `${player.weapon.buyback}G 판매`, { gold: player.weapon.buyback })"
           >
-            <span class="text-xs uppercase tracking-wide opacity-80">판매</span>
+            <span class="text-xs uppercase tracking-wide opacity-80">{{ t('shop.sellBtn', '판매') }}</span>
             <span class="font-mono tabular-nums text-sm leading-tight">+{{ player.weapon.buyback }}G</span>
           </button>
         </div>
         <div class="bg-bg-tertiary/60 rounded-md p-2 border border-slate-700/40 flex items-stretch gap-2">
           <div class="flex-1 min-w-0">
             <ItemDetail v-if="player.armor" :item="player.armor" :character="player" />
-            <div v-else class="text-sm text-gray-500 italic text-center py-6">없음</div>
+            <div v-else class="text-sm text-gray-500 italic text-center py-6">{{ t('shop.empty.armor', '없음') }}</div>
           </div>
           <button
             v-if="player.armor"
@@ -183,9 +205,9 @@ void bgUrl  // 추후 배경 활용 여지
                 : 'bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 border-amber-400/40']"
             :disabled="sellForbidden"
             @click="sellSlot('armor')"
-            :title="`${player.armor.buyback}G 판매`"
+            :title="t('shop.sellTooltip', `${player.armor.buyback}G 판매`, { gold: player.armor.buyback })"
           >
-            <span class="text-xs uppercase tracking-wide opacity-80">판매</span>
+            <span class="text-xs uppercase tracking-wide opacity-80">{{ t('shop.sellBtn', '판매') }}</span>
             <span class="font-mono tabular-nums text-sm leading-tight">+{{ player.armor.buyback }}G</span>
           </button>
         </div>
@@ -198,7 +220,7 @@ void bgUrl  // 추후 배경 활용 여지
       class="rounded-lg border border-amber-400/30 bg-bg-secondary/60 backdrop-blur-sm overflow-hidden"
     >
       <div class="px-3 py-1.5 bg-amber-950/40 border-b border-amber-400/20 flex items-center justify-between gap-2">
-        <span class="text-xs font-bold text-amber-300">📦 인벤토리 (판매)</span>
+        <span class="text-xs font-bold text-amber-300">{{ t('shop.inventory.header', '📦 인벤토리 (판매)') }}</span>
         <button
           :class="['text-xs px-3 min-h-9 rounded-md font-bold active:scale-[0.98] transition',
             sellForbidden
@@ -206,7 +228,7 @@ void bgUrl  // 추후 배경 활용 여지
               : 'bg-stat-luck text-black hover:opacity-85']"
           :disabled="sellForbidden"
           @click="sellAll"
-        >{{ sellForbidden ? '판매 불가' : `전부 +${totalBuyback}G` }}</button>
+        >{{ sellForbidden ? t('shop.sellForbiddenTitle', '판매 불가') : t('shop.sellAllAmount', `전부 +${totalBuyback}G`, { gold: totalBuyback }) }}</button>
       </div>
       <div class="p-2 space-y-2">
         <div
@@ -224,9 +246,9 @@ void bgUrl  // 추후 배경 활용 여지
                 : 'bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 border-amber-400/40']"
             :disabled="sellForbidden"
             @click="sellInventory(idx)"
-            :title="`${item.buyback}G 판매`"
+            :title="t('shop.sellTooltip', `${item.buyback}G 판매`, { gold: item.buyback })"
           >
-            <span class="text-xs uppercase tracking-wide opacity-80">판매</span>
+            <span class="text-xs uppercase tracking-wide opacity-80">{{ t('shop.sellBtn', '판매') }}</span>
             <span class="font-mono tabular-nums text-sm leading-tight">+{{ item.buyback }}G</span>
           </button>
         </div>
@@ -234,7 +256,7 @@ void bgUrl  // 추후 배경 활용 여지
     </div>
 
     <!-- ====================================================== -->
-    <!-- 구매 영역 — cyan 액센트                                  -->
+    <!-- 구매 영역 -->
     <!-- ====================================================== -->
     <div
       ref="shopListingRef"
@@ -242,8 +264,8 @@ void bgUrl  // 추후 배경 활용 여지
       class="rounded-lg border border-cyan-400/40 bg-bg-secondary/60 backdrop-blur-sm overflow-hidden scroll-mt-2 shadow-[0_0_18px_rgba(34,211,238,0.12)]"
     >
       <div class="px-3 py-1.5 bg-cyan-950/40 border-b border-cyan-400/20 flex items-center justify-between gap-2">
-        <span class="text-xs font-bold text-cyan-200">🛒 상점 매물 (구매)</span>
-        <span class="text-xs text-cyan-300/70">{{ shop.inventory.length }}개</span>
+        <span class="text-xs font-bold text-cyan-200">{{ t('shop.listing.header', '🛒 상점 매물 (구매)') }}</span>
+        <span class="text-xs text-cyan-300/70">{{ shop.inventory.length }}{{ t('shop.itemSuffix', '개') }}</span>
       </div>
       <div class="p-2 space-y-2">
         <div
@@ -261,8 +283,8 @@ void bgUrl  // 추후 배경 활용 여지
             :disabled="true"
             :title="checkEquip(item).reason"
           >
-            <span class="text-xs uppercase tracking-wide opacity-80">구매</span>
-            <span class="text-xs font-bold leading-tight">불가</span>
+            <span class="text-xs uppercase tracking-wide opacity-80">{{ t('shop.buyBtn', '구매') }}</span>
+            <span class="text-xs font-bold leading-tight">{{ t('shop.buyForbidden', '불가') }}</span>
           </button>
           <button
             v-else
@@ -272,9 +294,9 @@ void bgUrl  // 추후 배경 활용 여지
               : 'bg-cyan-500/20 text-cyan-100 hover:bg-cyan-500/35 border-cyan-400/60'"
             :disabled="player.gold < item.buyPrice"
             @click="buy(item.id)"
-            :title="`${item.buyPrice}G 구매`"
+            :title="t('shop.buyTooltip', `${item.buyPrice}G 구매`, { gold: item.buyPrice })"
           >
-            <span class="text-xs uppercase tracking-wide opacity-80">구매</span>
+            <span class="text-xs uppercase tracking-wide opacity-80">{{ t('shop.buyBtn', '구매') }}</span>
             <span class="font-mono tabular-nums text-sm leading-tight">{{ item.buyPrice }}G</span>
           </button>
         </div>
@@ -293,11 +315,11 @@ void bgUrl  // 추후 배경 활용 여지
           : 'bg-bg-tertiary text-gray-100 border-slate-600/70 hover:bg-slate-700'"
         :disabled="refresh.charges <= 0"
         @click="refreshShop"
-      >🔄 새로고침 <span class="text-gray-400 font-mono ml-1">({{ refresh.charges }})</span></button>
+      >{{ t('shop.refreshBtn', '🔄 새로고침') }} <span class="text-gray-400 font-mono ml-1">({{ refresh.charges }})</span></button>
       <button
         class="min-h-12 px-5 rounded-md font-bold text-sm bg-bg-tertiary text-gray-100 border-2 border-slate-600/70 hover:bg-slate-700 active:scale-[0.98] transition"
         @click="leave"
-      >나가기</button>
+      >{{ t('shop.leaveBtn', '나가기') }}</button>
     </div>
   </section>
 </template>

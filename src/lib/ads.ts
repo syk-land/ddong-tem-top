@@ -1,7 +1,7 @@
 // ============================================================
 // GameMonetize H5 SDK — Rewarded Ad 래퍼
 // ============================================================
-// 웹(Firebase Hosting) 빌드와 안드로이드(Capacitor) 빌드 모두 GameMonetize 사용.
+// 웹(Firebase Hosting) / GameMonetize 호스팅 두 트랙에서 동일하게 GameMonetize SDK 사용.
 // SDK 가 로드되지 않은 경우 (dev, SDK 미초기화, 네트워크 차단)
 // 자동으로 fallback (즉시 보상 지급) 으로 대체.
 //
@@ -30,7 +30,7 @@ declare global {
 // 콘솔 게임 상태가 "New" 단계에선 광고 호출이 no-fill 로 실패함.
 // 그동안 "광고 보기" 버튼을 누르면 광고 없이 보상이 즉시 지급되도록 우회.
 // 활성화 완료 후 false 로 바꾸면 됨.
-const BYPASS_ADS = true
+const BYPASS_ADS = false
 
 export type AdUseCase = 'revive' | 'fastSpeed' | 'autoEnter'
 
@@ -45,7 +45,7 @@ function isSdkReady(): boolean {
 //   정상 동작 시: SDK rewarded 호출 후 이벤트로 결과 판정.
 //
 // useCase 는 통계/분석용 메타 — GameMonetize SDK 가 광고 단위를 자체 관리해서
-// 코드에선 분기만 가능. AdMob 처럼 광고 단위 ID 를 직접 넘기지 않는다.
+// 코드에선 분기만 가능 (광고 단위 ID 를 직접 넘기지 않는다).
 export async function showRewardedAd(_useCase: AdUseCase): Promise<boolean> {
   if (BYPASS_ADS) return true
   if (!isSdkReady()) {

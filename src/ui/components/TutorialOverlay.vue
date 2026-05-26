@@ -2,6 +2,15 @@
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { TUTORIAL_STEPS } from '@/data/tutorial'
+import { useI18n } from '@/lib/i18n'
+
+const { t } = useI18n()
+
+// 키 패턴: tutorial.<step>.<pageIdx>.<field>
+// 한국어 모드면 fallback(원본 한국어) 그대로, 영어 모드는 사전 lookup 시도.
+function tFieldKey(field: 'title' | 'body' | 'hint'): string {
+  return `tutorial.${step.value ?? ''}.${pageIdx.value}.${field}`
+}
 
 const game = useGameStore()
 
@@ -145,11 +154,7 @@ const isLastPage = computed(() => {
 const ctaLabel = computed(() => {
   const p = currentPage.value
   if (!p) return ''
-  if (!isLastPage.value) return '다음 →'
-  // 마지막 페이지 CTA 라벨 우선순위:
-  //   1. page.cta 명시
-  //   2. 타겟이 클릭 가능 버튼 → data-tutorial-cta-label 속성 또는 buttonText 첫 줄
-  //   3. 그 외 "알겠어요"
+  if (!isLastPage.value) return t('tutorial.next', '다음 →')
   if (p.cta) return p.cta
   const action = targetActionEl.value
   if (action) {
@@ -158,7 +163,7 @@ const ctaLabel = computed(() => {
     const text = (action.innerText || action.textContent || '').trim().split('\n')[0].trim()
     if (text) return text.length > 20 ? text.slice(0, 20) + '…' : text
   }
-  return '알겠어요'
+  return t('tutorial.gotIt', '알겠어요')
 })
 
 // ── 단계 전환 1초 cooldown ────────────────────────────────
@@ -193,8 +198,12 @@ function advance() {
 
 async function skipAll() {
   const ok = await game.confirmModal(
-    '모든 튜토리얼을 건너뛰고 다시 보지 않게 합니다.\n나중에 다시 보려면 설정에서 "튜토리얼 다시 보기" 를 이용해주세요.',
-    { title: '튜토리얼 전체 건너뛰기', okLabel: '건너뛰기', cancelLabel: '취소' },
+    t('tutorial.skipAllBody', '모든 튜토리얼을 건너뛰고 다시 보지 않게 합니다.\n나중에 다시 보려면 설정에서 "튜토리얼 다시 보기" 를 이용해주세요.'),
+    {
+      title: t('tutorial.skipAllTitle', '튜토리얼 전체 건너뛰기'),
+      okLabel: t('tutorial.skipAllBtn', '건너뛰기'),
+      cancelLabel: t('common.cancel', '취소'),
+    },
   )
   if (!ok) return
   game.skipAllTutorials()
@@ -303,9 +312,9 @@ onUnmounted(() => {
     <!-- 튜토리얼 전체 건너뛰기 (좌측 상단, SpeedControl 아래 줄) -->
     <button
       class="fixed top-[40px] left-1 z-[101] px-2.5 py-1 rounded-md bg-zinc-800/90 hover:bg-zinc-700 ring-1 ring-zinc-600 text-xs text-zinc-300 backdrop-blur-sm pointer-events-auto shadow-lg"
-      title="모든 튜토리얼을 건너뛰고 다시 보지 않습니다"
+      :title="t('tutorial.skipAllTooltip', '모든 튜토리얼을 건너뛰고 다시 보지 않습니다')"
       @click.stop="skipAll"
-    >⏭ 튜토리얼 전체 건너뛰기</button>
+    >{{ t('tutorial.skipAllBtnLabel', '⏭ 튜토리얼 전체 건너뛰기') }}</button>
 
     <!-- 스포트라이트: 타겟 주변 강조 — 안쪽 검정 윤곽 + 시안 두꺼운 ring +
          바깥 검정 윤곽 + 시안 글로우. 박동 (1.2s) 으로 화살표와 같이 강조. -->
@@ -352,20 +361,19 @@ onUnmounted(() => {
           />
         </div>
 
-        <h3 class="text-lg font-bold text-cyan-300 mb-2 pr-6">{{ currentPage.title }}</h3>
-        <p class="text-sm leading-relaxed text-zinc-200 whitespace-pre-line">{{ currentPage.body }}</p>
+        <h3 class="text-lg font-bold text-cyan-300 mb-2 pr-6">{{ t(tFieldKey('title'), currentPage.title) }}</h3>
+        <p class="text-sm leading-relaxed text-zinc-200 whitespace-pre-line">{{ t(tFieldKey('body'), currentPage.body) }}</p>
         <p
           v-if="currentPage.hint"
           class="mt-3 text-xs italic text-zinc-500 whitespace-pre-line"
-        >{{ currentPage.hint }}</p>
+        >{{ t(tFieldKey('hint'), currentPage.hint) }}</p>
 
-        <!-- 타겟이 클릭 가능 버튼이면 카드에 CTA 버튼 없이 안내 텍스트만 표시.
-             사용자는 화살표가 가리키는 실제 버튼을 직접 눌러서 진행. -->
+        <!-- 타겟이 클릭 가능 버튼이면 카드에 CTA 버튼 없이 안내 텍스트만 표시. -->
         <div
           v-if="targetActionEl"
           class="mt-4 text-center text-xs font-medium text-cyan-300 animate-pulse"
         >
-          {{ arrowDir === 'up' ? '↑' : '↓' }} 강조된 버튼을 눌러주세요
+          {{ arrowDir === 'up' ? '↑' : '↓' }} {{ t('tutorial.tapHighlighted', '강조된 버튼을 눌러주세요') }}
         </div>
         <button
           v-else

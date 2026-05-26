@@ -18,7 +18,29 @@ export default defineConfig({
     port: 5173,
   },
   define: {
-    // 빌드 시점에 package.json 의 버전을 코드에 박는다. App.vue 우상단 표시에 사용.
     __APP_VERSION__: JSON.stringify(pkg.version),
+  },
+  build: {
+    // 초기 번들 줄이려고 firebase / vue 코어 / 게임 코드 분리.
+    // firebase 는 로그인할 때만 필요 — 첫 진입 비용 절감.
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vue: ['vue', 'pinia'],
+          firebase: [
+            'firebase/app',
+            'firebase/auth',
+            'firebase/firestore',
+          ],
+        },
+      },
+    },
+    // GameMonetize 제출 시 디버그 정보 불필요
+    sourcemap: false,
+    minify: 'esbuild',
+    // 청크 사이즈 경고 임계 (게임 데이터 묶음이 좀 큼)
+    chunkSizeWarningLimit: 600,
+    // 작은 asset 은 base64 인라인 (네트워크 왕복 절감)
+    assetsInlineLimit: 4096,
   },
 })

@@ -1,7 +1,7 @@
 # 이번 판은 똥템으로 탑을 오르겠습니다 (climetop)
 
-100층 로그라이크 탑 등정 RPG — Vue 3 + TypeScript + Capacitor.
-PC 브라우저 / 안드로이드 동시 지원.
+100층 로그라이크 탑 등정 RPG — Vue 3 + TypeScript.
+브라우저 단일 빌드, 두 트랙으로 배포: **Firebase Hosting** + **GameMonetize**.
 
 > 매 런 영구사망. 클리어 시점 장비 티어가 낮을수록 등급↑ 누적 보너스↑.
 > 누적 골드 5만 도달 → 가장 최근 클리어 캐릭터로 "진짜 보스" 도전.
@@ -40,15 +40,22 @@ npm run build            # 정적 빌드 → dist/
 npm run sim              # 밸런스 시뮬레이터 (300~500런/케이스)
 ```
 
-안드로이드:
+### 배포 트랙
 
 ```bash
-npm run android:build    # build + cap sync (APK/AAB 직접 빌드는 Android Studio 또는 gradlew)
-npm run android          # Android Studio 열기
-npm run android:bundle   # Play Store 업로드용 AAB 만들기 (release 서명 필요)
+# Firebase Hosting (자체 도메인 운영)
+npm run deploy           # build + firebase deploy --only hosting
+
+# GameMonetize (포털 업로드)
+npm run build
+cd dist && zip -r ../climetop-gm.zip .   # zip 묶어 콘솔 업로드
 ```
 
-상세 안드로이드 빌드/서명: [docs/features/release-signing.md](docs/features/release-signing.md) · AAB 출시 흐름: [docs/play-store/release-checklist.md](docs/play-store/release-checklist.md)
+두 트랙 모두 동일한 `dist/` 산출물 사용 — `vite.config.ts` 의 `base: './'` 가 상대경로를 보장해 양쪽에서 그대로 동작.
+
+광고/SDK 활성화:
+- `index.html` 의 GameMonetize SDK `<script>` 가 두 트랙에서 함께 로드
+- `src/lib/ads.ts` 의 `BYPASS_ADS=false` 가 켜지면 부활/4배속/자동진입 보상형 광고가 실제 표시
 
 ---
 
@@ -62,7 +69,8 @@ npm run android:bundle   # Play Store 업로드용 AAB 만들기 (release 서명
 | 장비 | 무기 15종(근접 9 + 활 3 + 마법 3) + 갑옷 4종. 4등급(노말/레어/스페셜/레전드) × 4특성티어(하급/보통/희귀/특별) |
 | 스킬 | 물리공격 5, 물리방어 4, 마법공격 7, 마법방어 3 (총 19) — 무기/갑옷에 묶인 자동 스킬 + 갑옷 피격 자동 반응 |
 | 진짜 보스 | 누적 클리어 골드 5만 도달 → 최근 클리어 캐릭터로 챕터 10 하드 보스 강화판 도전. 깎은 비율 × 60 → 영구 시작 스탯 |
-| 챌린지 | 50개 풀에서 3개 랜덤 제시, 1개 선택. 즉시 보상형(25) + 리스크 베팅형(25) |
+| 챌린지 | 64개 풀에서 3개 랜덤 제시, 1개 선택. 즉시 보상형 + 리스크 베팅형 |
+| 다국어 | 한국어(기본) / English. 설정 화면 또는 스플래시 우상단 토글 |
 
 ---
 
@@ -71,15 +79,16 @@ npm run android:bundle   # Play Store 업로드용 AAB 만들기 (release 서명
 - **Vue 3** + **TypeScript** + **Vite** (개발/빌드)
 - **Pinia** (단일 store `useGameStore` — `src/stores/game.ts`)
 - **Tailwind CSS** + 커스텀 CSS 변수
-- **Capacitor 6** (Android 패키징)
-- **Firebase Auth + Firestore** (Google 로그인 + 클라우드 진행도 백업)
-- **AdMob 보상형 광고** — `@capacitor-community/admob` (부활/4배속/자동진입 3종)
+- **Firebase Auth + Firestore** (Google 로그인 + 클라우드 진행도 백업) — 로그인 시에만 lazy load
+- **GameMonetize H5 SDK** — 보상형 광고 (부활/4배속/자동진입 3종)
+- **자체 i18n** (`src/lib/i18n.ts`) — 한/영 사전 + 단어 매핑 기반 동적 영문화
 
 상태 직렬화는 `localStorage` (단일 슬롯). 클라우드는 옵션. 주요 키:
 - `climetop:meta:v1` — 누적 보너스 / 진짜 보스 상태 (`MetaBonuses`)
 - `climetop:run:v1` — 진행 중 런 (`TowerRun`)
 - `climetop:creation:v1` — 캐릭터 생성 임시 상태
 - `climetop:autoEnter:v1` · `climetop:speed:v1` · `climetop:tutorialSeen:v1` · `climetop:sound:v1`
+- `climetop:lang:v1` — 언어 선택 (`ko` / `en`)
 
 ---
 
@@ -87,7 +96,7 @@ npm run android:bundle   # Play Store 업로드용 AAB 만들기 (release 서명
 
 ```
 src/
-├── data/           정적 게임 데이터 (무기/갑옷/특성/스킬/상태이상/챕터/챌린지)
+├── data/           정적 게임 데이터 (무기/갑옷/특성/스킬/상태이상/챕터/챌린지/튜토리얼)
 ├── core/           게임 로직
 │   ├── stats.ts          5스탯 → 실효 스탯 산출
 │   ├── combat.ts         전투 컨텍스트 + tick 진행
@@ -113,7 +122,8 @@ src/
 │   ├── images.ts   이미지 URL 헬퍼
 │   ├── colors.ts   등급/티어/상태 색상 매핑
 │   └── sound.ts    BGM (2종) / SFX (Web Audio API)
-├── lib/            외부 SDK 래퍼 (firebase / auth / cloudSync / ads)
+├── lib/            외부 SDK 래퍼 (firebase / auth / cloudSync / ads / i18n)
+├── i18n/           영어 사전 (en.ts)
 ├── types/          TypeScript 타입
 └── styles/main.css Tailwind 진입점
 ```
@@ -123,10 +133,9 @@ src/
 ## 문서
 
 - **[DOCS.md](DOCS.md)** — 게임 전체 디자인 + 시스템 종합 문서 (단일 진실 공급원)
-- **[BALANCE.md](BALANCE.md)** — 밸런스 수치표 + v9 시뮬레이터 결과 (가장 정확한 수치 출처)
+- **[BALANCE.md](BALANCE.md)** — 밸런스 수치표 + 시뮬레이터 결과
 - **[docs/systems/](docs/systems/)** — 시스템별 세부 문서 (스탯, 전투, 아이템, 스킬, 챌린지 등)
 - **[docs/features/](docs/features/)** — 기능/변경 이력 문서 (인트로 만화, 진짜 보스, 자동 진입 등)
-- **[docs/play-store/](docs/play-store/)** — Play Store 등록 자료 (체크리스트, 스토어 등록 정보, 개인정보 처리방침)
 
 ---
 

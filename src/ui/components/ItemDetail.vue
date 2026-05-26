@@ -14,13 +14,16 @@ import { computeItemValue, type ValuePart } from '@/core/itemValue'
 import { getDangerTier, getChapterThreshold } from '@/core/scoreThresholds'
 import { canEquipItem } from '@/core/challengeRuntime'
 import ItemName from './ItemName.vue'
+import { useI18n } from '@/lib/i18n'
+
+const { t: tI18n, td: tdI18n, tLabel: tLabelI18n } = useI18n()
 
 // Combat 의 스킬 카드와 동일한 라벨/색 매핑
-const skillKindLabel: Record<string, string> = {
-  physical_atk: '물리 공격',
-  physical_def: '물리 방어',
-  magic_atk: '마법 공격',
-  magic_def: '마법 방어',
+const skillKindLabel: Record<string, () => string> = {
+  physical_atk: () => tI18n('combat.skillKind.physicalAtk', '물리 공격'),
+  physical_def: () => tI18n('combat.skillKind.physicalDef', '물리 방어'),
+  magic_atk: () => tI18n('combat.skillKind.magicAtk', '마법 공격'),
+  magic_def: () => tI18n('combat.skillKind.magicDef', '마법 방어'),
 }
 const skillKindColor: Record<string, string> = {
   physical_atk: 'text-stat-phys_atk',
@@ -523,12 +526,12 @@ const rankLine = computed(() => {
             v-if="Math.abs(totalNew.atk) > 0.05 || Math.abs(itemValue.atkValue) > 0.05"
             class="bg-stat-phys_atk/15 hover:bg-stat-phys_atk/25 rounded px-2 py-0.5 transition-colors flex items-center gap-1"
             @click.stop="openValueModal('atk')"
-            :title="character && !isSameAsEquipped ? `착용 시 공 ${totalNew.atk.toFixed(1)} (${atkDelta >= 0 ? '+' : ''}${atkDelta.toFixed(1)})` : '전투력(공) 상세'"
+            :title="character && !isSameAsEquipped ? tI18n('itemd.atkWornTooltip', `착용 시 공 ${totalNew.atk.toFixed(1)} (${atkDelta >= 0 ? '+' : ''}${atkDelta.toFixed(1)})`, { atk: totalNew.atk.toFixed(1), delta: (atkDelta >= 0 ? '+' : '') + atkDelta.toFixed(1) }) : tI18n('itemd.atkTooltip', '전투력(공) 상세')"
           >
-            <span class="text-stat-phys_atk text-xs opacity-80">공</span>
+            <span class="text-stat-phys_atk text-xs opacity-80">{{ tI18n('itemd.atkShort', '공') }}</span>
             <template v-if="character && isSameAsEquipped">
               <!-- 장착 중 — 단일 총량만 -->
-              <span class="text-gray-400 text-xs">착용중</span>
+              <span class="text-gray-400 text-xs">{{ tI18n('itemd.equipped', '착용중') }}</span>
               <span class="text-stat-phys_atk text-sm">{{ totalNew.atk.toFixed(1) }}</span>
             </template>
             <template v-else-if="character">
@@ -551,11 +554,11 @@ const rankLine = computed(() => {
             v-if="Math.abs(totalNew.def) > 0.05 || Math.abs(itemValue.defValue) > 0.05"
             class="bg-stat-phys_def/15 hover:bg-stat-phys_def/25 rounded px-2 py-0.5 transition-colors flex items-center gap-1"
             @click.stop="openValueModal('def')"
-            :title="character && !isSameAsEquipped ? `착용 시 방 ${totalNew.def.toFixed(1)} (${defDelta >= 0 ? '+' : ''}${defDelta.toFixed(1)})` : '전투력(방) 상세'"
+            :title="character && !isSameAsEquipped ? tI18n('itemd.defWornTooltip', `착용 시 방 ${totalNew.def.toFixed(1)} (${defDelta >= 0 ? '+' : ''}${defDelta.toFixed(1)})`, { def: totalNew.def.toFixed(1), delta: (defDelta >= 0 ? '+' : '') + defDelta.toFixed(1) }) : tI18n('itemd.defTooltip', '전투력(방) 상세')"
           >
-            <span class="text-stat-phys_def text-xs opacity-80">방</span>
+            <span class="text-stat-phys_def text-xs opacity-80">{{ tI18n('itemd.defShort', '방') }}</span>
             <template v-if="character && isSameAsEquipped">
-              <span class="text-gray-400 text-xs">착용중</span>
+              <span class="text-gray-400 text-xs">{{ tI18n('itemd.equipped', '착용중') }}</span>
               <span class="text-stat-phys_def text-sm">{{ totalNew.def.toFixed(1) }}</span>
             </template>
             <template v-else-if="character">
@@ -584,11 +587,11 @@ const rankLine = computed(() => {
     >
       <img
         :src="skillIconUrl(skillKey)"
-        :alt="skill.name"
+        :alt="tdI18n('skill', skill.key) || skill.name"
         class="w-6 h-6 object-contain drop-shadow flex-shrink-0"
         @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
       />
-      <span class="text-cyan-200 font-bold text-xs">{{ skill.name }}</span>
+      <span class="text-cyan-200 font-bold text-xs">{{ tdI18n('skill', skill.key) || skill.name }}</span>
       <span v-if="skillProcPct !== null" class="text-stat-util font-mono font-bold text-xs">({{ skillProcPct }}%)</span>
       <span class="ml-auto text-stat-mp font-mono font-bold text-xs">{{ skill.mp }} MP</span>
     </button>
@@ -605,8 +608,8 @@ const rankLine = computed(() => {
       <div class="panel max-w-sm w-full space-y-2" @click.stop>
         <div class="flex items-center justify-between">
           <div class="text-base font-bold">
-            <span v-if="valueModal.kind === 'atk'" class="text-stat-phys_atk">전투력(공) 총량 분해</span>
-            <span v-else class="text-stat-phys_def">전투력(방) 총량 분해</span>
+            <span v-if="valueModal.kind === 'atk'" class="text-stat-phys_atk">{{ tI18n('itemd.atkBreakdownTitle', '전투력(공) 총량 분해') }}</span>
+            <span v-else class="text-stat-phys_def">{{ tI18n('itemd.defBreakdownTitle', '전투력(방) 총량 분해') }}</span>
           </div>
           <button class="text-base leading-none hover:bg-slate-700 rounded w-7 h-7 flex items-center justify-center" @click="valueModal = null">✕</button>
         </div>
@@ -614,7 +617,7 @@ const rankLine = computed(() => {
         <!-- 총량 + 변화량 헤더 -->
         <div class="bg-bg-tertiary/60 rounded px-3 py-2">
           <div class="flex items-baseline justify-between mb-1">
-            <span class="text-xs">착용 시 총량</span>
+            <span class="text-xs">{{ tI18n('itemd.totalIfEquipped', '착용 시 총량') }}</span>
             <div>
               <span class="text-2xl font-mono font-bold text-log-reward">{{ valueModal.totalIfEquipped.toFixed(1) }}</span>
               <span
@@ -626,18 +629,18 @@ const rankLine = computed(() => {
             </div>
           </div>
           <div class="text-xs space-y-0.5">
-            <div>= 이 아이템 <span class="font-mono font-bold">{{ valueModal.itemContribution.toFixed(1) }}</span>
-                 + 다른 슬롯 <span class="font-mono font-bold">{{ valueModal.otherContribution.toFixed(1) }}</span></div>
+            <div>= {{ tI18n('itemd.thisItem', '이 아이템') }} <span class="font-mono font-bold">{{ valueModal.itemContribution.toFixed(1) }}</span>
+                 + {{ tI18n('itemd.otherSlot', '다른 슬롯') }} <span class="font-mono font-bold">{{ valueModal.otherContribution.toFixed(1) }}</span></div>
             <div v-if="character && !isSameAsEquipped">
-              현재 총량 <span class="font-mono">{{ valueModal.currentTotal.toFixed(1) }}</span>
-              → 변화량 {{ valueModal.delta >= 0 ? '+' : '' }}{{ valueModal.delta.toFixed(1) }}
+              {{ tI18n('itemd.currentTotal', '현재 총량') }} <span class="font-mono">{{ valueModal.currentTotal.toFixed(1) }}</span>
+              → {{ tI18n('itemd.delta', '변화량') }} {{ valueModal.delta >= 0 ? '+' : '' }}{{ valueModal.delta.toFixed(1) }}
             </div>
           </div>
         </div>
 
         <!-- 이 아이템의 기여 분해 -->
-        <div class="text-xs mt-1 font-bold">이 아이템의 기여 ({{ valueModal.itemContribution.toFixed(1) }})</div>
-        <div v-if="valueModal.parts.length === 0" class="text-xs text-center py-2">기여 없음</div>
+        <div class="text-xs mt-1 font-bold">{{ tI18n('itemd.thisItemContribution', '이 아이템의 기여') }} ({{ valueModal.itemContribution.toFixed(1) }})</div>
+        <div v-if="valueModal.parts.length === 0" class="text-xs text-center py-2">{{ tI18n('itemd.noContribution', '기여 없음') }}</div>
         <div v-else class="space-y-1 text-xs">
           <div
             v-for="(p, i) in valueModal.parts"
@@ -645,15 +648,15 @@ const rankLine = computed(() => {
             class="bg-bg-tertiary rounded px-2 py-1.5 flex items-baseline justify-between"
           >
             <div class="flex-1 min-w-0">
-              <div class="truncate">{{ p.label }}</div>
-              <div v-if="p.note" class="text-xs truncate opacity-80">{{ p.note }}</div>
+              <div class="truncate">{{ tLabelI18n(p.label) }}</div>
+              <div v-if="p.note" class="text-xs truncate opacity-80">{{ tLabelI18n(p.note) }}</div>
             </div>
             <div :class="[p.value >= 0 ? 'text-log-skill' : 'text-status-burn', 'font-mono font-bold ml-2 shrink-0']">
               {{ p.value >= 0 ? '+' : '' }}{{ p.value.toFixed(2) }}
             </div>
           </div>
         </div>
-        <button class="btn-secondary w-full text-xs min-h-9" @click="valueModal = null">닫기</button>
+        <button class="btn-secondary w-full text-xs min-h-9" @click="valueModal = null">{{ tI18n('common.close', '닫기') }}</button>
       </div>
     </div>
     </Teleport>
@@ -670,30 +673,30 @@ const rankLine = computed(() => {
         <div class="px-4 py-3 bg-cyan-950/40 border-b border-cyan-500/30 flex items-center gap-3">
           <img
             :src="skillIconUrl(skillKey)"
-            :alt="skill.name"
+            :alt="tdI18n('skill', skill.key) || skill.name"
             class="w-10 h-10 object-contain drop-shadow"
             @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
           />
           <div class="flex-1 min-w-0">
-            <div class="text-base font-bold text-cyan-200 truncate">{{ skill.name }}</div>
+            <div class="text-base font-bold text-cyan-200 truncate">{{ tdI18n('skill', skill.key) || skill.name }}</div>
             <div class="text-xs flex items-center gap-1.5 flex-wrap">
-              <span :class="skillKindColor[skill.kind]">{{ skillKindLabel[skill.kind] }}</span>
-              <span v-if="skill.element">· {{ skill.element }}</span>
+              <span :class="skillKindColor[skill.kind]">{{ skillKindLabel[skill.kind]?.() }}</span>
+              <span v-if="skill.element">· {{ tdI18n('element', skill.element) }}</span>
             </div>
           </div>
           <button
             type="button"
             class="w-7 h-7 flex items-center justify-center rounded text-base hover:bg-slate-700"
             @click="closeSkillModal"
-            aria-label="닫기"
+            :aria-label="tI18n('common.close', '닫기')"
           >✕</button>
         </div>
         <!-- 본문 -->
         <div class="px-4 py-3 pb-4 space-y-2 text-sm">
-          <p class="leading-relaxed">{{ skill.description }}</p>
+          <p class="leading-relaxed">{{ tdI18n('skill.desc', skill.key) || skill.description }}</p>
           <div class="flex items-center justify-between pt-2 border-t border-slate-700/60 text-xs">
-            <span class="text-stat-mp">소모 MP <span class="font-bold">{{ skill.mp }}</span></span>
-            <span v-if="skillProcPct !== null" class="text-stat-util">발동률 <span class="font-bold">{{ skillProcPct }}%</span></span>
+            <span class="text-stat-mp">{{ tI18n('combat.mpCost', '소모 MP') }} <span class="font-bold">{{ skill.mp }}</span></span>
+            <span v-if="skillProcPct !== null" class="text-stat-util">{{ tI18n('combat.procRate', '발동률') }} <span class="font-bold">{{ skillProcPct }}%</span></span>
           </div>
         </div>
       </div>
@@ -711,14 +714,14 @@ const rankLine = computed(() => {
         <!-- 헤더 -->
         <div class="px-4 py-3 bg-cyan-950/40 border-b border-cyan-500/30 flex items-center gap-3">
           <div class="flex-1 min-w-0">
-            <div class="text-base font-bold text-cyan-200 truncate">{{ infoModal.title }}</div>
-            <div v-if="infoModal.subtitle" class="text-xs text-cyan-300/70 truncate">{{ infoModal.subtitle }}</div>
+            <div class="text-base font-bold text-cyan-200 truncate">{{ tLabelI18n(infoModal.title) }}</div>
+            <div v-if="infoModal.subtitle" class="text-xs text-cyan-300/70 truncate">{{ tLabelI18n(infoModal.subtitle) }}</div>
           </div>
           <button
             type="button"
             class="w-7 h-7 flex items-center justify-center rounded text-base hover:bg-slate-700"
             @click="closeInfoModal"
-            aria-label="닫기"
+            :aria-label="tI18n('common.close', '닫기')"
           >✕</button>
         </div>
         <!-- 본문 -->
@@ -729,10 +732,10 @@ const rankLine = computed(() => {
             class="bg-bg-tertiary/60 rounded px-2.5 py-1.5"
           >
             <div class="flex items-baseline justify-between gap-2">
-              <span class="text-gray-200 font-bold">{{ ln.label }}</span>
+              <span class="text-gray-200 font-bold">{{ tLabelI18n(ln.label) }}</span>
               <span v-if="ln.value" class="text-log-skill font-mono font-bold">{{ ln.value }}</span>
             </div>
-            <div v-if="ln.note" class="text-xs text-gray-400 mt-0.5">{{ ln.note }}</div>
+            <div v-if="ln.note" class="text-xs text-gray-400 mt-0.5">{{ tLabelI18n(ln.note) }}</div>
           </div>
         </div>
       </div>

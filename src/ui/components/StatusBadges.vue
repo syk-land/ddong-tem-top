@@ -2,6 +2,9 @@
 import type { StatusInstance } from '@/types'
 import { statusBgClass } from '@/ui/colors'
 import { statusIconUrl } from '@/ui/images'
+import { useI18n } from '@/lib/i18n'
+
+const { td } = useI18n()
 
 defineProps<{
   statuses: StatusInstance[]
@@ -18,10 +21,10 @@ defineProps<{
       <img
         v-if="statusIconUrl(s.kind)"
         :src="statusIconUrl(s.kind)!"
-        :alt="s.kind"
+        :alt="td('status', s.kind)"
         class="w-3.5 h-3.5 object-contain"
       />
-      <span>{{ s.kind }}</span>
+      <span>{{ td('status', s.kind) }}</span>
       <span class="opacity-80">×{{ s.stacks }}</span>
       <span class="opacity-60 text-xs">{{ s.duration }}t</span>
     </span>

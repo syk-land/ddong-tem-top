@@ -11,9 +11,11 @@ import {
 } from '@/ui/sound'
 import { showRewardedAd } from '@/lib/ads'
 import { IS_DEV_SERVER } from '@/lib/platform'
+import { useI18n } from '@/lib/i18n'
 
 const game = useGameStore()
 const auth = useAuthStore()
+const { t } = useI18n()
 
 // 튜토리얼 게이팅 — 본 단계에 따라 표시 가능한 속도/옵션이 다름.
 //   first_shop 전: 1배속만
@@ -89,19 +91,22 @@ async function setSpeed(s: number) {
   }
   // 4배속 — 등반 1회당 광고 1번 시청 → 그 런 끝까지 자유 토글
   if (s === 4 && game.combatSpeed !== 4 && !game.run?.adFastSpeedUnlocked) {
-    const ok = await game.confirmModal('광고를 보고 이번 등반 동안 4배속을 사용하시겠습니까?', {
-      title: '광고 시청 (등반 1회 1번)',
-      okLabel: '예 (광고 보기)',
-      cancelLabel: '아니오',
-    })
+    const ok = await game.confirmModal(
+      t('speed.adFastBody', '광고를 보고 이번 등반 동안 4배속을 사용하시겠습니까?'),
+      {
+        title: t('speed.adTitle', '광고 시청 (등반 1회 1번)'),
+        okLabel: t('speed.adYes', '예 (광고 보기)'),
+        cancelLabel: t('common.no', '아니오'),
+      },
+    )
     if (!ok) return
     const watched = await showRewardedAd('fastSpeed')
-    // 광고 흐름 직후 — 결과와 무관하게 설정 패널을 무조건 최소화한다.
-    // (광고 후 화면 복귀 시 설정창이 활짝 펼쳐져 있으면 게임 화면을 가려서
-    //  몰입이 깨짐.)
     collapse()
     if (!watched) {
-      await game.alertModal('광고 시청이 완료되지 않았습니다.', '활성화 실패')
+      await game.alertModal(
+        t('speed.adNotWatchedBody', '광고 시청이 완료되지 않았습니다.'),
+        t('speed.adNotWatchedTitle', '활성화 실패'),
+      )
       return
     }
     game.unlockAdFastSpeed()
@@ -112,19 +117,23 @@ async function setSpeed(s: number) {
 async function toggleAutoEnter() {
   sfx.click()
   bumpActivity()
-  // 자동진입 — 등반 1회당 광고 1번 시청 → 그 런 끝까지 자유 토글
   if (!game.autoEnter && !game.run?.adAutoEnterUnlocked) {
-    const ok = await game.confirmModal('광고를 보고 이번 등반 동안 자동 진입을 사용하시겠습니까?', {
-      title: '광고 시청 (등반 1회 1번)',
-      okLabel: '예 (광고 보기)',
-      cancelLabel: '아니오',
-    })
+    const ok = await game.confirmModal(
+      t('speed.adAutoBody', '광고를 보고 이번 등반 동안 자동 진입을 사용하시겠습니까?'),
+      {
+        title: t('speed.adTitle', '광고 시청 (등반 1회 1번)'),
+        okLabel: t('speed.adYes', '예 (광고 보기)'),
+        cancelLabel: t('common.no', '아니오'),
+      },
+    )
     if (!ok) return
     const watched = await showRewardedAd('autoEnter')
-    // 광고 흐름 직후 — 결과와 무관하게 설정 패널 강제 최소화 (위 setSpeed 와 동일 이유).
     collapse()
     if (!watched) {
-      await game.alertModal('광고 시청이 완료되지 않았습니다.', '활성화 실패')
+      await game.alertModal(
+        t('speed.adNotWatchedBody', '광고 시청이 완료되지 않았습니다.'),
+        t('speed.adNotWatchedTitle', '활성화 실패'),
+      )
       return
     }
     game.unlockAdAutoEnter()
@@ -141,14 +150,14 @@ function onCustomSpeed(e: Event) {
   bumpActivity()
 }
 
-// 게임 종료 — 웹 전용. window.close() 시도.
-// 브라우저 정책상 사용자가 직접 연 탭만 닫힘. (Capacitor 네이티브 분기 제거됨.)
+// 게임 종료 — 브라우저 window.close() 시도.
+// 브라우저 정책상 사용자가 직접 연 탭만 닫힙니다.
 async function quitGame() {
   bumpActivity()
-  const ok = await game.confirmModal('게임을 종료하시겠습니까?', {
-    title: '종료',
-    okLabel: '예',
-    cancelLabel: '아니오',
+  const ok = await game.confirmModal(t('settings.quit.body', '게임을 종료하시겠습니까?'), {
+    title: t('settings.quit.title', '종료'),
+    okLabel: t('common.yes', '예'),
+    cancelLabel: t('common.no', '아니오'),
     danger: true,
   })
   if (!ok) return
@@ -316,17 +325,17 @@ watch(
       <button
         type="button"
         class="flex items-center gap-1 pl-2 pr-1.5 py-1 hover:bg-slate-800/60"
-        title="설정 패널 펼치기"
+        :title="t('speed.expandTooltip', '설정 패널 펼치기')"
         @click="expand"
       >
         <span class="text-sm leading-none">⚙</span>
         <span class="font-mono text-gray-300">{{ game.combatSpeed }}x</span>
-        <span v-if="game.autoEnter" class="text-log-reward font-bold">자</span>
+        <span v-if="game.autoEnter" class="text-log-reward font-bold">{{ t('speed.autoChip', '자') }}</span>
       </button>
       <button
         type="button"
         class="px-1.5 py-1 hover:bg-slate-800/60 border-l border-slate-600/40 min-w-7 flex items-center justify-center"
-        :title="(sfxOn || bgmOn) ? '전체 사운드 끄기' : '전체 사운드 켜기'"
+        :title="(sfxOn || bgmOn) ? t('speed.soundOffTooltip', '전체 사운드 끄기') : t('speed.soundOnTooltip', '전체 사운드 켜기')"
         @click="toggleAllSound"
       >
         <span class="text-xs leading-none">{{ summaryIcon }}</span>
@@ -339,12 +348,12 @@ watch(
       <div class="flex flex-wrap items-center gap-1 px-2 py-1">
         <button
           class="w-5 h-5 flex items-center justify-center rounded text-sm hover:bg-slate-700"
-          title="설정 패널 접기"
+          :title="t('speed.collapseTooltip', '설정 패널 접기')"
           @click="collapse"
         >
           ×
         </button>
-        <span class="text-xs text-gray-300">속도</span>
+        <span class="text-xs text-gray-300">{{ t('speed.label', '속도') }}</span>
         <button
           v-for="s in speeds"
           :key="s"
@@ -362,10 +371,10 @@ watch(
           :class="game.autoEnter
             ? 'bg-log-reward text-black font-bold ring-2 ring-amber-200 shadow-[0_0_8px_rgba(251,191,36,0.7)]'
             : 'bg-slate-800/70 text-gray-200 hover:bg-slate-700'"
-          :title="game.autoEnter ? '자동 진입 ON (몬스터/보스/치유샘)' : '자동 진입 OFF'"
+          :title="game.autoEnter ? t('speed.autoOn', '자동 진입 ON (몬스터/보스/치유샘)') : t('speed.autoOff', '자동 진입 OFF')"
           @click="toggleAutoEnter"
         >
-          {{ game.autoEnter ? '자동 ✓' : '자동' }}
+          {{ game.autoEnter ? t('speed.autoChecked', '자동 ✓') : t('speed.autoBtn', '자동') }}
         </button>
         <span class="text-sm ml-1">{{ summaryIcon }}</span>
       </div>
@@ -373,49 +382,49 @@ watch(
       <!-- 사운드 슬라이더 + 책 버튼 -->
       <div class="border-t border-slate-700/50 px-2 py-1.5 space-y-1">
         <div class="flex items-center gap-1.5 text-xs">
-          <span class="w-10 shrink-0 text-gray-300">효과음</span>
+          <span class="w-10 shrink-0 text-gray-300">{{ t('speed.sfx', '효과음') }}</span>
           <input
             type="range" min="0" max="1" step="0.01"
             :value="sfxVol" @input="onSfxVolChange"
             class="w-20 accent-log-skill"
           />
           <span class="w-6 shrink-0 text-right text-gray-400 tabular-nums">{{ Math.round(sfxVol * 100) }}</span>
-          <label class="flex items-center gap-1 cursor-pointer ml-1" title="음소거">
+          <label class="flex items-center gap-1 cursor-pointer ml-1" :title="t('speed.muteTooltip', '음소거')">
             <input type="checkbox" :checked="!sfxOn" @change="onSfxMuteToggle" class="w-3 h-3 accent-red-500" />
-            <span class="text-gray-400">끄기</span>
+            <span class="text-gray-400">{{ t('speed.muteLabel', '끄기') }}</span>
           </label>
         </div>
 
         <div class="flex items-center gap-1.5 text-xs">
-          <span class="w-10 shrink-0 text-gray-300">배경음</span>
+          <span class="w-10 shrink-0 text-gray-300">{{ t('speed.bgm', '배경음') }}</span>
           <input
             type="range" min="0" max="1" step="0.01"
             :value="bgmVol" @input="onBgmVolChange"
             class="w-20 accent-log-skill"
           />
           <span class="w-6 shrink-0 text-right text-gray-400 tabular-nums">{{ Math.round(bgmVol * 100) }}</span>
-          <label class="flex items-center gap-1 cursor-pointer ml-1" title="음소거">
+          <label class="flex items-center gap-1 cursor-pointer ml-1" :title="t('speed.muteTooltip', '음소거')">
             <input type="checkbox" :checked="!bgmOn" @change="onBgmMuteToggle" class="w-3 h-3 accent-red-500" />
-            <span class="text-gray-400">끄기</span>
+            <span class="text-gray-400">{{ t('speed.muteLabel', '끄기') }}</span>
           </label>
         </div>
 
         <div class="flex items-center justify-center gap-2 pt-0.5">
           <button
             class="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-gray-300 hover:bg-slate-700"
-            title="인트로 만화 다시 보기"
+            :title="t('speed.introTooltip', '인트로 만화 다시 보기')"
             @click="openIntro"
           >
             <span class="text-sm leading-none">📖</span>
-            <span>인트로 만화</span>
+            <span>{{ t('speed.introBtn', '인트로 만화') }}</span>
           </button>
           <button
             class="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-rose-300 hover:bg-rose-900/40 border border-rose-500/30"
-            title="게임 종료"
+            :title="t('settings.quit.title', '게임 종료')"
             @click="quitGame"
           >
             <span class="text-sm leading-none">⏻</span>
-            <span>게임 종료</span>
+            <span>{{ t('settings.quit.button', '게임 종료') }}</span>
           </button>
         </div>
 

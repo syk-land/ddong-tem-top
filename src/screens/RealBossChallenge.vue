@@ -4,8 +4,11 @@ import { useGameStore } from '@/stores/game'
 import { realBossImageUrl, defaultBgUrl, playerImageUrl, allUserAvatarKeys, isValidAvatarKey } from '@/ui/images'
 import HpMpBar from '@/ui/components/HpMpBar.vue'
 import ItemName from '@/ui/components/ItemName.vue'
+import { useI18n } from '@/lib/i18n'
 
 const game = useGameStore()
+const { t, td } = useI18n()
+const bossName = computed(() => td('monster', game.realBossMonster?.template?.name ?? ''))
 const bgUrl = defaultBgUrl()
 
 const theme = computed(() => game.realBossTheme)
@@ -36,16 +39,16 @@ function start() {
     <div class="rounded-lg border border-rose-500/50 bg-bg-secondary/60 backdrop-blur-sm shadow-[0_0_18px_rgba(244,63,94,0.20)_inset] overflow-hidden">
       <img
         :src="realBossImageUrl(theme)"
-        :alt="boss.template.name"
+        :alt="bossName"
         class="block w-full h-auto"
         @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
       />
       <div class="px-3 py-2 text-center border-t border-rose-500/30 bg-rose-950/20">
         <div class="text-xl sm:text-2xl text-rose-200 font-bold tracking-wide">
-          {{ boss.template.name }}
+          {{ bossName }}
         </div>
         <div v-if="bestDrainPct > 0" class="mt-1 text-xs text-rose-300/80">
-          이 보스 베스트 깎은 비율 <span class="font-bold text-rose-200">{{ bestDrainPct }}%</span>
+          {{ t('realboss.bestDrainLabel', '이 보스 베스트 깎은 비율') }} <span class="font-bold text-rose-200">{{ bestDrainPct }}%</span>
         </div>
       </div>
     </div>
@@ -93,7 +96,7 @@ function start() {
 
     <!-- ③ 도전하기 (하단 sticky) -->
     <div class="w-full mt-auto sticky bottom-0 pt-2 pb-1 bg-gradient-to-t from-bg-primary/95 to-bg-primary/0">
-      <button class="btn-primary w-full min-h-12 font-bold tracking-wide" @click="start">도전하기</button>
+      <button class="btn-primary w-full min-h-12 font-bold tracking-wide" @click="start">{{ t('realboss.challengeBtn', '도전하기') }}</button>
     </div>
   </section>
 </template>

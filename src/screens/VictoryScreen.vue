@@ -3,9 +3,11 @@ import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { rankColorClass } from '@/ui/colors'
 import { rankIconUrl, defaultBgUrl } from '@/ui/images'
+import { useI18n } from '@/lib/i18n'
 
 const bgUrl = defaultBgUrl()
 const game = useGameStore()
+const { t } = useI18n()
 const pending = computed(() => game.pendingClear)
 
 function confirm() {
@@ -23,9 +25,9 @@ function confirm() {
     <div
       class="w-full rounded-xl border-2 border-amber-400/70 bg-bg-secondary/95 shadow-[0_0_40px_rgba(251,191,36,0.45)] p-6 space-y-4 text-center animate-fadein"
     >
-      <!-- 헤더 — 크게 한글만 (GameOver 와 동일 패턴) -->
-      <div class="text-amber-300 text-5xl font-bold tracking-widest leading-tight">탑 클리어</div>
-      <div class="text-sm text-gray-300 -mt-1">최종 클리어 등급</div>
+      <!-- 헤더 -->
+      <div class="text-amber-300 text-5xl font-bold tracking-widest leading-tight">{{ t('victory.title', '탑 클리어') }}</div>
+      <div class="text-sm text-gray-300 -mt-1">{{ t('victory.subtitle', '최종 클리어 등급') }}</div>
 
       <!-- 랭크 카드 -->
       <div class="rounded-lg border-2 border-amber-400/40 bg-amber-950/20 px-3 py-3 space-y-1">
@@ -36,20 +38,20 @@ function confirm() {
           class="mx-auto h-24 w-auto drop-shadow-[0_0_12px_rgba(251,191,36,0.5)]"
         />
         <div :class="[rankColorClass[pending.rank], 'text-6xl font-bold tracking-wider leading-none']">{{ pending.rank }}</div>
-        <div class="text-xs text-gray-400">점수 <span class="text-gray-200 font-mono font-bold">{{ pending.score }} / 32</span></div>
+        <div class="text-xs text-gray-400">{{ t('victory.score', '점수') }} <span class="text-gray-200 font-mono font-bold">{{ pending.score }} / 32</span></div>
       </div>
 
-      <!-- 보너스 카드 — log-reward 액센트 -->
+      <!-- 보너스 카드 -->
       <div class="rounded-lg border-2 border-log-reward/40 bg-log-reward/5 px-3 py-2.5 shadow-[0_0_18px_rgba(74,222,128,0.18)]">
-        <div class="text-xs text-log-reward/80 font-bold">보너스 스탯 획득</div>
+        <div class="text-xs text-log-reward/80 font-bold">{{ t('victory.bonusEarned', '보너스 스탯 획득') }}</div>
         <div class="text-log-reward text-3xl font-bold tracking-wide font-mono mt-1">+{{ pending.bonus }}<span class="text-base ml-1">pt</span></div>
         <div class="text-xs text-gray-400 mt-1">
-          누적 예정 <span class="font-mono font-bold">{{ game.meta.totalBonusStats + pending.bonus }}pt</span>
-          <span class="text-gray-500"> · 분배는 다음 캐릭터 생성에서</span>
+          {{ t('victory.cumulative', '누적 예정') }} <span class="font-mono font-bold">{{ game.meta.totalBonusStats + pending.bonus }}pt</span>
+          <span class="text-gray-500">{{ t('victory.allocateNext', ' · 분배는 다음 캐릭터 생성에서') }}</span>
         </div>
       </div>
 
-      <button class="btn-primary w-full min-h-12 text-base font-bold" @click="confirm">확정 → 메인 메뉴</button>
+      <button class="btn-primary w-full min-h-12 text-base font-bold" @click="confirm">{{ t('victory.confirmToMenu', '확정 → 메인 메뉴') }}</button>
 
       <div v-if="pending.finalGold !== undefined" class="text-xs text-stat-luck font-mono font-bold tabular-nums">
         ⬢ {{ pending.finalGold.toLocaleString() }}G

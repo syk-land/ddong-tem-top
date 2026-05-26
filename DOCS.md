@@ -91,7 +91,7 @@
 ## 1. 게임 개요
 
 **장르**: 텍스트 + 일러스트 기반 자동 전투 로그라이크 RPG.
-**플랫폼**: PC 브라우저 (Vue 3 + Vite), Android (Capacitor 6).
+**플랫폼**: 브라우저 (Vue 3 + Vite). Firebase Hosting / GameMonetize 두 트랙 동일 빌드.
 **런 단위**: 1회 100층(=10챕터×10층). 영구사망. 사망 시 메타 누적 보너스만 영구 보존.
 
 ### 컨셉
@@ -576,7 +576,8 @@ DialogModal · InputModal · ListModal · PickupModal · InventoryModal · ItemD
 | 시뮬레이터 | `src/core/__sim__/runChapter.ts` |
 | Firebase Auth | `src/lib/firebase.ts` + `src/lib/auth.ts` |
 | 클라우드 동기화 | `src/lib/cloudSync.ts` |
-| AdMob | `src/lib/ads.ts` |
+| GameMonetize 광고 SDK | `src/lib/ads.ts` |
+| i18n (한/영) | `src/lib/i18n.ts` + `src/i18n/en.ts` |
 
 ## 부록 B. 데이터 정의 파일
 

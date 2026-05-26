@@ -17,10 +17,12 @@ import HpMpBar from '@/ui/components/HpMpBar.vue'
 import type { TowerRun } from '@/types'
 import { REAL_BOSS_ORDER } from '@/core/realboss'
 import { CHAPTER_THEMES } from '@/data/chapters'
+import { useI18n } from '@/lib/i18n'
 
 const game = useGameStore()
 const auth = useAuthStore()
 const bgUrl = mainImageUrl()
+const { t, td } = useI18n()
 
 // 가장 최근에 처치한 진짜 보스 이름 — 미클리어 시 '???'.
 //   클리어 순서는 REAL_BOSS_ORDER[i], 표시는 hardBoss 이름(없으면 boss).
@@ -29,7 +31,8 @@ const latestRealBossName = computed<string>(() => {
   if (n <= 0) return '???'
   const theme = REAL_BOSS_ORDER[(n - 1) % REAL_BOSS_ORDER.length]
   const def = CHAPTER_THEMES[theme]
-  return def?.hardBoss?.name ?? def?.boss?.name ?? '???'
+  const raw = def?.hardBoss?.name ?? def?.boss?.name ?? '???'
+  return td('monster', raw)
 })
 
 // 도감 12칸 — 각 슬롯의 자산/잠금 규칙은 여기서 통째로 관리.
@@ -56,7 +59,7 @@ const codexSlots = computed<CodexSlot[]>(() => {
   if (n >= 1) introImages.push(`${TUTORIAL_BASE}/3.webp`)
   slots.push({
     unlocked: true,
-    label: '시작',
+    label: t('menu.codex.start', '시작'),
     thumb: `${TUTORIAL_BASE}/1.webp`,
     images: introImages,
   })
@@ -65,7 +68,8 @@ const codexSlots = computed<CodexSlot[]>(() => {
     const bossNo = i + 1
     const theme = REAL_BOSS_ORDER[i]
     const def = CHAPTER_THEMES[theme]
-    const name = def?.hardBoss?.name ?? def?.boss?.name ?? '???'
+    const rawName = def?.hardBoss?.name ?? def?.boss?.name ?? '???'
+    const name = td('monster', rawName)
     const unlocked = n >= bossNo
     slots.push({
       unlocked,
@@ -122,20 +126,33 @@ async function loginGoogle() {
     const name = inAppBrowserName(kind)
     if (canOpenExternal(kind)) {
       const ok = await game.confirmModal(
-        `${name} 인앱 브라우저에서는 Google 로그인이 지원되지 않습니다.\n외부 브라우저(Chrome/Safari)로 열어주세요.`,
-        { title: '외부 브라우저 필요', okLabel: '외부 브라우저로 열기', cancelLabel: '취소' },
+        t('menu.inApp.bodyOpenExt', `${name} 인앱 브라우저에서는 Google 로그인이 지원되지 않습니다.\n외부 브라우저(Chrome/Safari)로 열어주세요.`, { name }),
+        {
+          title: t('menu.inApp.confirmTitle', '외부 브라우저 필요'),
+          okLabel: t('menu.inApp.confirmOpenExt', '외부 브라우저로 열기'),
+          cancelLabel: t('common.cancel', '취소'),
+        },
       )
       if (ok) openInExternalBrowser(kind)
     } else {
       const ok = await game.confirmModal(
-        `${name} 인앱 브라우저에서는 Google 로그인이 지원되지 않습니다.\nURL 을 복사해 Chrome/Safari 같은 외부 브라우저에서 붙여넣어 열어주세요.`,
-        { title: '외부 브라우저 필요', okLabel: 'URL 복사', cancelLabel: '취소' },
+        t('menu.inApp.bodyCopy', `${name} 인앱 브라우저에서는 Google 로그인이 지원되지 않습니다.\nURL 을 복사해 Chrome/Safari 같은 외부 브라우저에서 붙여넣어 열어주세요.`, { name }),
+        {
+          title: t('menu.inApp.confirmTitle', '외부 브라우저 필요'),
+          okLabel: t('menu.inApp.confirmCopy', 'URL 복사'),
+          cancelLabel: t('common.cancel', '취소'),
+        },
       )
       if (ok) {
         const copied = await copyUrlToClipboard()
         await game.confirmModal(
-          copied ? 'URL 이 복사됐어요. 외부 브라우저에 붙여넣어 열어주세요.' : `URL 복사에 실패했어요. 주소창에서 직접 복사해 주세요:\n${window.location.href}`,
-          { title: copied ? '복사 완료' : 'URL', okLabel: '확인' },
+          copied
+            ? t('menu.inApp.copied', 'URL 이 복사됐어요. 외부 브라우저에 붙여넣어 열어주세요.')
+            : t('menu.inApp.copyFail', `URL 복사에 실패했어요. 주소창에서 직접 복사해 주세요:\n${window.location.href}`, { url: window.location.href }),
+          {
+            title: copied ? t('menu.inApp.copiedTitle', '복사 완료') : 'URL',
+            okLabel: t('common.ok', '확인'),
+          },
         )
       }
     }
@@ -144,7 +161,13 @@ async function loginGoogle() {
   try {
     await auth.login()
   } catch (e: any) {
-    await game.confirmModal(`로그인 실패: ${e?.message ?? e}`, { title: '구글 로그인', okLabel: '확인' })
+    await game.confirmModal(
+      t('menu.login.failBody', `로그인 실패: ${e?.message ?? e}`, { msg: String(e?.message ?? e) }),
+      {
+        title: t('menu.login.failTitle', '구글 로그인'),
+        okLabel: t('common.ok', '확인'),
+      },
+    )
   }
 }
 async function logoutGoogle() {
@@ -173,11 +196,11 @@ function loadGameClick() {
 }
 async function resetMeta() {
   const ok = await game.confirmModal(
-    '정말 모든 누적 보너스와 진행을 리셋할까요?\n사운드·속도·자동진입 등 설정도 모두 초기화됩니다.\n로그인 상태라면 클라우드 데이터(누적 보너스·리더보드)도 함께 삭제됩니다.',
+    t('menu.dataReset.body', '정말 모든 누적 보너스와 진행을 리셋할까요?\n사운드·속도·자동진입 등 설정도 모두 초기화됩니다.\n로그인 상태라면 클라우드 데이터(누적 보너스·리더보드)도 함께 삭제됩니다.'),
     {
-      title: '데이터 리셋',
+      title: t('menu.dataReset.title', '데이터 리셋'),
       danger: true,
-      okLabel: '리셋',
+      okLabel: t('menu.dataReset.ok', '리셋'),
     },
   )
   if (!ok) return
@@ -213,21 +236,21 @@ async function resetMeta() {
       <div class="flex items-stretch gap-2">
         <div class="flex-1 grid grid-cols-3 gap-2">
           <div class="rounded-lg border border-amber-400/40 bg-amber-950/30 backdrop-blur-sm px-2 py-2">
-            <div class="text-xs text-amber-300 font-bold">🏆 클리어</div>
-            <div class="text-lg font-mono font-bold text-log-reward tabular-nums leading-tight">{{ game.meta.clearCount }}<span class="text-xs text-gray-400 ml-1">회</span></div>
+            <div class="text-xs text-amber-300 font-bold">{{ t('menu.stat.clears', '🏆 클리어') }}</div>
+            <div class="text-lg font-mono font-bold text-log-reward tabular-nums leading-tight">{{ game.meta.clearCount }}<span class="text-xs text-gray-400 ml-1">{{ t('menu.stat.unitTimes', '회') }}</span></div>
           </div>
           <div class="rounded-lg border border-emerald-400/40 bg-emerald-950/30 backdrop-blur-sm px-2 py-2">
-            <div class="text-xs text-emerald-300 font-bold">⛰ 등반</div>
-            <div class="text-lg font-mono font-bold text-emerald-200 tabular-nums leading-tight">{{ game.meta.climbCount ?? 0 }}<span class="text-xs text-gray-400 ml-1">회</span></div>
+            <div class="text-xs text-emerald-300 font-bold">{{ t('menu.stat.climbs', '⛰ 등반') }}</div>
+            <div class="text-lg font-mono font-bold text-emerald-200 tabular-nums leading-tight">{{ game.meta.climbCount ?? 0 }}<span class="text-xs text-gray-400 ml-1">{{ t('menu.stat.unitTimes', '회') }}</span></div>
           </div>
           <div class="rounded-lg border border-cyan-400/40 bg-cyan-950/30 backdrop-blur-sm px-2 py-2">
-            <div class="text-xs text-cyan-300 font-bold">💀 찐보스</div>
+            <div class="text-xs text-cyan-300 font-bold">{{ t('menu.stat.realBoss', '💀 찐보스') }}</div>
             <div class="text-sm font-bold text-log-skill leading-tight truncate" :title="latestRealBossName">{{ latestRealBossName }}</div>
           </div>
         </div>
         <button
           class="shrink-0 w-12 rounded-lg border border-slate-600/60 bg-bg-secondary/70 hover:bg-bg-hover backdrop-blur-sm flex items-center justify-center transition active:scale-95"
-          title="설정"
+          :title="t('menu.settings.tooltip', '설정')"
           @click="game.setScreen('settings')"
         >
           <span class="text-xl leading-none">⚙</span>
@@ -237,11 +260,11 @@ async function resetMeta() {
       <!-- ── 헤더 (제목) ── -->
       <div class="rounded-xl border-2 border-amber-400/30 bg-bg-secondary/80 backdrop-blur-sm p-4 space-y-1 text-center shadow-[0_0_24px_rgba(251,191,36,0.15)]">
         <h1 class="text-2xl font-bold leading-tight">
-          <span class="text-trait-special">이번 판은</span>
-          <span class="text-grade-legend"> 똥템</span>
-          <span class="text-trait-special">으로</span>
+          <span class="text-trait-special">{{ t('menu.title.line1a', '이번 판은') }}</span>
+          <span class="text-grade-legend">{{ t('menu.title.line1b', ' 똥템') }}</span>
+          <span class="text-trait-special">{{ t('menu.title.line1c', '으로') }}</span>
           <br />
-          <span class="text-log-reward">탑을 오르겠습니다</span>
+          <span class="text-log-reward">{{ t('menu.title.line2', '탑을 오르겠습니다') }}</span>
         </h1>
       </div>
 
@@ -285,7 +308,7 @@ async function resetMeta() {
         <div class="relative w-full max-w-md" @click.stop>
           <button
             class="absolute -top-10 right-0 text-white/80 hover:text-white text-3xl leading-none px-2"
-            aria-label="닫기"
+            :aria-label="t('menu.codex.close', '닫기')"
             @click="closeCodex"
           >✕</button>
           <div class="text-center mb-2 text-amber-300 font-bold text-sm">{{ codexModalLabel }}</div>
@@ -298,13 +321,13 @@ async function resetMeta() {
             <button
               v-if="codexModalIndex > 0"
               class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/85 text-white text-3xl rounded-full w-12 h-12 flex items-center justify-center leading-none"
-              aria-label="이전"
+              :aria-label="t('menu.codex.prev', '이전')"
               @click="prevCodex"
             >‹</button>
             <button
               v-if="codexModalIndex < codexModalImages.length - 1"
               class="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/85 text-white text-3xl rounded-full w-12 h-12 flex items-center justify-center leading-none"
-              aria-label="다음"
+              :aria-label="t('menu.codex.next', '다음')"
               @click="nextCodex"
             >›</button>
           </div>
@@ -332,12 +355,12 @@ async function resetMeta() {
           />
           <div class="flex-1 min-w-0">
             <div class="flex items-baseline gap-2 mb-1">
-              <span class="text-xs font-bold text-emerald-300">▶ 이어하기</span>
-              <span class="text-xs text-gray-400 truncate">{{ savedAvatarKey ? game.characterName(savedAvatarKey) : '모험가' }}</span>
+              <span class="text-xs font-bold text-emerald-300">{{ t('menu.continue.label', '▶ 이어하기') }}</span>
+              <span class="text-xs text-gray-400 truncate">{{ savedAvatarKey ? game.characterName(savedAvatarKey) : t('menu.continue.adventurer', '모험가') }}</span>
             </div>
             <div :class="['text-sm font-bold truncate', themeColorClass[savedChapter.theme]]">
-              제 {{ savedChapter.chapter }}챕터 · {{ savedChapter.themeName }}
-              <span class="text-gray-400 font-normal">· <span class="font-mono tabular-nums">{{ savedChapter.currentFloor + 1 }}</span>층</span>
+              {{ t('menu.continue.chapterFmt', `제 ${savedChapter.chapter}챕터 · ${td('chapter', savedChapter.theme)}`, { chapter: savedChapter.chapter, theme: td('chapter', savedChapter.theme) }) }}
+              <span class="text-gray-400 font-normal">{{ t('menu.continue.floorFmt', `· ${savedChapter.currentFloor + 1}층`, { floor: savedChapter.currentFloor + 1 }) }}</span>
             </div>
             <div class="mt-1.5 space-y-1">
               <HpMpBar :current="savedRun.character.hp" :max="savedRun.character.maxHp" kind="hp" />
@@ -350,10 +373,10 @@ async function resetMeta() {
       <!-- ── 새 캐릭터 시작 ── -->
       <button
         data-tutorial-target="new-character-btn"
-        data-tutorial-cta-label="새 캐릭터 시작"
+        :data-tutorial-cta-label="t('menu.newChar', '새 캐릭터 시작')"
         class="btn-primary w-full min-h-12 text-base font-bold"
         @click="startNew"
-      >새 캐릭터 시작 <span class="opacity-80 text-sm font-normal ml-1">(3챌린지 선택)</span></button>
+      >{{ t('menu.newChar', '새 캐릭터 시작') }} <span class="opacity-80 text-sm font-normal ml-1">{{ t('menu.newChar.sub', '(3챌린지 선택)') }}</span></button>
 
       <!-- ── Google 로그인 / 로그아웃 ── -->
       <div
@@ -367,14 +390,14 @@ async function resetMeta() {
           class="w-10 h-10 rounded-full border-2 border-slate-300"
         />
         <div class="flex-1 min-w-0">
-          <div class="text-xs text-gray-500 font-bold">☁ 클라우드 저장 활성</div>
-          <div class="text-sm font-bold text-gray-900 truncate">{{ auth.displayName ?? '로그인됨' }}</div>
+          <div class="text-xs text-gray-500 font-bold">{{ t('menu.cloud.active', '☁ 클라우드 저장 활성') }}</div>
+          <div class="text-sm font-bold text-gray-900 truncate">{{ auth.displayName ?? t('menu.cloud.signedIn', '로그인됨') }}</div>
         </div>
         <button
           class="text-xs px-3 min-h-9 rounded-md bg-slate-200 text-gray-700 hover:bg-slate-300 font-bold border border-slate-300"
           :disabled="auth.loading"
           @click="logoutGoogle"
-        >로그아웃</button>
+        >{{ t('menu.cloud.logout', '로그아웃') }}</button>
       </div>
       <button
         v-else
@@ -389,16 +412,16 @@ async function resetMeta() {
           <path fill="#4CAF50" d="M24 44c5.3 0 10-2 13.5-5.4l-6.3-5.3C29.3 35 26.8 36 24 36c-5.3 0-9.7-3.3-11.3-8l-6.5 5C9.5 39.5 16.2 44 24 44z"/>
           <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.6l6.3 5.3c4.5-4.1 7.1-10.2 7.1-17 0-1.3-.1-2.4-.4-3.5z"/>
         </svg>
-        <span>{{ auth.loading ? '로그인 중...' : 'Google 로 로그인' }}</span>
-        <span v-if="!auth.loading" class="text-xs text-gray-500 font-normal">· 클라우드 저장</span>
+        <span>{{ auth.loading ? t('menu.cloud.signingIn', '로그인 중...') : t('menu.cloud.googleLogin', 'Google 로 로그인') }}</span>
+        <span v-if="!auth.loading" class="text-xs text-gray-500 font-normal">{{ t('menu.cloud.tagline', '· 클라우드 저장') }}</span>
       </button>
       <!-- 인앱 브라우저 (카카오톡/네이버/페북 등) 안내 — Google OAuth 가 막히므로 미리 알려준다. -->
       <p
         v-if="!auth.isLoggedIn && inAppBrowser"
         class="text-[11px] text-amber-300/90 bg-amber-950/40 border border-amber-500/40 rounded-md px-2.5 py-1.5 leading-snug"
       >
-        ⚠ {{ inAppBrowserName(inAppBrowser) }} 인앱 브라우저에서는 Google 로그인이 막힙니다.<br />
-        버튼을 누르면 외부 브라우저(Chrome/Safari)로 여는 방법을 안내해요.
+        {{ t('menu.inApp.warn1', `⚠ ${inAppBrowserName(inAppBrowser)} 인앱 브라우저에서는 Google 로그인이 막힙니다.`, { name: inAppBrowserName(inAppBrowser) }) }}<br />
+        {{ t('menu.inApp.warn2', '버튼을 누르면 외부 브라우저(Chrome/Safari)로 여는 방법을 안내해요.') }}
       </p>
 
       <!-- ── 데이터 리셋 (작은 푸터 링크) ── -->
@@ -406,7 +429,7 @@ async function resetMeta() {
         <button
           class="text-xs text-gray-500 hover:text-status-burn underline-offset-2 hover:underline px-3 py-2"
           @click="resetMeta"
-        >데이터 리셋</button>
+        >{{ t('menu.dataReset', '데이터 리셋') }}</button>
       </div>
     </div>
   </section>

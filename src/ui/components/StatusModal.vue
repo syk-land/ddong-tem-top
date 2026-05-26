@@ -10,11 +10,13 @@ import { CHALLENGES_MAP } from '@/data/challenges'
 import { WEAPONS } from '@/data/weapons'
 import { ARMORS } from '@/data/armor'
 import { WEAPON_TRAITS, ARMOR_TRAITS } from '@/data/traits'
+import { useI18n } from '@/lib/i18n'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 const game = useGameStore()
+const { t, td, tLabel } = useI18n()
 
 // 상태창이 처음 열리면 first_status 튜토리얼 트리거
 watch(() => props.open, (v) => {
@@ -311,22 +313,22 @@ function showSkillDetail(key: string) {
   >
     <div data-tutorial-target="status-stats" class="panel max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-3">
       <header class="flex items-center justify-between sticky top-0 bg-bg-panel z-10 -mx-3 px-3 py-1">
-        <div class="text-lg font-bold">상태창</div>
+        <div class="text-lg font-bold">{{ t('status.title', '상태창') }}</div>
         <button data-tutorial-target="status-close" class="text-gray-400 hover:text-white text-xl leading-none" @click="emit('close')">✕</button>
       </header>
 
       <!-- HP / MP / Gold -->
       <div class="grid grid-cols-3 gap-2 text-xs font-mono">
         <div class="bg-bg-tertiary rounded px-2 py-1.5">
-          <div class="text-xs text-stat-hp">체력</div>
+          <div class="text-xs text-stat-hp">{{ t('status.hp', '체력') }}</div>
           <div>{{ Math.round(c.hp) }} / {{ c.maxHp }}</div>
         </div>
         <div class="bg-bg-tertiary rounded px-2 py-1.5">
-          <div class="text-xs text-stat-mp">마력</div>
+          <div class="text-xs text-stat-mp">{{ t('status.mp', '마력') }}</div>
           <div>{{ Math.round(c.mp) }} / {{ c.maxMp }}</div>
         </div>
         <div class="bg-bg-tertiary rounded px-2 py-1.5">
-          <div class="text-xs text-stat-luck">골드</div>
+          <div class="text-xs text-stat-luck">{{ t('status.gold', '골드') }}</div>
           <div>{{ c.gold }}G</div>
         </div>
       </div>
@@ -337,14 +339,14 @@ function showSkillDetail(key: string) {
           class="px-3 py-1.5 text-xs font-bold rounded-t"
           :class="tab === 'base' ? 'bg-bg-tertiary text-gray-100' : 'text-gray-500 hover:text-gray-300'"
           @click="tab = 'base'"
-        >기본 능력치</button>
+        >{{ t('status.tabBase', '기본 능력치') }}</button>
         <button
           data-tutorial-target="status-detail-tab"
-          data-tutorial-cta-label="상세 능력치"
+          :data-tutorial-cta-label="t('status.tabDetail', '상세 능력치')"
           class="px-3 py-1.5 text-xs font-bold rounded-t"
           :class="tab === 'detail' ? 'bg-bg-tertiary text-gray-100' : 'text-gray-500 hover:text-gray-300'"
           @click="tab = 'detail'"
-        >상세 능력치</button>
+        >{{ t('status.tabDetail', '상세 능력치') }}</button>
       </div>
 
       <!-- 기본 능력치 — 각 스탯 탭하면 기여 능력치 분해 -->
@@ -352,30 +354,30 @@ function showSkillDetail(key: string) {
         <div class="grid grid-cols-2 gap-1.5 text-sm font-mono">
           <button
             data-tutorial-target="status-first-stat"
-            data-tutorial-cta-label="힘"
+            :data-tutorial-cta-label="td('stat', '힘')"
             class="text-left bg-slate-800 hover:bg-slate-700 rounded px-3 py-2 min-h-11 transition-colors"
             @click="openDetail('힘', c.stats.힘, breakdownStat힘())">
-            <span :class="statColorClass.힘" class="text-gray-500">힘</span>
+            <span :class="statColorClass.힘" class="text-gray-500">{{ td('stat', '힘') }}</span>
             <span :class="statColorClass.힘" class="font-bold text-base ml-2">{{ c.stats.힘 }}</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-3 py-2 min-h-11 transition-colors"
                   @click="openDetail('민첩', c.stats.민첩, breakdownStat민첩())">
-            <span :class="statColorClass.민첩" class="text-gray-500">민첩</span>
+            <span :class="statColorClass.민첩" class="text-gray-500">{{ td('stat', '민첩') }}</span>
             <span :class="statColorClass.민첩" class="font-bold text-base ml-2">{{ c.stats.민첩 }}</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-3 py-2 min-h-11 transition-colors"
                   @click="openDetail('체력', c.stats.체력, breakdownStat체력())">
-            <span :class="statColorClass.체력" class="text-gray-500">체력</span>
+            <span :class="statColorClass.체력" class="text-gray-500">{{ td('stat', '체력') }}</span>
             <span :class="statColorClass.체력" class="font-bold text-base ml-2">{{ c.stats.체력 }}</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-3 py-2 min-h-11 transition-colors"
                   @click="openDetail('마력', c.stats.마력, breakdownStat마력())">
-            <span :class="statColorClass.마력" class="text-gray-500">마력</span>
+            <span :class="statColorClass.마력" class="text-gray-500">{{ td('stat', '마력') }}</span>
             <span :class="statColorClass.마력" class="font-bold text-base ml-2">{{ c.stats.마력 }}</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-3 py-2 min-h-11 transition-colors col-span-2"
                   @click="openDetail('행운', c.stats.행운, breakdownStat행운())">
-            <span :class="statColorClass.행운" class="text-gray-500">행운</span>
+            <span :class="statColorClass.행운" class="text-gray-500">{{ td('stat', '행운') }}</span>
             <span :class="statColorClass.행운" class="font-bold text-base ml-2">{{ c.stats.행운 }}</span>
           </button>
         </div>
@@ -383,50 +385,50 @@ function showSkillDetail(key: string) {
 
       <!-- 상세 능력치 (파생, 클릭 시 breakdown) -->
       <div v-if="tab === 'detail'" class="bg-bg-tertiary rounded p-2 space-y-1">
-        <div class="text-xs text-gray-400 mb-1">파생 (장비/특성 포함) — 항목 클릭 시 상세 분해</div>
+        <div class="text-xs text-gray-400 mb-1">{{ t('status.derivedHint', '파생 (장비/특성 포함) — 항목 클릭 시 상세 분해') }}</div>
         <div class="grid grid-cols-2 gap-1 text-xs font-mono">
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('공격력', effective.공격력, breakdownAtk())">
-            <span class="text-stat-phys_atk">공격력</span> <span class="font-bold">{{ effective.공격력.toFixed(1) }}</span>
+                  @click="openDetail(t('status.atk', '공격력'), effective.공격력, breakdownAtk())">
+            <span class="text-stat-phys_atk">{{ t('status.atk', '공격력') }}</span> <span class="font-bold">{{ effective.공격력.toFixed(1) }}</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('방어 %', effective.방어력_effective, breakdownDef())">
-            <span class="text-stat-phys_def">방어</span> <span class="font-bold">{{ effective.방어력_effective.toFixed(1) }}%</span>
+                  @click="openDetail(t('status.defPct', '방어 %'), effective.방어력_effective, breakdownDef())">
+            <span class="text-stat-phys_def">{{ t('status.defShort', '방어') }}</span> <span class="font-bold">{{ effective.방어력_effective.toFixed(1) }}%</span>
           </button>
           <button v-if="effective.isMagicWeapon" class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('마법공격력', effective.마법공격력, breakdownMagicAtk())">
-            <span class="text-stat-mp">마법공격</span> <span class="font-bold">{{ effective.마법공격력.toFixed(1) }}</span>
+                  @click="openDetail(t('status.magicAtk', '마법공격력'), effective.마법공격력, breakdownMagicAtk())">
+            <span class="text-stat-mp">{{ t('status.magicAtkShort', '마법공격') }}</span> <span class="font-bold">{{ effective.마법공격력.toFixed(1) }}</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('게이지 가속', effective.게이지가속, breakdownSpeed())">
-            <span class="text-stat-speed">게이지</span> <span class="font-bold">×{{ effective.게이지가속.toFixed(2) }}</span>
+                  @click="openDetail(t('status.gauge', '게이지 가속'), effective.게이지가속, breakdownSpeed())">
+            <span class="text-stat-speed">{{ t('status.gaugeShort', '게이지') }}</span> <span class="font-bold">×{{ effective.게이지가속.toFixed(2) }}</span>
           </button>
           <div class="bg-slate-800/60 rounded px-2 py-1">
-            <span class="text-stat-speed">공격주기</span> <span class="font-bold">{{ effective.무기ticks }}틱</span>
+            <span class="text-stat-speed">{{ t('status.atkSpeed', '공격주기') }}</span> <span class="font-bold">{{ effective.무기ticks }}{{ t('status.tickSuffix', '틱') }}</span>
           </div>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('명중', effective.명중률, breakdownAcc())">
-            <span class="text-stat-util">명중</span> <span class="font-bold">{{ effective.명중률.toFixed(1) }}</span>
+                  @click="openDetail(t('status.acc', '명중'), effective.명중률, breakdownAcc())">
+            <span class="text-stat-util">{{ t('status.acc', '명중') }}</span> <span class="font-bold">{{ effective.명중률.toFixed(1) }}</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('회피', effective.회피율, breakdownEva())">
-            <span class="text-stat-util">회피</span> <span class="font-bold">{{ effective.회피율.toFixed(1) }}</span>
+                  @click="openDetail(t('status.eva', '회피'), effective.회피율, breakdownEva())">
+            <span class="text-stat-util">{{ t('status.eva', '회피') }}</span> <span class="font-bold">{{ effective.회피율.toFixed(1) }}</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('관통 %', effective.관통, breakdownPen())">
-            <span class="text-stat-util">관통</span> <span class="font-bold">{{ effective.관통.toFixed(1) }}%</span>
+                  @click="openDetail(t('status.penPct', '관통 %'), effective.관통, breakdownPen())">
+            <span class="text-stat-util">{{ t('status.pen', '관통') }}</span> <span class="font-bold">{{ effective.관통.toFixed(1) }}%</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('크리 확률', effective.크리확률, breakdownCritChance())">
-            <span class="text-stat-luck">크리%</span> <span class="font-bold">{{ (effective.크리확률 * 100).toFixed(1) }}%</span>
+                  @click="openDetail(t('status.critChance', '크리 확률'), effective.크리확률, breakdownCritChance())">
+            <span class="text-stat-luck">{{ t('status.critChanceShort', '크리%') }}</span> <span class="font-bold">{{ (effective.크리확률 * 100).toFixed(1) }}%</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('크리 배수', effective.크리배수, breakdownCritMult())">
-            <span class="text-stat-luck">크리×</span> <span class="font-bold">×{{ effective.크리배수.toFixed(2) }}</span>
+                  @click="openDetail(t('status.critMult', '크리 배수'), effective.크리배수, breakdownCritMult())">
+            <span class="text-stat-luck">{{ t('status.critMultShort', '크리×') }}</span> <span class="font-bold">×{{ effective.크리배수.toFixed(2) }}</span>
           </button>
           <button class="text-left bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
-                  @click="openDetail('상태저항', effective.상태저항, breakdownResist())">
-            <span class="text-stat-util">상태저항</span> <span class="font-bold">{{ effective.상태저항.toFixed(1) }}</span>
+                  @click="openDetail(t('status.resist', '상태저항'), effective.상태저항, breakdownResist())">
+            <span class="text-stat-util">{{ t('status.resist', '상태저항') }}</span> <span class="font-bold">{{ effective.상태저항.toFixed(1) }}</span>
           </button>
           <div class="bg-slate-800/60 rounded px-2 py-1">
             <span class="text-stat-hp">HP</span> <span class="font-bold">{{ c.maxHp }}</span>
@@ -439,19 +441,19 @@ function showSkillDetail(key: string) {
 
       <!-- 상태이상 -->
       <div v-if="c.statuses.length > 0" class="bg-bg-tertiary rounded p-2 space-y-1">
-        <div class="text-xs text-gray-400 mb-1">상태이상</div>
+        <div class="text-xs text-gray-400 mb-1">{{ t('status.statuses', '상태이상') }}</div>
         <StatusBadges :statuses="c.statuses" />
       </div>
 
       <!-- 장착 무기 -->
       <div class="bg-bg-tertiary rounded p-2 space-y-2">
         <div class="flex items-center justify-between">
-          <div class="text-xs text-gray-400">무기</div>
+          <div class="text-xs text-gray-400">{{ t('status.weapon', '무기') }}</div>
           <button
             v-if="c.weapon"
             class="text-xs px-2 py-0.5 rounded bg-slate-700 text-gray-300 hover:bg-slate-600"
             @click="unequipSlot('weapon')"
-          >해제</button>
+          >{{ t('status.unequip', '해제') }}</button>
         </div>
         <div v-if="c.weapon">
           <div :class="[tierColorClass(c.weapon.tier), 'font-mono text-sm']">
@@ -459,27 +461,27 @@ function showSkillDetail(key: string) {
           </div>
           <div class="text-xs text-gray-500">
             T{{ c.weapon.tier }} ·
-            <span :class="gradeColorClass[c.weapon.grade]">{{ c.weapon.grade }}</span>
-            · 등급계수 {{ c.weapon.coef.toFixed(2) }}
+            <span :class="gradeColorClass[c.weapon.grade]">{{ td('grade', c.weapon.grade) }}</span>
+            · {{ t('status.gradeCoef', '등급계수') }} {{ c.weapon.coef.toFixed(2) }}
           </div>
           <div v-if="effectEntries(c.weapon as any).length > 0" class="mt-1 text-xs grid grid-cols-2 gap-x-3 font-mono">
             <div v-for="[k, v] in effectEntries(c.weapon as any)" :key="k" class="text-gray-300">
-              <span class="text-gray-500">{{ k }}:</span> <span class="text-log-skill">{{ formatValue(v as number) }}</span>
+              <span class="text-gray-500">{{ tLabel(k) }}:</span> <span class="text-log-skill">{{ formatValue(v as number) }}</span>
             </div>
           </div>
         </div>
-        <div v-else class="text-xs text-gray-600">미 착용</div>
+        <div v-else class="text-xs text-gray-600">{{ t('status.weaponEmpty', '미 착용') }}</div>
       </div>
 
       <!-- 장착 갑옷 -->
       <div class="bg-bg-tertiary rounded p-2 space-y-2">
         <div class="flex items-center justify-between">
-          <div class="text-xs text-gray-400">갑옷</div>
+          <div class="text-xs text-gray-400">{{ t('status.armor', '갑옷') }}</div>
           <button
             v-if="c.armor"
             class="text-xs px-2 py-0.5 rounded bg-slate-700 text-gray-300 hover:bg-slate-600"
             @click="unequipSlot('armor')"
-          >해제</button>
+          >{{ t('status.unequip', '해제') }}</button>
         </div>
         <div v-if="c.armor">
           <div :class="[tierColorClass(c.armor.tier), 'font-mono text-sm']">
@@ -487,39 +489,39 @@ function showSkillDetail(key: string) {
           </div>
           <div class="text-xs text-gray-500">
             T{{ c.armor.tier }} ·
-            <span :class="gradeColorClass[c.armor.grade]">{{ c.armor.grade }}</span>
-            · 등급계수 {{ c.armor.coef.toFixed(2) }}
+            <span :class="gradeColorClass[c.armor.grade]">{{ td('grade', c.armor.grade) }}</span>
+            · {{ t('status.gradeCoef', '등급계수') }} {{ c.armor.coef.toFixed(2) }}
           </div>
           <div v-if="effectEntries(c.armor as any).length > 0" class="mt-1 text-xs grid grid-cols-2 gap-x-3 font-mono">
             <div v-for="[k, v] in effectEntries(c.armor as any)" :key="k" class="text-gray-300">
-              <span class="text-gray-500">{{ k }}:</span> <span class="text-log-skill">{{ formatValue(v as number) }}</span>
+              <span class="text-gray-500">{{ tLabel(k) }}:</span> <span class="text-log-skill">{{ formatValue(v as number) }}</span>
             </div>
           </div>
         </div>
-        <div v-else class="text-xs text-gray-600">없음</div>
+        <div v-else class="text-xs text-gray-600">{{ t('status.armorEmpty', '없음') }}</div>
       </div>
 
       <!-- 자동 발동 스킬 -->
       <div v-if="skillKeys.length > 0" class="bg-bg-tertiary rounded p-2 space-y-1">
-        <div class="text-xs text-gray-400">⚡ 자동 발동 스킬 (탭하면 상세)</div>
+        <div class="text-xs text-gray-400">{{ t('status.autoSkills', '⚡ 자동 발동 스킬 (탭하면 상세)') }}</div>
         <div class="space-y-0.5 text-xs">
           <div v-for="key in skillKeys" :key="key"
                class="flex items-baseline justify-between cursor-pointer hover:bg-bg-secondary rounded px-1 py-0.5"
                @click="showSkillDetail(key)">
             <span>
-              <span class="text-log-skill">{{ SKILLS[key]?.name ?? key }}</span>
-              <span class="text-gray-500 ml-2 text-xs">{{ SKILLS[key]?.description }}</span>
+              <span class="text-log-skill">{{ td('skill', key) || SKILLS[key]?.name || key }}</span>
+              <span class="text-gray-500 ml-2 text-xs">{{ td('skill.desc', key) || SKILLS[key]?.description }}</span>
             </span>
             <span v-if="SKILLS[key]?.kind === 'physical_atk' || SKILLS[key]?.kind === 'magic_atk'"
                   class="text-stat-util font-mono">{{ weaponProcPct }}%</span>
-            <span v-else class="text-xs text-gray-600">조건부</span>
+            <span v-else class="text-xs text-gray-600">{{ t('status.conditional', '조건부') }}</span>
           </div>
         </div>
       </div>
 
       <!-- 선택한 챌린지 -->
       <div v-if="activeChallenges.length > 0" class="bg-bg-tertiary rounded p-2 space-y-2">
-        <div class="text-xs text-gray-400">🎯 챌린지</div>
+        <div class="text-xs text-gray-400">{{ t('status.challengeHeader', '🎯 챌린지') }}</div>
         <div
           v-for="{ ac, def } in activeChallenges"
           :key="ac.key"
@@ -527,7 +529,7 @@ function showSkillDetail(key: string) {
         >
           <div class="flex items-center justify-between">
             <span :class="ac.failed ? 'text-gray-500 line-through' : 'text-trait-special font-bold'">
-              {{ def.name }}
+              {{ td('challenge', def.key) || def.name }}
             </span>
             <span
               class="text-xs px-1.5 py-0.5 rounded"
@@ -535,17 +537,17 @@ function showSkillDetail(key: string) {
                 ? 'bg-status-burn/30 text-status-burn'
                 : (def.category === 'risk' ? 'bg-grade-special/30 text-grade-special' : 'bg-log-skill/30 text-log-skill')"
             >
-              {{ ac.failed ? '실패' : (def.category === 'risk' ? '리스크' : '즉시') }}
+              {{ ac.failed ? t('status.failed', '실패') : (def.category === 'risk' ? t('status.risk', '리스크') : t('status.instant', '즉시')) }}
             </span>
           </div>
-          <div class="text-xs text-gray-400">{{ def.description }}</div>
+          <div class="text-xs text-gray-400">{{ td('challenge.desc', def.key) || def.description }}</div>
           <div class="text-xs">
-            <span class="text-gray-500">보상: </span>
-            <span class="text-log-reward">{{ def.reward }}</span>
+            <span class="text-gray-500">{{ t('status.reward', '보상: ') }}</span>
+            <span class="text-log-reward">{{ td('challenge.reward', def.key) || def.reward }}</span>
           </div>
           <div class="text-xs">
-            <span class="text-gray-500">조건: </span>
-            <span class="text-status-burn">{{ def.penalty }}</span>
+            <span class="text-gray-500">{{ t('status.condition', '조건: ') }}</span>
+            <span class="text-status-burn">{{ td('challenge.penalty', def.key) || def.penalty }}</span>
           </div>
         </div>
       </div>
@@ -559,7 +561,7 @@ function showSkillDetail(key: string) {
     >
       <div class="panel max-w-sm w-full space-y-2">
         <div class="flex items-center justify-between">
-          <div class="text-base font-bold">{{ detailModal.name }} 상세</div>
+          <div class="text-base font-bold">{{ tLabel(detailModal.name) }} {{ t('status.detailSuffix', '상세') }}</div>
           <button class="text-gray-400 hover:text-white text-xl leading-none" @click="detailModal = null">✕</button>
         </div>
         <div class="text-2xl font-mono font-bold text-log-reward text-center py-2">
@@ -569,15 +571,15 @@ function showSkillDetail(key: string) {
           <div v-for="(e, i) in detailModal.entries" :key="i"
                class="bg-bg-tertiary rounded px-2 py-1.5 flex items-baseline justify-between">
             <div>
-              <div class="text-gray-200">{{ e.from }}</div>
-              <div v-if="e.note" class="text-xs text-gray-500">{{ e.note }}</div>
+              <div class="text-gray-200">{{ tLabel(e.from) }}</div>
+              <div v-if="e.note" class="text-xs text-gray-500">{{ tLabel(e.note) }}</div>
             </div>
             <div class="font-mono font-bold text-log-skill">
               {{ e.value >= 0 ? '+' : '' }}{{ e.value.toFixed(2) }}
             </div>
           </div>
         </div>
-        <button class="btn-secondary w-full text-xs" @click="detailModal = null">닫기</button>
+        <button class="btn-secondary w-full text-xs" @click="detailModal = null">{{ t('common.close', '닫기') }}</button>
       </div>
     </div>
   </div>

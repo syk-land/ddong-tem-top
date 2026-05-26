@@ -12,8 +12,10 @@ import InventoryModal from '@/ui/components/InventoryModal.vue'
 import ItemDetail from '@/ui/components/ItemDetail.vue'
 import { themeBgUrl, floorContentImage, playerImageUrl } from '@/ui/images'
 import type { ItemInstance } from '@/types'
+import { useI18n } from '@/lib/i18n'
 
 const game = useGameStore()
+const { t, td } = useI18n()
 const c = computed(() => game.run!.character)
 const ch = computed(() => game.currentChapterState!)
 const floor = computed(() => game.currentFloorEvent)
@@ -34,7 +36,7 @@ const challengeOneLine = computed(() => {
   const items = keys.map((k) => {
     const def = CHALLENGES_MAP[k]
     if (!def) return null
-    return def.name
+    return td('challenge', def.key) || def.name
   }).filter((s): s is string => !!s)
   return items.join(' · ')
 })
@@ -117,7 +119,10 @@ watch(
   tryAutoEnter,
 )
 async function quit() {
-  const ok = await game.confirmModal('현재 진행을 저장하고 메인 메뉴로 돌아갑니다.', { title: '메뉴로' })
+  const ok = await game.confirmModal(
+    t('dungeon.quit.body', '현재 진행을 저장하고 메인 메뉴로 돌아갑니다.'),
+    { title: t('dungeon.quit.title', '메뉴로') },
+  )
   if (ok) game.setScreen('menu')
 }
 
@@ -127,16 +132,17 @@ const floorImage = computed(() =>
   floor.value ? floorContentImage(floor.value.type, ch.value.theme, ch.value.isHard) : null
 )
 const floorLabel = computed(() => {
-  if (!floor.value) return '챕터 클리어'
-  const labels: Record<string, string> = {
-    monster: '일반 몬스터',
-    boss: '보스',
-    shop: '상점',
-    treasure: '보물상자',
-    healing_spring: '회복샘',
-    special_event: '특별 이벤트',
+  if (!floor.value) return t('dungeon.chapterClear', '챕터 클리어')
+  const labels: Record<string, { key: string; fallback: string }> = {
+    monster: { key: 'dungeon.floor.normalMonster', fallback: '일반 몬스터' },
+    boss: { key: 'dungeon.floor.boss', fallback: '보스' },
+    shop: { key: 'dungeon.floor.shop', fallback: '상점' },
+    treasure: { key: 'dungeon.floor.treasure', fallback: '보물상자' },
+    healing_spring: { key: 'dungeon.floor.healing', fallback: '회복샘' },
+    special_event: { key: 'dungeon.floor.special', fallback: '특별 이벤트' },
   }
-  return labels[floor.value.type] ?? floor.value.type
+  const lab = labels[floor.value.type]
+  return lab ? t(lab.key, lab.fallback) : floor.value.type
 })
 
 // 층 종류별 액센트 — 카드 테두리/glow
@@ -159,31 +165,31 @@ const floorAccent = computed(() => {
     <div class="rounded-lg border border-slate-700/70 bg-bg-secondary/60 backdrop-blur-sm px-3 py-2 flex items-center gap-2">
       <div class="flex-1 min-w-0">
         <div :class="['text-sm font-bold truncate', themeClass]">
-          제 {{ ch.chapter }}챕터 · {{ ch.themeName }}
-          <span v-if="ch.isHard" class="text-rose-400 ml-1 text-xs">[강화]</span>
+          {{ t('dungeon.chapterFmt', `제 ${ch.chapter}챕터 · ${td('chapter', ch.theme)}`, { chapter: ch.chapter, theme: td('chapter', ch.theme) }) }}
+          <span v-if="ch.isHard" class="text-rose-400 ml-1 text-xs">{{ t('dungeon.hardBadge', '[강화]') }}</span>
         </div>
         <div class="text-xs text-gray-400">
           <span class="font-mono tabular-nums">{{ ch.currentFloor + 1 }}</span>
-          <span class="text-gray-600"> / {{ ch.floors.length }}층</span>
+          <span class="text-gray-600"> {{ t('dungeon.floorFmt', `/ ${ch.floors.length}층`, { total: ch.floors.length }) }}</span>
         </div>
       </div>
       <button
         data-tutorial-target="status-btn"
-        data-tutorial-cta-label="상태"
+        :data-tutorial-cta-label="t('dungeon.btn.status', '상태')"
         class="btn-secondary text-xs min-h-9 px-3 font-bold"
         @click="statusOpen = true"
-        title="상태창"
-      >상태</button>
+        :title="t('dungeon.btn.statusTooltip', '상태창')"
+      >{{ t('dungeon.btn.status', '상태') }}</button>
       <button
         data-tutorial-target="inventory-btn"
         class="btn-secondary text-xs min-h-9 px-3 font-bold flex items-center gap-1.5"
         @click="inventoryOpen = true"
-        title="인벤토리"
+        :title="t('dungeon.btn.invTooltip', '인벤토리')"
       >
-        <span>인벤</span>
+        <span>{{ t('dungeon.btn.inv', '인벤') }}</span>
         <span class="text-xs text-gray-300 tabular-nums">{{ inventory.length }}/{{ inventoryCap }}</span>
       </button>
-      <button class="btn-secondary text-xs min-h-9 px-3 font-bold" @click="quit" title="메인 메뉴로">메뉴</button>
+      <button class="btn-secondary text-xs min-h-9 px-3 font-bold" @click="quit" :title="t('dungeon.btn.menuTooltip', '메인 메뉴로')">{{ t('dungeon.btn.menu', '메뉴') }}</button>
     </div>
 
     <!-- ② 다음 회차 보너스 (실시간 성장 패널티) -->
@@ -232,9 +238,9 @@ const floorAccent = computed(() => {
           data-tutorial-target="enter-floor-btn"
           class="btn-primary px-6 w-full max-w-xs min-h-12 text-base font-bold disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="game.isTutorialBlockingExit"
-          :title="game.isTutorialBlockingExit ? '튜토리얼 — 인벤토리와 상태창 학습을 먼저 완료해주세요' : ''"
+          :title="game.isTutorialBlockingExit ? t('dungeon.btn.tutorialBlockingTip', '튜토리얼 — 인벤토리와 상태창 학습을 먼저 완료해주세요') : ''"
           @click="enter"
-        >{{ game.isTutorialBlockingExit ? '학습 진행 중…' : (floor?.type === 'treasure' ? '열기' : '진입') }}</button>
+        >{{ game.isTutorialBlockingExit ? t('dungeon.btn.tutorialBlocking', '학습 진행 중…') : (floor?.type === 'treasure' ? t('dungeon.btn.openChest', '열기') : t('dungeon.btn.enter', '진입')) }}</button>
       </div>
     </div>
 
@@ -278,23 +284,23 @@ const floorAccent = computed(() => {
             <!-- MP 1행 -->
             <HpMpBar :current="c.mp" :max="c.maxMp" kind="mp" />
 
-            <!-- 무기 1행 (풀폭, 글씨 안 잘림) -->
+            <!-- 무기 1행 -->
             <button
               type="button"
               class="w-full bg-bg-tertiary/80 rounded-md px-2 py-1.5 border border-slate-700/50 text-left hover:border-cyan-500/40 hover:bg-bg-tertiary transition-colors active:scale-[0.99] flex items-center min-h-10"
               :disabled="!c.weapon"
               @click="c.weapon && (equipDetail = c.weapon)"
-              :title="c.weapon ? '장비 상세 보기' : '장착된 무기 없음'"
+              :title="c.weapon ? t('dungeon.equip.weaponTooltip', '장비 상세 보기') : t('dungeon.equip.weaponEmpty', '장착된 무기 없음')"
             >
               <ItemName :item="c.weapon" compact />
             </button>
-            <!-- 방어구 1행 (풀폭, 글씨 안 잘림) -->
+            <!-- 방어구 1행 -->
             <button
               type="button"
               class="w-full bg-bg-tertiary/80 rounded-md px-2 py-1.5 border border-slate-700/50 text-left hover:border-cyan-500/40 hover:bg-bg-tertiary transition-colors active:scale-[0.99] flex items-center min-h-10"
               :disabled="!c.armor"
               @click="c.armor && (equipDetail = c.armor)"
-              :title="c.armor ? '장비 상세 보기' : '장착된 갑옷 없음'"
+              :title="c.armor ? t('dungeon.equip.weaponTooltip', '장비 상세 보기') : t('dungeon.equip.armorEmpty', '장착된 갑옷 없음')"
             >
               <ItemName :item="c.armor" compact />
             </button>
@@ -328,14 +334,14 @@ const floorAccent = computed(() => {
       <div class="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-xl border-2 border-cyan-500/50 bg-bg-secondary/95 shadow-[0_0_30px_rgba(34,211,238,0.30)]">
         <div class="sticky top-0 z-10 px-3 py-2 flex items-center justify-between bg-cyan-950/80 backdrop-blur border-b border-cyan-500/40">
           <div class="text-sm font-bold text-cyan-100">
-            장비 상세
-            <span class="text-cyan-300/70 text-xs ml-1">{{ equipDetail.kind === 'weapon' ? '· 무기' : '· 갑옷' }}</span>
+            {{ t('dungeon.equip.detail', '장비 상세') }}
+            <span class="text-cyan-300/70 text-xs ml-1">{{ equipDetail.kind === 'weapon' ? t('dungeon.equip.weapon', '· 무기') : t('dungeon.equip.armor', '· 갑옷') }}</span>
           </div>
           <button
             type="button"
             class="w-8 h-8 flex items-center justify-center rounded text-base text-gray-200 hover:bg-slate-700"
             @click="equipDetail = null"
-            aria-label="닫기"
+            :aria-label="t('dungeon.equip.close', '닫기')"
           >✕</button>
         </div>
         <div class="p-3">

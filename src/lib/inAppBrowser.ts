@@ -27,7 +27,7 @@ const NAMES: Record<InAppBrowserKind, string> = {
 export function detectInAppBrowser(): InAppBrowserKind | null {
   if (typeof navigator === 'undefined') return null
   const ua = navigator.userAgent
-  // Firebase Hosting 웹 빌드 전용 (안드로이드 빌드는 폐기).
+  // 브라우저 빌드 전용.
   if (/KAKAOTALK/i.test(ua)) return 'kakaotalk'
   // NAVER 앱 인앱: "NAVER(inapp; ...)" 형태 또는 단독 "NAVER" 토큰.
   if (/NAVER\(inapp/i.test(ua) || /; NAVER /i.test(ua)) return 'naver'

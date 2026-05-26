@@ -25,22 +25,14 @@
     <title>이번 판은 똥템으로 탑을 오르겠습니다</title>
 
     <!--
-      GameMonetize H5 SDK — 웹(Firebase Hosting) + 안드로이드(Capacitor) 통합 광고 네트워크.
-      (이전 AdMob 통합은 제거됨. 모든 광고는 GameMonetize 로 통일.)
+      GameMonetize H5 SDK — Firebase Hosting / GameMonetize 두 트랙에서 동일 광고 네트워크 사용.
 
-      ⚠ 현재 비활성화 — GameMonetize 콘솔의 게임 상태가 "New" (검토 전).
-         SDK 가 페이지 진입마다 광고를 시도 → 노 fill 로 "스킵" 카운트만 뜨고
-         빈 화면이 보이는 문제 때문에 잠시 로드 차단.
-
-      활성화 절차 (GameMonetize 상태가 "Active" 가 된 뒤):
-        1) 아래 두 <script> 블록의 주석을 풀어 SDK 다시 로드
-        2) src/lib/ads.ts 의 BYPASS_ADS 를 false 로 변경
-        3) 광고 단가/노출이 사이트 트래픽 검증 후 활성화됨
+      활성화 상태 — SDK 로드 + BYPASS_ADS=false. 콘솔이 "Active" 면 정상 표시,
+      "New" 단계면 no-fill 로 광고 없이 보상이 즉시 지급된다 (ads.ts fallback).
 
       이벤트 흐름: SDK 가 콜백으로 던지는 event 를 window 'gm-sdk-event' CustomEvent
                   로 전파 → src/lib/ads.ts 가 listen 하여 rewarded 완료 판정.
     -->
-    <!--
     <script>
       window.SDK_OPTIONS = {
         gameId: '5w9to8lrnly4ouwgkjxiykiaiitznvwp',
@@ -52,7 +44,6 @@
       }
     </script>
     <script async src="https://api.gamemonetize.com/sdk.js"></script>
-    -->
 
   </head>
   <body>

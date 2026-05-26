@@ -11,6 +11,7 @@ import { computeArmorAutoProc, computeWeaponSkillProc } from './buildBalance'
 import { dispatchOnAfterAttacked, dispatchOnHpThreshold } from './monsterTraits'
 import { playSkillSound } from '@/ui/sound'
 import { playMonsterHit } from './monsterSfx'
+import { t as i18nT, td as i18nTd } from '@/lib/i18n'
 
 // 스킬 효과는 키별로 직접 처리
 export function useSkill(ctx: CombatContext, key: string): boolean {
@@ -19,7 +20,7 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
 
   // 침묵: silenceUntilTick 까지 스킬 사용 불가
   if (ctx.player.silencedUntilTick !== undefined && ctx.tick < ctx.player.silencedUntilTick) {
-    pushLog(ctx, `🔇 침묵 상태 — 스킬 사용 불가`, 'info')
+    pushLog(ctx, i18nT('log.silenced', `🔇 침묵 상태 — 스킬 사용 불가`), 'info')
     return false
   }
 
@@ -31,11 +32,12 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
   }
 
   if (ctx.player.mp < mpCost) {
-    pushLog(ctx, `마력이 부족합니다 (필요 ${mpCost})`, 'info')
+    pushLog(ctx, i18nT('log.mpLow', `마력이 부족합니다 (필요 ${mpCost})`, { need: mpCost }), 'info')
     return false
   }
   ctx.player.mp -= mpCost
-  if (mpCost > 0) pushLog(ctx, `${skill.name} 사용 (MP -${mpCost})`, 'skill')
+  const _sname = i18nTd('skill', key) || skill.name
+  if (mpCost > 0) pushLog(ctx, i18nT('log.skillUse', `${_sname} 사용 (MP -${mpCost})`, { name: _sname, mp: mpCost }), 'skill')
   // 스킬별 고유 효과음 (없으면 fallback)
   playSkillSound(key, skill.kind)
 
@@ -200,7 +202,7 @@ function attackSkill(
   if (!target) return
   const eff = computeEffectiveStats(ctx.player)
   if (!rollHit(eff.명중률 + (opts.accBonus ?? 0), target.eva)) {
-    pushLog(ctx, '공격이 빗나갔다.', 'miss')
+    pushLog(ctx, i18nT('log.miss', '공격이 빗나갔다.'), 'miss')
     return
   }
   const { dmg, isCrit } = computeDamage(
@@ -211,12 +213,13 @@ function attackSkill(
   const finalDmg = opts.critMultiplier && isCrit ? Math.round(dmg * (opts.critMultiplier / 2)) : dmg
   target.hp -= finalDmg
   target._hitsTaken = (target._hitsTaken ?? 0) + 1
+  const _tn = i18nTd('monster', target.template.name)
   if (isCrit) {
-    pushLog(ctx, `⚡ 크리티컬! ${target.template.name}에게 ${finalDmg} 데미지`, 'critical')
+    pushLog(ctx, i18nT('log.crit', `⚡ 크리티컬! ${_tn}에게 ${finalDmg} 데미지`, { name: _tn, dmg: finalDmg }), 'critical')
   } else {
-    pushLog(ctx, `${target.template.name}에게 ${finalDmg} 데미지`, 'damage')
+    pushLog(ctx, i18nT('log.dmg', `${_tn}에게 ${finalDmg} 데미지`, { name: _tn, dmg: finalDmg }), 'damage')
   }
-  // 피격음 (살아있을 때만)
+  // 피격음
   if (target.hp > 0) playMonsterHit(target)
 
   // 흡혈
@@ -224,7 +227,7 @@ function attackSkill(
     const heal = applyHealing(ctx, Math.round(finalDmg * eff.lifesteal))
     if (heal > 0) {
       ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal)
-      pushLog(ctx, `흡혈 +${heal}`, 'heal')
+      pushLog(ctx, i18nT('log.lifestealShort', `흡혈 +${heal}`, { hp: heal }), 'heal')
     } else if (heal < 0) {
       ctx.player.hp = Math.max(0, ctx.player.hp + heal)
     }
@@ -262,7 +265,7 @@ function magicAttackOnTarget(
   if (target.hp <= 0) return
   const eff = computeEffectiveStats(ctx.player)
   if (!rollHit(eff.명중률 + (opts.accBonus ?? 0), target.eva)) {
-    if (!opts.silent) pushLog(ctx, '마법이 빗나갔다.', 'miss')
+    if (!opts.silent) pushLog(ctx, i18nT('log.magicMiss', '마법이 빗나갔다.'), 'miss')
     return
   }
   const { dmg, isCrit } = computeDamage(
@@ -272,21 +275,23 @@ function magicAttackOnTarget(
   )
   target.hp -= dmg
   target._hitsTaken = (target._hitsTaken ?? 0) + 1
+  const _tn2 = i18nTd('monster', target.template.name)
   if (isCrit) {
-    pushLog(ctx, `⚡ 크리티컬! ${target.template.name}에게 ${dmg} 마법 데미지`, 'critical')
+    pushLog(ctx, i18nT('log.critMagic', `⚡ 크리티컬! ${_tn2}에게 ${dmg} 마법 데미지`, { name: _tn2, dmg }), 'critical')
   } else {
-    pushLog(ctx, `${target.template.name}에게 ${dmg} 마법 데미지`, 'damage')
+    pushLog(ctx, i18nT('log.magicDmg', `${_tn2}에게 ${dmg} 마법 데미지`, { name: _tn2, dmg }), 'damage')
   }
-  // 피격음 (살아있을 때만; 사망음은 checkMonsterDeath에서)
   if (target.hp > 0) playMonsterHit(target)
 
   if (statusKind && procChance > 0) {
     const luckBonus = 1 + eff.행운 * 0.005
     const finalChance = clamp(procChance * luckBonus, 0, 0.95)
     if (Math.random() < finalChance) {
-      // 마법 스킬 발 상태이상은 마법공격력 스냅샷 (DoT 데미지 스케일링)
       const ok = applyStatus(target, statusKind, eff.마법공격력, ctx.tick, 0)
-      if (ok) pushLog(ctx, `${target.template.name}에게 ${statusKind} 발동!`, 'status')
+      if (ok) {
+        const _sn = i18nTd('status', statusKind)
+        pushLog(ctx, i18nT('log.statusProc', `${_tn2}에게 ${_sn} 발동!`, { name: _tn2, status: _sn }), 'status')
+      }
     }
   }
 

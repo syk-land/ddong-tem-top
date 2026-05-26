@@ -2,7 +2,7 @@
 
 > `combatSpeed >= 5` 일 때 활성화되는 **vite 개발 서버 한정** 자동화 모드. 기본 100배 + 5~999 자유 조정. 자동 진입 / 자동 매수 / 자동 장착 / 특별이벤트 자동 거부 / 튜토리얼 보류로 사용자 개입 없이 등반이 끝까지 흘러간다.
 >
-> `npm run build` 로 만든 production 번들 (안드로이드 빌드 / 웹 호스팅 배포 포함) 에서는 빌드 타임 상수 `IS_DEV_SERVER === false` 가 인라인되어 **자동화 진입 경로가 모두 차단**된다 — getter 항상 false, UI `v-if` falsy, setCombatSpeed 가 5+ 입력을 4로 강제. 사용자는 기능에 도달할 수 없다. (메소드 본체와 UI 문자열은 번들에 그대로 남는다 — Vue 의 v-if 가 render function 내 변수 참조로 컴파일되어 minifier 가 dead 라고 추론 못 함. 더 강한 제거가 필요하면 자동화 섹션을 별도 컴포넌트로 분리 + dynamic import 해야 함.)
+> `npm run build` 로 만든 production 번들 (Firebase Hosting / GameMonetize 배포 포함) 에서는 빌드 타임 상수 `IS_DEV_SERVER === false` 가 인라인되어 **자동화 진입 경로가 모두 차단**된다 — getter 항상 false, UI `v-if` falsy, setCombatSpeed 가 5+ 입력을 4로 강제. 사용자는 기능에 도달할 수 없다. (메소드 본체와 UI 문자열은 번들에 그대로 남는다 — Vue 의 v-if 가 render function 내 변수 참조로 컴파일되어 minifier 가 dead 라고 추론 못 함. 더 강한 제거가 필요하면 자동화 섹션을 별도 컴포넌트로 분리 + dynamic import 해야 함.)
 
 코드: `src/lib/platform.ts` (`IS_DEV_SERVER` 빌드 타임 상수), `src/stores/game.ts` (`isAutoMode`, `setCombatSpeed`, `autoUpgradeEquipment`, `autoShopFlow`, `receiveItem`, `runSpecialEvent`, `triggerTutorial`), `src/screens/Combat.vue` (tick 배치), `src/screens/Shop.vue` (onMounted), `src/screens/Dungeon.vue` (자동 진입 확장), `src/ui/components/SpeedControl.vue` (UI)
 

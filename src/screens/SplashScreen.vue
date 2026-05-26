@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { mainImageUrl, mainImagePortraitUrl } from '@/ui/images'
+import { useI18n } from '@/lib/i18n'
 
 const emit = defineEmits<{ (e: 'dismiss'): void }>()
 
-// 화면이 세로(또는 거의 정사각형)면 세로 이미지, 가로면 가로 이미지
-//   - 안드로이드/모바일은 보통 세로 → portrait
-//   - PC 가로 화면 → landscape main.png
+const { lang, setLang } = useI18n()
+
 const isPortrait = ref<boolean>(typeof window !== 'undefined' ? window.innerHeight >= window.innerWidth : true)
 function updateOrientation() {
   if (typeof window === 'undefined') return
@@ -27,6 +27,12 @@ const imgUrl = computed(() => (isPortrait.value ? mainImagePortraitUrl() : mainI
 function dismiss() {
   emit('dismiss')
 }
+
+// 언어 토글 버튼은 이벤트 전파를 막아 dismiss 트리거 안 되게 함
+function pickLang(v: 'ko' | 'en', e: Event) {
+  e.stopPropagation()
+  setLang(v)
+}
 </script>
 
 <template>
@@ -36,13 +42,37 @@ function dismiss() {
     @keydown="dismiss"
     tabindex="0"
   >
-    <!-- viewport 비율에 따라 가로/세로 이미지 자동 선택, 화면 꽉 채우기 (cover) -->
     <div
       class="absolute inset-0 bg-no-repeat bg-center bg-cover"
       :style="{ backgroundImage: `url(${imgUrl})` }"
     />
-    <div class="absolute bottom-8 inset-x-0 text-center text-white/80 text-sm animate-pulse pointer-events-none">
-      터치하여 시작
+
+    <!-- 언어 전환 (우상단) — 클릭 전파 차단 -->
+    <div class="absolute top-3 right-3 flex items-center gap-1 cursor-default" @click.stop>
+      <button
+        type="button"
+        :class="[
+          'min-h-9 px-3 rounded-md text-xs font-bold border-2 transition active:scale-95 cursor-pointer backdrop-blur-sm',
+          lang === 'ko'
+            ? 'bg-violet-600/70 text-white border-violet-300/80'
+            : 'bg-black/40 text-gray-300 border-white/30 hover:border-white/60',
+        ]"
+        @click="pickLang('ko', $event)"
+      >한국어</button>
+      <button
+        type="button"
+        :class="[
+          'min-h-9 px-3 rounded-md text-xs font-bold border-2 transition active:scale-95 cursor-pointer backdrop-blur-sm',
+          lang === 'en'
+            ? 'bg-violet-600/70 text-white border-violet-300/80'
+            : 'bg-black/40 text-gray-300 border-white/30 hover:border-white/60',
+        ]"
+        @click="pickLang('en', $event)"
+      >English</button>
+    </div>
+
+    <div class="absolute bottom-8 inset-x-0 text-center text-white/80 text-sm font-bold tracking-widest animate-pulse pointer-events-none">
+      &gt;&gt; START &lt;&lt;
     </div>
   </div>
 </template>

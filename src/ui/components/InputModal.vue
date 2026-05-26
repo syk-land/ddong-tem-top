@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue'
 import { useGameStore } from '@/stores/game'
+import { useI18n } from '@/lib/i18n'
 
 const game = useGameStore()
+const { t } = useI18n()
 const dialog = computed(() => game.inputDialog)
 const value = ref('')
 const inputEl = ref<HTMLInputElement | null>(null)
@@ -49,12 +51,12 @@ function onKey(e: KeyboardEvent) {
         @keydown="onKey"
       />
       <div v-if="dialog.maxValue !== undefined" class="text-xs text-gray-500">
-        최대 {{ dialog.maxValue }}
+        {{ t('input.max', '최대') }} {{ dialog.maxValue }}
       </div>
       <div class="flex gap-2 justify-end">
-        <button class="px-4 py-2 rounded text-sm bg-slate-700 text-gray-300 hover:bg-slate-600" @click="cancel">취소</button>
+        <button class="px-4 py-2 rounded text-sm bg-slate-700 text-gray-300 hover:bg-slate-600" @click="cancel">{{ t('common.cancel', '취소') }}</button>
         <button class="px-4 py-2 rounded text-sm bg-log-skill text-black font-bold hover:opacity-80" @click="submit">
-          {{ dialog.okLabel ?? '확인' }}
+          {{ dialog.okLabel ?? t('common.ok', '확인') }}
         </button>
       </div>
     </div>

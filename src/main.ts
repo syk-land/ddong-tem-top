@@ -14,8 +14,7 @@ const app = createApp(App)
 app.use(createPinia())
 app.mount('#app')
 
-// 웹 빌드 전용 — 데스크탑 보조용으로 Esc 키를 뒤로가기로 매핑.
-//   (이전엔 Capacitor backButton 도 처리했으나 Firebase Hosting only 로 전환되며 제거.)
+// 데스크탑 보조용 — Esc 키를 뒤로가기로 매핑.
 window.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape') {
     const game = useGameStore()

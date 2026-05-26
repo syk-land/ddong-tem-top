@@ -1,5 +1,4 @@
-// 개발 서버 (vite dev) 일 때만 true. `npm run build` 로 만든 production 번들
-// (안드로이드 빌드 / 웹 호스팅 배포 포함) 에서는 false.
+// 개발 서버 (vite dev) 일 때만 true. `npm run build` 로 만든 production 번들에선 false.
 //
 // import.meta.env.DEV 는 Vite 가 빌드 시 boolean 상수로 인라인하므로,
 // `if (IS_DEV_SERVER) { ... }` 또는 `IS_DEV_SERVER && expr` 패턴은

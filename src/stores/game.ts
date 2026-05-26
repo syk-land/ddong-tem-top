@@ -42,6 +42,7 @@ import {
 } from '@/core/challengeRuntime'
 import { computeWeaponSkillProc } from '@/core/buildBalance'
 import { computeItemValue } from '@/core/itemValue'
+import { t as i18nT, tLabel as i18nTLabel } from '@/lib/i18n'
 import { npcIconUrl, pickRandomUserAvatars, isValidAvatarKey, allUserAvatarKeys, defaultCharacterName } from '@/ui/images'
 import { showRewardedAd } from '@/lib/ads'
 import { IS_DEV_SERVER } from '@/lib/platform'
@@ -1384,20 +1385,20 @@ export const useGameStore = defineStore('game', {
     },
     alertModal(message: string, title?: string, imageUrl?: string): Promise<void> {
       return this.showDialog({
-        title,
-        message,
+        title: i18nTLabel(title ?? '') || undefined,
+        message: i18nTLabel(message),
         imageUrl,
-        buttons: [{ label: '확인', value: true, primary: true }],
+        buttons: [{ label: i18nT('common.ok', '확인'), value: true, primary: true }],
       }) as Promise<void>
     },
     async confirmModal(message: string, options?: { title?: string; okLabel?: string; cancelLabel?: string; danger?: boolean; imageUrl?: string }): Promise<boolean> {
       const v = await this.showDialog({
-        title: options?.title,
-        message,
+        title: i18nTLabel(options?.title ?? '') || undefined,
+        message: i18nTLabel(message),
         imageUrl: options?.imageUrl,
         buttons: [
-          { label: options?.okLabel ?? '확인', value: true, primary: true, danger: options?.danger },
-          { label: options?.cancelLabel ?? '취소', value: false },
+          { label: options?.okLabel ?? i18nT('common.ok', '확인'), value: true, primary: true, danger: options?.danger },
+          { label: options?.cancelLabel ?? i18nT('common.cancel', '취소'), value: false },
         ],
       })
       return !!v
@@ -1750,15 +1751,20 @@ export const useGameStore = defineStore('game', {
         // v10: 광고 부활 (런당 1회). 도전 모드 / 진짜 보스에서는 비활성.
         if (!this.run.adReviveUsed && !this.realBossMonster) {
           const revive = await this.confirmModal(
-            '광고를 보고 부활하시겠습니까?',
-            { title: '💀 사망', okLabel: '예 (광고 시청)', cancelLabel: '아니오' }
+            i18nT('revive.askBody', '광고를 보고 부활하시겠습니까?'),
+            {
+              title: i18nT('revive.askTitle', '💀 사망'),
+              okLabel: i18nT('revive.askYes', '예 (광고 시청)'),
+              cancelLabel: i18nT('common.no', '아니오'),
+            }
           )
           if (revive) {
-            // AdMob Rewarded Ad — 시청 완료 시에만 부활. 웹/dev 환경에선 즉시 true 반환.
             const watched = await showRewardedAd('revive')
             if (!watched) {
-              await this.alertModal('광고 시청이 완료되지 않아 부활할 수 없습니다.', '부활 실패')
-              // fallthrough → 게임오버
+              await this.alertModal(
+                i18nT('revive.notWatchedBody', '광고 시청이 완료되지 않아 부활할 수 없습니다.'),
+                i18nT('revive.notWatchedTitle', '부활 실패'),
+              )
             } else {
               this.run.adReviveUsed = true
               this.combat.player.hp = this.combat.player.maxHp
@@ -1767,7 +1773,7 @@ export const useGameStore = defineStore('game', {
               this.combat.player.silencedUntilTick = undefined
               this.combat.ended = false
               this.combat.victory = false
-              pushLog(this.combat, '✨ 부활! (광고 시청 보상)', 'reward')
+              pushLog(this.combat, i18nT('revive.logSuccess', '✨ 부활! (광고 시청 보상)'), 'reward')
               saveRun(this.run)
               return
             }

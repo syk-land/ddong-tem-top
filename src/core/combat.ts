@@ -16,6 +16,7 @@ import {
   dispatchOnDeath,
 } from './monsterTraits'
 import { playMonsterHit, playMonsterDeath } from './monsterSfx'
+import { t as i18nT, td as i18nTd, tLabel as i18nTLabel } from '@/lib/i18n'
 
 export interface LogEntry {
   text: string
@@ -106,7 +107,8 @@ export function createCombatContext(player: Character, monsters: MonsterInstance
 }
 
 export function pushLog(ctx: CombatContext, text: string, kind: LogKind = 'info') {
-  ctx.log.push({ text, kind, tick: ctx.tick })
+  // 영어 모드면 한국어 라벨을 부분 영문화 (이미 영어인 텍스트는 no-op)
+  ctx.log.push({ text: i18nTLabel(text), kind, tick: ctx.tick })
   // 최근 200개만 유지
   if (ctx.log.length > 200) ctx.log.shift()
 }
@@ -217,7 +219,7 @@ export function playerBasicAttack(ctx: CombatContext) {
 
   // 명중 굴림
   if (!rollHit(eff.명중률 + (buff.accBonus ?? 0), target.eva, blindMod)) {
-    pushLog(ctx, `공격이 빗나갔다.`, 'miss')
+    pushLog(ctx, i18nT('log.miss', '공격이 빗나갔다.'), 'miss')
     return
   }
 
@@ -233,10 +235,11 @@ export function playerBasicAttack(ctx: CombatContext) {
 
   target.hp -= finalDmg
   target._hitsTaken = (target._hitsTaken ?? 0) + 1
+  const _tn = i18nTd('monster', target.template.name)
   if (isCrit) {
-    pushLog(ctx, `⚡ 크리티컬! ${target.template.name}에게 ${finalDmg} 데미지`, 'critical')
+    pushLog(ctx, i18nT('log.crit', `⚡ 크리티컬! ${_tn}에게 ${finalDmg} 데미지`, { name: _tn, dmg: finalDmg }), 'critical')
   } else {
-    pushLog(ctx, `${target.template.name}에게 ${finalDmg} 데미지`, 'damage')
+    pushLog(ctx, i18nT('log.dmg', `${_tn}에게 ${finalDmg} 데미지`, { name: _tn, dmg: finalDmg }), 'damage')
   }
   // 피격음 (몬스터 카테고리 기반) — 살아있을 때만, 사망음은 별도
   if (target.hp > 0) playMonsterHit(target)
@@ -246,7 +249,7 @@ export function playerBasicAttack(ctx: CombatContext) {
     const heal = applyHealing(ctx, Math.round(finalDmg * eff.lifesteal))
     if (heal > 0) {
       ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal)
-      pushLog(ctx, `흡혈로 HP +${heal}`, 'heal')
+      pushLog(ctx, i18nT('log.lifesteal', `흡혈로 HP +${heal}`, { hp: heal }), 'heal')
     } else if (heal < 0) {
       ctx.player.hp = Math.max(0, ctx.player.hp + heal)
     }
@@ -270,7 +273,9 @@ function rollStatusProcs(ctx: CombatContext, eff: EffectiveStats, target: Monste
     if (Math.random() < finalChance) {
       const ok = applyStatus(target, kind, atkSrc, ctx.tick, 0)
       if (ok) {
-        pushLog(ctx, `${target.template.name}에게 ${kind} 발동!`, 'status')
+        const _tn2 = i18nTd('monster', target.template.name)
+        const _sn = i18nTd('status', kind)
+        pushLog(ctx, i18nT('log.statusProc', `${_tn2}에게 ${_sn} 발동!`, { name: _tn2, status: _sn }), 'status')
       }
     }
   }
@@ -299,7 +304,8 @@ export function monsterAttack(ctx: CombatContext, attacker: MonsterInstance) {
   const blindMod = getAccuracyModifier(attacker)
 
   if (!rollHit(attacker.acc, eff.회피율 + (buff.evaBonus ?? 0), blindMod)) {
-    pushLog(ctx, `${attacker.template.name}의 공격을 회피했다.`, 'miss')
+    const _an = i18nTd('monster', attacker.template.name)
+    pushLog(ctx, i18nT('log.dodge', `${_an}의 공격을 회피했다.`, { name: _an }), 'miss')
     attacker._attacksMade = (attacker._attacksMade ?? 0) + 1
     return
   }
@@ -327,8 +333,9 @@ export function monsterAttack(ctx: CombatContext, attacker: MonsterInstance) {
   const armorKey = ctx.player.armor?.baseKey
   const armorReactChance = 0.10 + eff.행운 * 0.005
   if (armorKey && Math.random() < armorReactChance) {
+    const _an2 = i18nTd('monster', attacker.template.name)
     if (armorKey === '가죽갑') {
-      pushLog(ctx, `${attacker.template.name}의 공격! 가죽갑 회피 발동 — 완전 회피`, 'miss')
+      pushLog(ctx, i18nT('log.leatherDodge', `${_an2}의 공격! 가죽갑 회피 발동 — 완전 회피`, { name: _an2 }), 'miss')
       attacker._attacksMade = (attacker._attacksMade ?? 0) + 1
       return
     } else if (armorKey === '로브') {
@@ -337,12 +344,12 @@ export function monsterAttack(ctx: CombatContext, attacker: MonsterInstance) {
       ctx.player.mp -= actual
       finalDmg = Math.max(1, finalDmg - actual)
       if (actual > 0) {
-        pushLog(ctx, `로브 방어 발동! MP -${actual}, 피해 ${actual} 차감`, 'heal')
+        pushLog(ctx, i18nT('log.robeBlock', `로브 방어 발동! MP -${actual}, 피해 ${actual} 차감`, { mp: actual, dmg: actual }), 'heal')
       }
     } else if (armorKey === '판금') {
       const counter = Math.max(1, Math.round(eff.공격력 * 0.5))
       attacker.hp = Math.max(0, attacker.hp - counter)
-      pushLog(ctx, `판금 철벽 발동! ${attacker.template.name}에게 카운터 ${counter} 피해`, 'damage')
+      pushLog(ctx, i18nT('log.plateCounter', `판금 철벽 발동! ${_an2}에게 카운터 ${counter} 피해`, { name: _an2, dmg: counter }), 'damage')
     }
   }
 
@@ -351,20 +358,21 @@ export function monsterAttack(ctx: CombatContext, attacker: MonsterInstance) {
     const heal = applyHealing(ctx, Math.round(finalDmg * eff.damageTakenHealPct))
     if (heal > 0) {
       ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal)
-      pushLog(ctx, `피해 흡수 +${heal}`, 'heal')
+      pushLog(ctx, i18nT('log.dmgAbsorb', `피해 흡수 +${heal}`, { hp: heal }), 'heal')
     } else if (heal < 0) {
       ctx.player.hp = Math.max(0, ctx.player.hp + heal)
     }
   }
 
   ctx.player.hp = Math.max(0, ctx.player.hp - finalDmg)
-  pushLog(ctx, `${attacker.template.name}의 공격! ${finalDmg} 피해`, 'enemy')
+  const _an3 = i18nTd('monster', attacker.template.name)
+  pushLog(ctx, i18nT('log.enemyAtk', `${_an3}의 공격! ${finalDmg} 피해`, { name: _an3, dmg: finalDmg }), 'enemy')
 
-  // 갑옷 데미지 반사 (반짝거리는) — 받은 데미지의 N% 를 공격자에게
+  // 갑옷 데미지 반사
   if (eff.damageReflectPct > 0 && attacker.hp > 0) {
     const reflect = Math.max(1, Math.round(finalDmg * eff.damageReflectPct))
     attacker.hp = Math.max(0, attacker.hp - reflect)
-    pushLog(ctx, `데미지 반사: ${attacker.template.name}에게 ${reflect} 피해`, 'status')
+    pushLog(ctx, i18nT('log.reflect', `데미지 반사: ${_an3}에게 ${reflect} 피해`, { name: _an3, dmg: reflect }), 'status')
     checkMonsterDeath(ctx)
   }
 

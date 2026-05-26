@@ -7,6 +7,9 @@ import { uniformStartingStats } from '@/core/character'
 import { mainImageUrl, allUserAvatarKeys, userAvatarUrl, userBustUrl } from '@/ui/images'
 import { describeChallengeForScale } from '@/data/challenges'
 import { startStatScale } from '@/core/realboss'
+import { useI18n } from '@/lib/i18n'
+
+const { t, td } = useI18n()
 
 // GameMonetize 서브디렉토리 호스팅 호환 — 상대경로 prefix
 const A = import.meta.env.BASE_URL.replace(/\/$/, '')
@@ -111,8 +114,12 @@ function back() {
 }
 async function resetAll() {
   const ok = await game.confirmModal(
-    '챌린지와 주사위 굴림을 모두 초기화하고 다시 시작합니다.',
-    { title: '캐릭터 다시 굴리기', okLabel: '다시 굴리기', danger: true }
+    t('create.rerollConfirmBody', '챌린지와 주사위 굴림을 모두 초기화하고 다시 시작합니다.'),
+    {
+      title: t('create.rerollConfirmTitle', '캐릭터 다시 굴리기'),
+      okLabel: t('create.reroll', '다시 굴리기'),
+      danger: true,
+    }
   )
   if (ok) game.resetCharacterCreation()
 }
@@ -157,11 +164,11 @@ function pickerConfirm() {
 async function editPlayerName() {
   const current = game.characterName(game.selectedAvatar)
   const input = await game.showInputDialog({
-    title: '캐릭터 이름 변경',
-    message: '새 이름을 입력하세요 (최대 12자, 비우면 추천 이름으로 복귀)',
+    title: t('create.avatar.editNameTitle', '캐릭터 이름 변경'),
+    message: t('create.avatar.editNameBody', '새 이름을 입력하세요 (최대 12자, 비우면 추천 이름으로 복귀)'),
     defaultValue: current,
     placeholder: current,
-    okLabel: '저장',
+    okLabel: t('create.avatar.editNameSave', '저장'),
   })
   if (input === null) return
   game.setPlayerName(input)
@@ -174,24 +181,23 @@ async function editPlayerName() {
     :style="{ backgroundImage: `linear-gradient(rgba(10,14,26,0.7), rgba(10,14,26,0.9)), url(${bgUrl})` }"
   >
     <header class="flex items-center justify-between">
-      <h2 class="text-base sm:text-lg font-bold text-trait-special">새 캐릭터 생성</h2>
+      <h2 class="text-base sm:text-lg font-bold text-trait-special">{{ t('create.title', '새 캐릭터 생성') }}</h2>
       <div class="flex gap-2">
-        <button class="btn-secondary text-xs min-h-9 px-3" @click="resetAll">다시 굴리기</button>
-        <button class="btn-secondary text-xs min-h-9 px-3" @click="back">뒤로</button>
+        <button class="btn-secondary text-xs min-h-9 px-3" @click="resetAll">{{ t('create.reroll', '다시 굴리기') }}</button>
+        <button class="btn-secondary text-xs min-h-9 px-3" @click="back">{{ t('common.back', '뒤로') }}</button>
       </div>
     </header>
 
     <!-- 도전 보너스 안내 (영구 누적 + 마지막 도전 결과) -->
     <div v-if="startBonus > 0" class="rounded-lg border border-grade-legend/40 bg-grade-legend/5 backdrop-blur-sm px-3 py-2 space-y-1">
-      <div class="text-sm text-grade-legend font-bold">진짜 보스 도전 누적 보상</div>
+      <div class="text-sm text-grade-legend font-bold">{{ t('create.bonus.title', '진짜 보스 도전 누적 보상') }}</div>
       <div v-if="drainPct > 0" class="text-xs text-gray-300">
-        마지막 도전: 보스 체력 <span class="text-trait-special font-mono font-bold">{{ drainPct }}/100</span> 깎음
+        {{ t('create.bonus.lastDrain', `마지막 도전: 보스 체력 ${drainPct}/100 깎음`, { pct: drainPct }) }}
       </div>
       <div class="text-xs text-log-reward">
-        시작 능력치 총합 60 → <span class="font-mono font-bold">{{ 60 + startBonus }}pt</span>
-        (+{{ startBonus }}pt 영구, 5스탯 균등 자동 분배)
+        {{ t('create.bonus.startStats', `시작 능력치 총합 60 → ${60 + startBonus}pt (+${startBonus}pt 영구, 5스탯 균등 자동 분배)`, { total: 60 + startBonus, plus: startBonus }) }}
       </div>
-      <div class="text-[10px] text-gray-500">진짜 보스 도전은 이번 삶 중 가장 강한 캐릭터로 도전합니다</div>
+      <div class="text-[10px] text-gray-500">{{ t('create.bonus.hint', '진짜 보스 도전은 이번 삶 중 가장 강한 캐릭터로 도전합니다') }}</div>
     </div>
 
     <!-- ====================================================== -->
@@ -200,8 +206,8 @@ async function editPlayerName() {
     <!-- ====================================================== -->
     <div class="rounded-lg border border-sky-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
       <div class="px-3 py-1.5 bg-sky-950/40 border-b border-sky-400/20 flex items-center justify-between">
-        <span class="text-xs font-bold text-sky-200">🧍 캐릭터 외형</span>
-        <span class="text-xs text-sky-200/60">전투 시 흉상으로 등장</span>
+        <span class="text-xs font-bold text-sky-200">{{ t('create.avatar.header', '🧍 캐릭터 외형') }}</span>
+        <span class="text-xs text-sky-200/60">{{ t('create.avatar.sub', '전투 시 흉상으로 등장') }}</span>
       </div>
       <div class="p-3 flex items-center gap-3">
         <img
@@ -216,18 +222,18 @@ async function editPlayerName() {
             type="button"
             class="flex items-center gap-1.5 max-w-full group active:scale-95 transition-transform"
             @click="editPlayerName"
-            :title="'이름 변경'"
+            :title="t('create.avatar.editNameTooltip', '이름 변경')"
           >
             <span class="text-base text-sky-100 font-bold truncate">{{ game.characterName(game.selectedAvatar) }}</span>
             <span class="text-sky-400 text-sm shrink-0 group-hover:text-sky-200">✎</span>
           </button>
-          <div class="text-xs text-gray-400 mt-0.5 leading-snug">이름을 눌러 변경, 우측 버튼으로 외형 변경</div>
+          <div class="text-xs text-gray-400 mt-0.5 leading-snug">{{ t('create.avatar.hint', '이름을 눌러 변경, 우측 버튼으로 외형 변경') }}</div>
         </div>
         <button
           type="button"
           class="btn-secondary text-xs min-h-9 px-3 shrink-0"
           @click="openPicker"
-        >외형</button>
+        >{{ t('create.avatar.editBtn', '외형') }}</button>
       </div>
     </div>
 
@@ -236,11 +242,11 @@ async function editPlayerName() {
     <!-- ====================================================== -->
     <div data-tutorial-target="dice-area" class="rounded-lg border border-grade-legend/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
       <div class="px-3 py-1.5 bg-grade-legend/10 border-b border-grade-legend/30 flex items-center justify-between">
-        <span class="text-xs font-bold text-grade-legend">🎲 주사위 — 능력치 굴림</span>
-        <span class="text-xs text-gray-400">남은 굴림 <span class="text-grade-legend font-mono font-bold">{{ game.rollsLeft }}</span> / 3</span>
+        <span class="text-xs font-bold text-grade-legend">{{ t('create.dice.header', '🎲 주사위 — 능력치 굴림') }}</span>
+        <span class="text-xs text-gray-400">{{ t('create.dice.remaining', '남은 굴림') }} <span class="text-grade-legend font-mono font-bold">{{ game.rollsLeft }}</span> / 3</span>
       </div>
       <div class="p-3 space-y-3">
-        <div class="text-xs text-gray-400 leading-snug">시작은 모두 동일. 주사위를 굴려 5스탯에 60pt 랜덤 분배 (각 최소 0, 최대 무제한).</div>
+        <div class="text-xs text-gray-400 leading-snug">{{ t('create.dice.hint', '시작은 모두 동일. 주사위를 굴려 5스탯에 60pt 랜덤 분배 (각 최소 0, 최대 무제한).') }}</div>
 
         <!-- 주사위 3개 시각 -->
         <div class="flex gap-2 justify-center">
@@ -262,31 +268,31 @@ async function editPlayerName() {
         <!-- 현재 스탯 (도전 보너스 자동 분배 적용) -->
         <div class="grid grid-cols-5 gap-1.5">
           <div v-for="s in RANDOM_KEYS" :key="s" class="bg-bg-tertiary/70 rounded-md px-1.5 py-1.5 text-center border border-slate-700/40">
-            <div :class="['text-xs font-bold', statColorClass[s]]">{{ s }}</div>
+            <div :class="['text-xs font-bold', statColorClass[s]]">{{ td('stat', s) }}</div>
             <div class="text-lg font-mono font-bold leading-tight">{{ previewStats[s] }}</div>
           </div>
         </div>
         <div class="text-xs text-center">
-          <span class="text-gray-400">총합 </span>
+          <span class="text-gray-400">{{ t('create.dice.total', '총합') }} </span>
           <span class="text-log-reward font-mono font-bold">{{ previewSum }}pt</span>
-          <span v-if="startBonus > 0" class="text-gray-500"> (주사위 {{ previewSum - startBonus }} + 영구 보너스 {{ startBonus }})</span>
+          <span v-if="startBonus > 0" class="text-gray-500"> {{ t('create.dice.bonusBreakdown', `(주사위 ${previewSum - startBonus} + 영구 보너스 ${startBonus})`, { dice: previewSum - startBonus, bonus: startBonus }) }}</span>
         </div>
 
         <!-- 5스탯 파생 효과 안내 -->
         <div class="text-xs text-gray-500 text-center leading-snug">
-          힘 → 공격력·관통 / 민첩 → 속도·명중·회피 / 체력 → 방어력·HP / 마력 → MP·마법계수 / 행운 → 크리·발동률·보정
+          {{ t('create.dice.statHint', '힘 → 공격력·관통 / 민첩 → 속도·명중·회피 / 체력 → 방어력·HP / 마력 → MP·마법계수 / 행운 → 크리·발동률·보정') }}
         </div>
 
         <button
           data-tutorial-target="dice-roll-btn"
-          data-tutorial-cta-label="주사위 굴리기"
+          :data-tutorial-cta-label="t('create.dice.roll', '주사위 굴리기').replace(/\s*\(.*$/, '')"
           class="btn-primary w-full min-h-11 text-sm font-bold disabled:opacity-30"
           :disabled="game.rollsLeft <= 0 || rolling"
           @click="rollDice"
         >
-          <span v-if="rolling">🎲 굴리는 중...</span>
-          <span v-else-if="game.rollsLeft > 0">🎲 주사위 굴리기 ({{ game.rollsLeft }} 남음)</span>
-          <span v-else>주사위 모두 사용함</span>
+          <span v-if="rolling">{{ t('create.dice.rolling', '🎲 굴리는 중...') }}</span>
+          <span v-else-if="game.rollsLeft > 0">{{ t('create.dice.roll', `🎲 주사위 굴리기 (${game.rollsLeft} 남음)`, { left: game.rollsLeft }) }}</span>
+          <span v-else>{{ t('create.dice.exhausted', '주사위 모두 사용함') }}</span>
         </button>
       </div>
     </div>
@@ -296,8 +302,8 @@ async function editPlayerName() {
     <!-- ====================================================== -->
     <div data-tutorial-target="challenge-area" class="rounded-lg border border-pink-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
       <div class="px-3 py-1.5 bg-pink-950/40 border-b border-pink-400/20 flex items-center justify-between gap-2">
-        <span class="text-xs font-bold text-pink-200">⚔️ 챌린지 선택</span>
-        <span class="text-xs text-pink-200/60">하나만 선택 (또는 미선택)</span>
+        <span class="text-xs font-bold text-pink-200">{{ t('create.challenge.header', '⚔️ 챌린지 선택') }}</span>
+        <span class="text-xs text-pink-200/60">{{ t('create.challenge.sub', '하나만 선택 (또는 미선택)') }}</span>
       </div>
       <div class="p-2 grid gap-2 md:grid-cols-3">
         <div
@@ -314,21 +320,21 @@ async function editPlayerName() {
           <!-- 챌린지 1/2/3 배지 이미지 (우상단) -->
           <img
             :src="`${A}/images/UI/챌린지${idx + 1}.webp`"
-            :alt="`챌린지 ${idx + 1}`"
+            :alt="t('create.challenge.badgeAlt', `챌린지 ${idx + 1}`, { n: idx + 1 })"
             class="absolute -top-3 -right-3 w-14 h-14 object-contain drop-shadow-lg z-10"
             @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
           />
           <div class="flex items-baseline justify-between mb-1.5 pr-10 gap-2">
             <span :class="['text-xs px-2 py-0.5 rounded font-bold', c.category === 'instant' ? 'bg-cyan-950/60 text-cyan-200 border border-cyan-400/30' : 'bg-rose-950/60 text-rose-200 border border-rose-400/30']">
-              {{ c.category === 'instant' ? '즉시 보상' : '리스크 베팅' }}
+              {{ c.category === 'instant' ? t('create.challenge.badge.instant', '즉시 보상') : t('create.challenge.badge.risk', '리스크 베팅') }}
             </span>
-            <span class="text-xs text-gray-500">{{ c.group }}</span>
+            <span class="text-xs text-gray-500">{{ td('challenge.group', c.group) }}</span>
           </div>
-          <h3 :class="[isSelected(c.key) ? 'text-pink-200' : 'text-gray-100', 'font-bold text-sm']">{{ c.name }}</h3>
-          <p class="text-xs text-gray-400 mt-1 leading-snug">{{ c.description }}</p>
+          <h3 :class="[isSelected(c.key) ? 'text-pink-200' : 'text-gray-100', 'font-bold text-sm']">{{ td('challenge', c.key) || c.name }}</h3>
+          <p class="text-xs text-gray-400 mt-1 leading-snug">{{ td('challenge.desc', c.key) || c.description }}</p>
           <div class="mt-2 space-y-0.5 text-xs">
-            <div class="text-log-reward">✦ {{ c.reward }}</div>
-            <div class="text-log-damage">✖ {{ c.penalty }}</div>
+            <div class="text-log-reward">✦ {{ td('challenge.reward', c.key) || c.reward }}</div>
+            <div class="text-log-damage">✖ {{ td('challenge.penalty', c.key) || c.penalty }}</div>
           </div>
           <div v-if="c.scaleNote" class="mt-1 text-[10px] text-amber-300/80 leading-snug">↻ {{ c.scaleNote }}</div>
         </div>
@@ -341,8 +347,8 @@ async function editPlayerName() {
     <!-- ====================================================== -->
     <div v-if="bonusAvailable > 0" data-tutorial-target="bonus-alloc" class="rounded-lg border border-emerald-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
       <div class="px-3 py-1.5 bg-emerald-950/40 border-b border-emerald-400/20 flex items-center justify-between">
-        <span class="text-xs font-bold text-emerald-200">✦ 누적 보너스 자유 분배</span>
-        <span class="text-xs text-emerald-200/80">사용 <span class="font-mono font-bold">{{ used }}</span> / {{ bonusAvailable }}</span>
+        <span class="text-xs font-bold text-emerald-200">{{ t('create.alloc.header', '✦ 누적 보너스 자유 분배') }}</span>
+        <span class="text-xs text-emerald-200/80">{{ t('create.alloc.used', '사용') }} <span class="font-mono font-bold">{{ used }}</span> / {{ bonusAvailable }}</span>
       </div>
       <div class="p-2 grid grid-cols-5 gap-1.5">
         <div
@@ -361,7 +367,7 @@ async function editPlayerName() {
             @contextmenu.prevent
           >+</button>
           <!-- 스탯 이름 -->
-          <span :class="['text-xs font-bold font-mono', statColorClass[s]]">{{ s }}</span>
+          <span :class="['text-xs font-bold font-mono', statColorClass[s]]">{{ td('stat', s) }}</span>
           <!-- 값 -->
           <span class="text-base font-mono font-bold tabular-nums leading-none">{{ allocation[s] ?? 0 }}</span>
           <!-- − (아래) -->
@@ -385,7 +391,7 @@ async function editPlayerName() {
       <button
         class="btn-primary w-full min-h-12 text-base font-bold tracking-wide"
         @click="start"
-      >탑 진입</button>
+      >{{ t('create.enter', '탑 진입') }}</button>
     </div>
 
     <!-- ====================================================== -->
@@ -401,12 +407,12 @@ async function editPlayerName() {
         <div class="w-full max-w-sm rounded-xl border-2 border-sky-400/60 bg-bg-secondary/95 shadow-[0_0_30px_rgba(56,189,248,0.35)] overflow-hidden flex flex-col">
           <!-- 헤더 -->
           <div class="px-4 py-2.5 bg-sky-950/50 border-b border-sky-400/30 flex items-center justify-between">
-            <span class="text-sm font-bold text-sky-200">캐릭터 외형 선택</span>
+            <span class="text-sm font-bold text-sky-200">{{ t('create.avatar.pickerTitle', '캐릭터 외형 선택') }}</span>
             <button
               type="button"
               class="w-7 h-7 flex items-center justify-center rounded text-base text-gray-300 hover:bg-slate-700"
               @click="closePicker"
-              aria-label="닫기"
+              :aria-label="t('create.avatar.pickerClose', '닫기')"
             >✕</button>
           </div>
 
@@ -416,12 +422,12 @@ async function editPlayerName() {
               type="button"
               class="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-slate-800/90 hover:bg-slate-700 active:scale-95 text-2xl text-sky-200 border border-sky-400/40 shadow-lg flex items-center justify-center"
               @click="pickerPrev"
-              aria-label="이전 캐릭터"
+              :aria-label="t('create.avatar.pickerPrev', '이전 캐릭터')"
             >‹</button>
 
             <img
               :src="userAvatarUrl(avatarKeys[pickerIndex])"
-              :alt="`캐릭터 ${avatarKeys[pickerIndex]}`"
+              :alt="t('create.avatar.altKey', `캐릭터 ${avatarKeys[pickerIndex]}`, { key: avatarKeys[pickerIndex] })"
               class="max-h-[320px] max-w-[70%] object-contain drop-shadow-[0_0_18px_rgba(56,189,248,0.35)]"
               @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
             />
@@ -430,7 +436,7 @@ async function editPlayerName() {
               type="button"
               class="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-slate-800/90 hover:bg-slate-700 active:scale-95 text-2xl text-sky-200 border border-sky-400/40 shadow-lg flex items-center justify-center"
               @click="pickerNext"
-              aria-label="다음 캐릭터"
+              :aria-label="t('create.avatar.pickerNext', '다음 캐릭터')"
             >›</button>
           </div>
 
@@ -453,12 +459,12 @@ async function editPlayerName() {
               type="button"
               class="btn-secondary flex-1 min-h-11 text-sm"
               @click="closePicker"
-            >취소</button>
+            >{{ t('create.avatar.pickerCancel', '취소') }}</button>
             <button
               type="button"
               class="btn-primary flex-1 min-h-11 text-sm font-bold"
               @click="pickerConfirm"
-            >이 캐릭터 선택</button>
+            >{{ t('create.avatar.pickerConfirm', '이 캐릭터 선택') }}</button>
           </div>
         </div>
       </div>

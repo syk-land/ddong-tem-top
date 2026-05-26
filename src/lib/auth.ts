@@ -7,8 +7,7 @@ import {
 } from 'firebase/auth'
 import { firebaseAuth } from './firebase'
 
-// Firebase Hosting only — Firebase JS SDK 의 popup 으로 Google 로그인.
-//   (이전엔 Capacitor 네이티브 분기도 있었으나 안드로이드 빌드 폐기로 제거.)
+// Firebase JS SDK popup 으로 Google 로그인.
 export async function signInWithGoogle(): Promise<User> {
   const provider = new GoogleAuthProvider()
   const userCred = await signInWithPopup(firebaseAuth, provider)

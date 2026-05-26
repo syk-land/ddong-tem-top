@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
+import { useI18n } from '@/lib/i18n'
 
 const game = useGameStore()
+const { t } = useI18n()
 const dialog = computed(() => game.listDialog)
 
 function pick(value: unknown) {
@@ -39,7 +41,7 @@ function cancel() {
         </button>
       </div>
       <button class="w-full px-4 py-2 rounded text-sm bg-slate-700 text-gray-300 hover:bg-slate-600" @click="cancel">
-        {{ dialog.cancelLabel ?? '취소' }}
+        {{ dialog.cancelLabel ?? t('common.cancel', '취소') }}
       </button>
     </div>
   </div>

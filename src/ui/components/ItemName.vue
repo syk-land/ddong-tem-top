@@ -2,11 +2,12 @@
 import { computed } from 'vue'
 import type { ItemInstance } from '@/types'
 import { formatItemNameHTML } from '@/ui/colors'
+import { useI18n } from '@/lib/i18n'
 
 const props = defineProps<{
   item: ItemInstance | null
   compact?: boolean
-  clickable?: boolean  // true 면 trait/grade/base 가 클릭 가능 (커서 + emit)
+  clickable?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -15,12 +16,24 @@ const emit = defineEmits<{
   (e: 'clickBase'): void
 }>()
 
+const { t, td } = useI18n()
+
 const fmt = computed(() => formatItemNameHTML(props.item))
 
-// compact 모드: 텍스트 길이에 따라 폰트 자동 조절 (좁은 카드에서도 1줄 유지)
+// i18n 적용된 trait / grade / base
+const displayed = computed(() => {
+  const it = props.item
+  if (!it) return { trait: '', grade: '', base: '' }
+  return {
+    trait: td(it.kind === 'weapon' ? 'trait.weapon' : 'trait.armor', it.trait),
+    grade: td('grade', it.grade),
+    base: td(it.kind === 'weapon' ? 'weapon' : 'armor', it.baseKey),
+  }
+})
+
 const compactSize = computed(() => {
   if (!props.item) return 'text-[11px]'
-  const len = fmt.value.trait.length + fmt.value.grade.length + fmt.value.base.length + 4
+  const len = displayed.value.trait.length + displayed.value.grade.length + displayed.value.base.length + 4
   if (len <= 12) return 'text-[12px]'
   if (len <= 15) return 'text-[11px]'
   if (len <= 17) return 'text-[10px]'
@@ -36,19 +49,19 @@ const partClass = computed(() => props.clickable ? 'cursor-pointer hover:underli
       <span
         :class="[fmt.traitClass, partClass]"
         @click.stop="clickable && emit('clickTrait')"
-      >{{ fmt.trait }}</span>
+      >{{ displayed.trait }}</span>
       <span class="text-gray-600 mx-0.5">·</span>
       <span
         :class="[fmt.gradeClass, partClass]"
         @click.stop="clickable && emit('clickGrade')"
-      >{{ fmt.grade }}</span>
+      >{{ displayed.grade }}</span>
       <span class="text-gray-600 mx-0.5">·</span>
       <span
         :class="[fmt.baseClass, partClass]"
         @click.stop="clickable && emit('clickBase')"
-      >{{ fmt.base }}</span>
+      >{{ displayed.base }}</span>
       <span v-if="!compact" class="text-gray-500 text-xs ml-1">[T{{ item.tier }}]</span>
     </template>
-    <span v-else class="text-gray-500 italic">미 착용</span>
+    <span v-else class="text-gray-500 italic">{{ t('item.notEquipped', '미 착용') }}</span>
   </span>
 </template>

@@ -8,8 +8,10 @@ import StatusBadges from '@/ui/components/StatusBadges.vue'
 import { logColorClass, logPrefix } from '@/ui/colors'
 import { themeBgUrl, skillIconUrl, monsterImageUrl, playerBustUrl, realBossImageUrl } from '@/ui/images'
 import { sfx } from '@/ui/sound'
+import { useI18n } from '@/lib/i18n'
 
 const game = useGameStore()
+const { t, td } = useI18n()
 const combat = computed(() => game.combat!)
 const player = computed(() => combat.value.player)
 const monsters = computed(() => combat.value.monsters)
@@ -119,11 +121,11 @@ const isAttackSkill = computed(() => {
   const k = selectedSkillDef.value?.kind
   return k === 'physical_atk' || k === 'magic_atk'
 })
-const skillKindLabel: Record<string, string> = {
-  physical_atk: '물리 공격',
-  physical_def: '물리 방어',
-  magic_atk: '마법 공격',
-  magic_def: '마법 방어',
+const skillKindLabel: Record<string, () => string> = {
+  physical_atk: () => t('combat.skillKind.physicalAtk', '물리 공격'),
+  physical_def: () => t('combat.skillKind.physicalDef', '물리 방어'),
+  magic_atk: () => t('combat.skillKind.magicAtk', '마법 공격'),
+  magic_def: () => t('combat.skillKind.magicDef', '마법 방어'),
 }
 const skillKindColor: Record<string, string> = {
   physical_atk: 'text-stat-phys_atk',
@@ -314,11 +316,11 @@ watch(
           <!-- 헤더 -->
           <div class="px-3 py-1.5 bg-rose-950/40 border-b border-rose-500/30 flex items-center justify-between">
             <span class="text-xs font-bold text-rose-300 tracking-wide">
-              <span v-if="isRealBoss">⚔ 도전 보스</span>
-              <span v-else>⚔ 적 {{ aliveMonsterCount }} / {{ monsters.length }}</span>
+              <span v-if="isRealBoss">{{ t('combat.realBossLabel', '⚔ 도전 보스') }}</span>
+              <span v-else>{{ t('combat.enemyCount', `⚔ 적 ${aliveMonsterCount} / ${monsters.length}`, { alive: aliveMonsterCount, total: monsters.length }) }}</span>
             </span>
             <span class="text-xs text-rose-200/60">
-              {{ isRealBoss ? '진짜 보스전' : (combat.ended ? '전투 종료' : '진행 중') }}
+              {{ isRealBoss ? t('combat.realBossSub', '진짜 보스전') : (combat.ended ? t('combat.endedSub', '전투 종료') : t('combat.ongoingSub', '진행 중')) }}
             </span>
           </div>
 
@@ -338,7 +340,7 @@ watch(
             >
               <img
                 :src="isRealBoss && realBossImg ? realBossImg : monsterImageUrl(m.template.name)"
-                :alt="m.template.name"
+                :alt="td('monster', m.template.name)"
                 :class="[
                   'object-contain drop-shadow-2xl',
                   isRealBoss ? 'max-h-[300px] max-w-[100%] w-auto' : 'max-h-[110px] max-w-[110px]',
@@ -368,18 +370,18 @@ watch(
             >
               <div class="flex items-baseline justify-between gap-2">
                 <h3 class="text-sm font-bold text-rose-200 truncate">
-                  <span v-if="m.hp <= 0" class="line-through text-gray-500">{{ m.template.name }}</span>
-                  <span v-else>{{ m.template.name }}</span>
-                  <span v-if="m.isBoss" class="text-grade-legend text-xs ml-1 font-bold">[보스]</span>
-                  <span v-if="m.isMimic" class="text-status-bleed text-xs ml-1">미믹</span>
-                  <span v-if="m.hp <= 0" class="text-gray-500 text-xs ml-1">처치됨</span>
+                  <span v-if="m.hp <= 0" class="line-through text-gray-500">{{ td('monster', m.template.name) }}</span>
+                  <span v-else>{{ td('monster', m.template.name) }}</span>
+                  <span v-if="m.isBoss" class="text-grade-legend text-xs ml-1 font-bold">{{ t('combat.bossBadge', '[보스]') }}</span>
+                  <span v-if="m.isMimic" class="text-status-bleed text-xs ml-1">{{ t('combat.mimicBadge', '미믹') }}</span>
+                  <span v-if="m.hp <= 0" class="text-gray-500 text-xs ml-1">{{ t('combat.killed', '처치됨') }}</span>
                 </h3>
                 <span class="text-xs text-stat-speed shrink-0">⚡{{ m.speed }}</span>
               </div>
               <HpMpBar :current="m.hp" :max="m.maxHp" kind="hp" />
-              <!-- 액션 게이지: HP 와 시각적 분리 — 얇은 라인 + 다른 색 -->
+              <!-- 액션 게이지 -->
               <div class="flex items-center gap-1.5">
-                <span class="text-xs text-rose-300/70 font-mono w-8">행동</span>
+                <span class="text-xs text-rose-300/70 font-mono w-8">{{ t('combat.action', '행동') }}</span>
                 <div class="flex-1 h-[3px] bg-slate-900/70 rounded-full overflow-hidden">
                   <div class="h-full bg-rose-400/80 transition-all" :style="{ width: Math.min(100, m.actionGauge) + '%' }" />
                 </div>
@@ -398,7 +400,7 @@ watch(
               <div class="relative flex-shrink-0">
                 <img
                   :src="playerBustUrl(game.runAvatar)"
-                  alt="플레이어"
+                  :alt="t('combat.playerAlt', '플레이어')"
                   :class="[
                     'w-32 h-32 sm:w-36 sm:h-36 object-cover rounded-lg drop-shadow-2xl border-2 border-cyan-500/40 shadow-[0_0_14px_rgba(34,211,238,0.3)]',
                     playerShaking ? 'animate-shake animate-flash-red' : '',
@@ -425,9 +427,9 @@ watch(
               </div>
             </div>
 
-            <!-- 플레이어 액션 게이지 — 적과 다른 색(cyan) + 얇은 라인 -->
+            <!-- 플레이어 액션 게이지 -->
             <div class="flex items-center gap-1.5">
-              <span class="text-xs text-cyan-300/70 font-mono w-8">행동</span>
+              <span class="text-xs text-cyan-300/70 font-mono w-8">{{ t('combat.action', '행동') }}</span>
               <div class="flex-1 h-[3px] bg-slate-900/70 rounded-full overflow-hidden">
                 <div class="h-full bg-cyan-400/80 transition-all" :style="{ width: playerGauge + '%' }" />
               </div>
@@ -435,22 +437,22 @@ watch(
 
             <!-- 자동 발동 스킬 — 칩 (탭하면 상세 모달) -->
             <div v-if="skillKeys.length > 0" class="flex flex-wrap items-center gap-1.5 text-xs pt-0.5">
-              <span class="text-cyan-300/80 text-xs">자동</span>
+              <span class="text-cyan-300/80 text-xs">{{ t('combat.auto', '자동') }}</span>
               <button
                 v-for="key in skillKeys"
                 :key="key"
                 type="button"
                 class="px-2 py-1 rounded-md bg-slate-800/80 text-log-skill flex items-center gap-1 border border-cyan-500/20 hover:bg-slate-700/80 active:scale-95 transition-transform"
-                :title="`${SKILLS[key]?.name ?? key} — 상세 보기`"
+                :title="t('combat.skillDetailTooltip', `${td('skill', key) || (SKILLS[key]?.name ?? key)} — 상세 보기`, { name: td('skill', key) || (SKILLS[key]?.name ?? key) })"
                 @click="selectedSkill = key"
               >
                 <img
                   :src="skillIconUrl(key)"
-                  :alt="key"
+                  :alt="td('skill', key) || key"
                   class="w-4 h-4 object-contain"
                   @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
                 />
-                <span>{{ SKILLS[key]?.name ?? key }}</span>
+                <span>{{ td('skill', key) || SKILLS[key]?.name || key }}</span>
                 <span
                   v-if="SKILLS[key]?.kind === 'physical_atk' || SKILLS[key]?.kind === 'magic_atk'"
                   class="text-stat-util"
@@ -471,9 +473,9 @@ watch(
             class="w-full px-3 py-1.5 flex items-center justify-between bg-slate-900/40 hover:bg-slate-800/50 transition-colors"
             @click="logExpanded = !logExpanded"
           >
-            <span class="text-xs font-bold text-slate-300">📜 전투 로그</span>
+            <span class="text-xs font-bold text-slate-300">{{ t('combat.logLabel', '📜 전투 로그') }}</span>
             <span class="text-xs text-slate-400">
-              {{ logExpanded ? '접기 ▴' : '펼치기 ▾' }}
+              {{ logExpanded ? t('combat.logCollapse', '접기 ▴') : t('combat.logExpand', '펼치기 ▾') }}
             </span>
           </button>
 
@@ -519,31 +521,31 @@ watch(
         <div class="px-4 py-3 bg-cyan-950/40 border-b border-cyan-500/30 flex items-center gap-3">
           <img
             :src="skillIconUrl(selectedSkill!)"
-            :alt="selectedSkillDef.name"
+            :alt="td('skill', selectedSkill!) || selectedSkillDef.name"
             class="w-10 h-10 object-contain drop-shadow"
             @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
           />
           <div class="flex-1 min-w-0">
-            <div class="text-base font-bold text-cyan-200 truncate">{{ selectedSkillDef.name }}</div>
+            <div class="text-base font-bold text-cyan-200 truncate">{{ td('skill', selectedSkill!) || selectedSkillDef.name }}</div>
             <div class="text-xs flex items-center gap-1.5 flex-wrap">
-              <span :class="skillKindColor[selectedSkillDef.kind]">{{ skillKindLabel[selectedSkillDef.kind] }}</span>
-              <span v-if="selectedSkillDef.element" class="text-gray-400">· {{ selectedSkillDef.element }}</span>
+              <span :class="skillKindColor[selectedSkillDef.kind]">{{ skillKindLabel[selectedSkillDef.kind]?.() }}</span>
+              <span v-if="selectedSkillDef.element" class="text-gray-400">· {{ td('element', selectedSkillDef.element) }}</span>
             </div>
           </div>
           <button
             type="button"
             class="w-7 h-7 flex items-center justify-center rounded text-base text-gray-300 hover:bg-slate-700"
             @click="selectedSkill = null"
-            aria-label="닫기"
+            :aria-label="t('common.close', '닫기')"
           >✕</button>
         </div>
 
         <!-- 본문 -->
         <div class="px-4 py-3 pb-4 space-y-2 text-sm">
-          <p class="text-gray-200 leading-relaxed">{{ selectedSkillDef.description }}</p>
+          <p class="text-gray-200 leading-relaxed">{{ td('skill.desc', selectedSkill!) || selectedSkillDef.description }}</p>
           <div class="flex items-center justify-between pt-2 border-t border-slate-700/60 text-xs">
-            <span class="text-stat-mp">소모 MP <span class="font-bold">{{ selectedSkillDef.mp }}</span></span>
-            <span v-if="isAttackSkill" class="text-stat-util">발동률 <span class="font-bold">{{ procPct }}%</span></span>
+            <span class="text-stat-mp">{{ t('combat.mpCost', '소모 MP') }} <span class="font-bold">{{ selectedSkillDef.mp }}</span></span>
+            <span v-if="isAttackSkill" class="text-stat-util">{{ t('combat.procRate', '발동률') }} <span class="font-bold">{{ procPct }}%</span></span>
           </div>
         </div>
       </div>
@@ -563,12 +565,11 @@ watch(
       <div
         class="w-full max-w-sm rounded-xl border-2 border-amber-400/70 bg-bg-secondary/95 shadow-[0_0_40px_rgba(251,191,36,0.45)] p-6 space-y-4 text-center"
       >
-        <!-- 큰 한글만 — GameOver "사망" / Victory "탑 클리어" 와 동일 톤 -->
-        <div class="text-amber-300 text-5xl font-bold tracking-widest leading-tight">승리</div>
+        <div class="text-amber-300 text-5xl font-bold tracking-widest leading-tight">{{ t('combat.victoryTitle', '승리') }}</div>
         <button
           class="btn-primary w-full min-h-12 text-base font-bold"
           @click="closeAndAdvance"
-        >다음 층으로</button>
+        >{{ t('combat.nextFloor', '다음 층으로') }}</button>
       </div>
     </div>
     </Teleport>

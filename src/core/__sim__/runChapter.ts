@@ -17,6 +17,7 @@ import { createCombatContext, makeMonster, advanceTick, checkActionReady, monste
 import { computeEffectiveStats } from '../stats'
 import { useSkill, pickAutoAction } from '../skills'
 import { rollItem } from '../items'
+import { computeItemValue } from '../itemValue'
 import { CHAPTER_THEMES } from '@/data/chapters'
 import { WEAPON_KEYS } from '@/data/weapons'
 import { ARMOR_KEYS } from '@/data/armor'
@@ -523,8 +524,259 @@ export function runCliCustomMix() {
   console.log('\n=== MIX 완료 ===\n')
 }
 
+// 무기/갑옷 더미 측정 — 1~3챕터 몬스터 풀에서 랜덤 소환 + 1000틱 동안 데미지/피격량 측정
+//   목적: itemValue 점수가 실제 효율과 일치하는지 검증
+function pickRandomLowChapterMonster(chapter: number) {
+  const themes = ALL_THEMES
+  const theme = themes[Math.floor(Math.random() * themes.length)]
+  const def = CHAPTER_THEMES[theme]
+  const tmpl = def.normalMonsters[Math.floor(Math.random() * def.normalMonsters.length)]
+  return makeMonster(tmpl, chapter, 'normal')
+}
+
+function measureWeaponDps(character: Character, ticks: number): number {
+  let totalDmg = 0
+  let mob = pickRandomLowChapterMonster(1 + Math.floor(Math.random() * 3))
+  const ctx = createCombatContext(character, mob)
+  character.hp = character.maxHp
+  character.mp = character.maxMp
+  character.actionGauge = 0
+  for (let t = 0; t < ticks; t++) {
+    if (ctx.player.hp <= 0) {
+      character.hp = character.maxHp
+      character.mp = character.maxMp
+    }
+    advanceTick(ctx)
+    const playerEff = computeEffectiveStats(ctx.player)
+    if (ctx.player.actionGauge >= playerEff.무기ticks) {
+      const beforeHp = ctx.monsters[0]?.hp ?? 0
+      const action = pickAutoAction(ctx, {})
+      if (action.kind === 'skill') {
+        if (!useSkill(ctx, action.key)) playerBasicAttack(ctx)
+      } else {
+        playerBasicAttack(ctx)
+      }
+      consumeAction(ctx.player, playerEff.무기ticks)
+      const afterHp = ctx.monsters[0]?.hp ?? 0
+      totalDmg += Math.max(0, beforeHp - afterHp)
+      if (ctx.monsters[0] && ctx.monsters[0].hp <= 0) {
+        const newMob = pickRandomLowChapterMonster(1 + Math.floor(Math.random() * 3))
+        ctx.monsters[0] = newMob
+        ctx.ended = false
+      }
+    }
+  }
+  return totalDmg
+}
+
+function measureArmorTake(character: Character, ticks: number): number {
+  // 적 hp 무한, 적이 계속 player 공격. player hp 회복 매 틱
+  let mob = pickRandomLowChapterMonster(1 + Math.floor(Math.random() * 3))
+  mob.hp = 999999  // 무한 hp
+  mob.maxHp = 999999
+  const ctx = createCombatContext(character, mob)
+  character.hp = character.maxHp
+  character.mp = character.maxMp
+  character.actionGauge = 0
+  let totalTaken = 0
+  for (let t = 0; t < ticks; t++) {
+    const beforeHp = character.hp
+    advanceTick(ctx)
+    const ready = checkActionReady(ctx, computeEffectiveStats(character).무기ticks)
+    for (const m of ready.readyMonsters) {
+      monsterAttack(ctx, m)
+      consumeAction(m, m.ticks)
+    }
+    const afterHp = character.hp
+    const taken = Math.max(0, beforeHp - afterHp)
+    totalTaken += taken
+    // player 즉시 풀회복 (방어 dmg만 측정)
+    character.hp = character.maxHp
+    character.mp = character.maxMp
+  }
+  return totalTaken
+}
+
+// 등급별 측정 챕터 풀 (사용자 지정): 노말 1~3 / 레어 4~7 / 스페셜 7~9 / 레전드 10~
+const GRADE_CHAPTER_RANGE: Record<Grade, [number, number]> = {
+  노말: [1, 3],
+  레어: [4, 7],
+  스페셜: [7, 9],
+  레전드: [10, 11],
+}
+
+function measureWeaponDpsRanged(character: Character, ticks: number, chMin: number, chMax: number): number {
+  const pick = () => {
+    const ch = chMin + Math.floor(Math.random() * (chMax - chMin + 1))
+    return pickRandomLowChapterMonster(ch)
+  }
+  let totalDmg = 0
+  const ctx = createCombatContext(character, pick())
+  character.hp = character.maxHp
+  character.mp = character.maxMp
+  character.actionGauge = 0
+  for (let t = 0; t < ticks; t++) {
+    if (ctx.player.hp <= 0) {
+      character.hp = character.maxHp
+      character.mp = character.maxMp
+    }
+    advanceTick(ctx)
+    const playerEff = computeEffectiveStats(ctx.player)
+    if (ctx.player.actionGauge >= playerEff.무기ticks) {
+      const beforeHp = ctx.monsters[0]?.hp ?? 0
+      const action = pickAutoAction(ctx, {})
+      if (action.kind === 'skill') {
+        if (!useSkill(ctx, action.key)) playerBasicAttack(ctx)
+      } else {
+        playerBasicAttack(ctx)
+      }
+      consumeAction(ctx.player, playerEff.무기ticks)
+      const afterHp = ctx.monsters[0]?.hp ?? 0
+      totalDmg += Math.max(0, beforeHp - afterHp)
+      if (ctx.monsters[0] && ctx.monsters[0].hp <= 0) {
+        ctx.monsters[0] = pick()
+        ctx.ended = false
+      }
+    }
+  }
+  return totalDmg
+}
+
+function measureArmorTakeRanged(character: Character, ticks: number, chMin: number, chMax: number): number {
+  const ch = chMin + Math.floor(Math.random() * (chMax - chMin + 1))
+  const mob = pickRandomLowChapterMonster(ch)
+  mob.hp = 999999
+  mob.maxHp = 999999
+  const ctx = createCombatContext(character, mob)
+  character.hp = character.maxHp
+  character.mp = character.maxMp
+  character.actionGauge = 0
+  let totalTaken = 0
+  for (let t = 0; t < ticks; t++) {
+    const beforeHp = character.hp
+    advanceTick(ctx)
+    const ready = checkActionReady(ctx, computeEffectiveStats(character).무기ticks)
+    for (const m of ready.readyMonsters) {
+      monsterAttack(ctx, m)
+      consumeAction(m, m.ticks)
+    }
+    const afterHp = character.hp
+    totalTaken += Math.max(0, beforeHp - afterHp)
+    character.hp = character.maxHp
+    character.mp = character.maxMp
+  }
+  return totalTaken
+}
+
+export function runCliCustomDummy() {
+  const TICKS = 1000
+  const RUNS = 5
+  const stats: Stats = { 힘: 12, 민첩: 12, 체력: 12, 마력: 12, 행운: 12 }
+  const grades: Grade[] = ['노말', '레어', '스페셜', '레전드']
+
+  console.log(`\n=== 더미 측정 — 균등 60pt, ${TICKS}틱 × ${RUNS}런 ===`)
+  console.log(`(등급별 챕터: 노말 1~3 / 레어 4~7 / 스페셜 7~9 / 레전드 10~)\n`)
+
+  // 무기 측정 (갑옷: 같은 등급 단단한 중갑)
+  for (const g of grades) {
+    const [chMin, chMax] = GRADE_CHAPTER_RANGE[g]
+    console.log(`\n## 무기 — ${g} (챕터 ${chMin}~${chMax}, 갑옷: 중갑 ${g})`)
+    console.log('무기      | atkValue | dps (총dmg/틱) | 1000틱 누적')
+    console.log('----------+----------+----------------+-------------')
+    for (const w of WEAPON_KEYS) {
+      const dmgs: number[] = []
+      const sample = makeCharCustom(w, '중갑', g, g, stats)
+      const atkV = computeItemValue(sample.weapon, sample).atkValue
+      for (let r = 0; r < RUNS; r++) {
+        const char = makeCharCustom(w, '중갑', g, g, stats)
+        dmgs.push(measureWeaponDpsRanged(char, TICKS, chMin, chMax))
+      }
+      const avg = dmgs.reduce((a, b) => a + b, 0) / dmgs.length
+      console.log(`${w.padEnd(8)}  | ${atkV.toFixed(1).padStart(8)} | ${(avg / TICKS).toFixed(2).padStart(14)} | ${avg.toFixed(0).padStart(11)}`)
+    }
+  }
+
+  // 갑옷 측정 (무기: 같은 등급 단단한 검)
+  for (const g of grades) {
+    const [chMin, chMax] = GRADE_CHAPTER_RANGE[g]
+    console.log(`\n## 갑옷 — ${g} (챕터 ${chMin}~${chMax}, 무기: 검 ${g})`)
+    console.log('갑옷      | defValue | 받는dmg/틱     | 1000틱 누적')
+    console.log('----------+----------+----------------+-------------')
+    for (const a of ARMOR_KEYS) {
+      const dmgs: number[] = []
+      const sample = makeCharCustom('검', a, g, g, stats)
+      const defV = computeItemValue(sample.armor, sample).defValue
+      for (let r = 0; r < RUNS; r++) {
+        const char = makeCharCustom('검', a, g, g, stats)
+        dmgs.push(measureArmorTakeRanged(char, TICKS, chMin, chMax))
+      }
+      const avg = dmgs.reduce((a, b) => a + b, 0) / dmgs.length
+      console.log(`${a.padEnd(8)}  | ${defV.toFixed(1).padStart(8)} | ${(avg / TICKS).toFixed(2).padStart(14)} | ${avg.toFixed(0).padStart(11)}`)
+    }
+  }
+
+  console.log('\n=== Dummy 완료 ===\n')
+}
+
+// 장비 점수 vs 실제 성능 검증
+//   각 (무기·등급) 조합과 (갑옷·등급) 조합을 같은 균등 캐릭(60pt)으로 시뮬 → itemValue 와 클리어률 비교
+//   itemValue 점수 순위와 클리어률 순위가 일치해야 정상
+export function runCliCustomEquip() {
+  const RUNS = 100
+  const stats: Stats = { 힘: 12, 민첩: 12, 체력: 12, 마력: 12, 행운: 12 }
+  const grades: Grade[] = ['노말', '레어', '스페셜', '레전드']
+
+  console.log(`\n=== 장비 점수 vs 클리어률 검증 (균등 60pt, ${RUNS}런) ===\n`)
+
+  // 무기 비교 (갑옷 = 중갑 단단한 레어 고정)
+  console.log(`## 무기 비교 (갑옷: 중갑 단단한 레어 고정)`)
+  console.log('무기      | 등급     | atkValue | 클리어률')
+  console.log('----------+----------+----------+---------')
+  const weaponsToTest = ['단검', '검', '대검', '롱보우', '스태프', '마도서']
+  for (const w of weaponsToTest) {
+    for (const g of grades) {
+      let wins = 0
+      const sample = makeCharCustom(w, '중갑', g, '레어', stats)
+      const wValue = computeItemValue(sample.weapon, sample).atkValue
+      for (let i = 0; i < RUNS; i++) {
+        const char = makeCharCustom(w, '중갑', g, '레어', stats)
+        if (simRunClear2(char)) wins++
+      }
+      const winRate = wins / RUNS
+      console.log(`${w.padEnd(8)}  | ${g.padEnd(6)} | ${wValue.toFixed(1).padStart(8)} | ${formatPct(winRate).padStart(7)}`)
+    }
+    console.log('----------+----------+----------+---------')
+  }
+
+  // 갑옷 비교 (무기 = 검 단단한 레어 고정)
+  console.log(`\n## 갑옷 비교 (무기: 검 단단한 레어 고정)`)
+  console.log('갑옷      | 등급     | defValue | atkValue | 합 score | 클리어률')
+  console.log('----------+----------+----------+----------+----------+---------')
+  for (const a of ARMOR_KEYS) {
+    for (const g of grades) {
+      let wins = 0
+      const sample = makeCharCustom('검', a, '레어', g, stats)
+      const aValue = computeItemValue(sample.armor, sample)
+      const sum = aValue.atkValue + aValue.defValue
+      for (let i = 0; i < RUNS; i++) {
+        const char = makeCharCustom('검', a, '레어', g, stats)
+        if (simRunClear2(char)) wins++
+      }
+      const winRate = wins / RUNS
+      console.log(`${a.padEnd(8)}  | ${g.padEnd(6)} | ${aValue.defValue.toFixed(1).padStart(8)} | ${aValue.atkValue.toFixed(1).padStart(8)} | ${sum.toFixed(1).padStart(8)} | ${formatPct(winRate).padStart(7)}`)
+    }
+    console.log('----------+----------+----------+----------+----------+---------')
+  }
+
+  console.log('\n=== Equip 완료 ===\n')
+}
+
 if (typeof process !== 'undefined' && process.argv?.[1]?.includes('runChapter')) {
-  if (process.env.SIM_MODE === 'custom_mix') {
+  if (process.env.SIM_MODE === 'custom_dummy') {
+    runCliCustomDummy()
+  } else if (process.env.SIM_MODE === 'custom_equip') {
+    runCliCustomEquip()
+  } else if (process.env.SIM_MODE === 'custom_mix') {
     runCliCustomMix()
   } else if (process.env.SIM_MODE === 'custom_bow') {
     runCliCustomBow()
