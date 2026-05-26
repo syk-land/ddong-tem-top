@@ -117,25 +117,41 @@ export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
     }
     const onEvent = (e: Event) => {
       const ce = e as CustomEvent
-      const name = ce.detail?.name as string | undefined
+      const detail = ce.detail as { name?: string; message?: string } | undefined
+      const name = detail?.name
       if (!name) return
-      console.info('[ads] gm-sdk-event', name)
+      console.info('[ads] gm-sdk-event', name, detail?.message ?? '')
       // GameMonetize SDK 이벤트 이름은 버전마다 약간 다를 수 있어서 보수적으로 매칭.
       switch (name) {
+        // ── 정상 완료 ──
         case 'SDK_REWARDED_WATCH_COMPLETE':
         case 'SDK_REWARDED_FINISHED':
         case 'AD_REWARDED':
         case 'AD_FINISHED':
         case 'AD_COMPLETE':
-        case 'SDK_GAME_START':  // 광고 끝나고 게임 재개 신호 — 보상 fallback
           rewarded = true
           finish(true)
           break
-        case 'SDK_REWARDED_NOT_AVAILABLE':
-        case 'AD_ERROR':
+        // ── 사용자가 명시적으로 스킵 (보상 거부) ──
         case 'AD_SKIPPED':
-        case 'AD_CANCELED':
           finish(false)
+          break
+        // ── 광고 fill 실패 / 인벤토리 부족 / SDK 오류 ──
+        //   사용자 잘못 X (no-fill 은 "New" 단계의 정상 상황).
+        //   클릭한 의도를 존중해 보상 지급.
+        case 'AD_CANCELED':
+        case 'AD_ERROR':
+        case 'SDK_REWARDED_NOT_AVAILABLE':
+          rewarded = true
+          finish(true)
+          break
+        // ── 광고 흐름 종료 ──
+        //   위에서 이미 settle 됐으면 no-op, 아니면 보상 폴백.
+        case 'SDK_GAME_START':
+          if (!settled) {
+            rewarded = true
+            finish(true)
+          }
           break
       }
     }
