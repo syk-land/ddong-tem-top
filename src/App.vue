@@ -53,7 +53,10 @@ function dismissSplash() {
 //     SDK 가 3초 내 안 떴으면 영영 못 봤음).
 const PREROLL_SESSION_KEY = 'gm_preroll_done'
 function schedulePreroll() {
-  if (sessionStorage.getItem(PREROLL_SESSION_KEY)) return
+  if (sessionStorage.getItem(PREROLL_SESSION_KEY)) {
+    console.info('[ads] preroll: skipped — sessionStorage flag already set (이미 이번 세션에 발동)')
+    return
+  }
   console.info('[ads] preroll: scheduling — polling SDK ready up to 10s')
   let tries = 0
   const tick = () => {

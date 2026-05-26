@@ -156,11 +156,14 @@ export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
       }
     }
     // 안전망 timeout — 이벤트가 전혀 fire 안 하거나 SDK stuck 상태인 경우.
-    // 30초 후 false 반환 → 부활/속도 흐름이 살아남.
-    const TIMEOUT_MS = 30_000
+    // GameMonetize SDK 가 inventory 없을 때 첫 시도는 12초 safety timer 로
+    // AD_CANCELED 던지지만, 이후 ShowAds() 호출은 침묵하는 경우 관측됨.
+    // → 8초 안에 아무 이벤트 없으면 "SDK 침묵 = no-fill" 로 간주, 보상 지급.
+    const TIMEOUT_MS = 8_000
     const timeoutHandle = setTimeout(() => {
-      console.warn('[ads] GameMonetize 광고 응답 30초 초과 — false 반환')
-      finish(rewarded)
+      console.warn('[ads] GameMonetize 광고 응답 8초 초과 — no-fill 로 간주, 보상 지급')
+      rewarded = true
+      finish(true)
     }, TIMEOUT_MS)
     window.addEventListener('gm-sdk-event', onEvent)
     try {
