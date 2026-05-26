@@ -23,7 +23,8 @@ function loadLang(): Lang {
     const v = localStorage.getItem(STORAGE_KEY)
     if (v === 'en' || v === 'ko') return v
   } catch { /* localStorage 차단 환경 */ }
-  return 'ko'
+  // 기본값 영어 — GameMonetize 검수 요구사항 (모든 in-game 텍스트 기본 언어 영어)
+  return 'en'
 }
 
 const _lang = ref<Lang>(loadLang())
