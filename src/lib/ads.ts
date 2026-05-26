@@ -40,6 +40,29 @@ function isSdkReady(): boolean {
          typeof window.sdk.showAd === 'function'
 }
 
+// 진단: GameMonetize SDK 가 window 의 어디에 자기 자신을 노출하는지 찾기.
+// SDK_READY 후에도 window.sdk 가 undefined 인 케이스가 보고됨 — 객체 이름이
+// 'sdk' 가 아닐 수 있음(SDK / gameMonetize / GameMonetize 등). 모든 후보 키와
+// showAd 보유 여부를 한 번 출력해 실체를 파악.
+let _sdkDiagPrinted = false
+function diagSdk(): void {
+  if (_sdkDiagPrinted) return
+  _sdkDiagPrinted = true
+  if (typeof window === 'undefined') return
+  const w = window as unknown as Record<string, unknown>
+  const keys = Object.keys(w).filter((k) => /sdk|game|ad|monet/i.test(k))
+  const summary: Array<{ key: string; type: string; hasShowAd: boolean }> = []
+  for (const k of keys) {
+    const v = w[k] as { showAd?: unknown } | undefined
+    summary.push({
+      key: k,
+      type: typeof v,
+      hasShowAd: !!v && typeof v === 'object' && typeof v.showAd === 'function',
+    })
+  }
+  console.info('[ads-diag] window keys matching /sdk|game|ad|monet/i', summary)
+}
+
 // 보상형 광고 표시 — 시청 완료 시 true, 실패/스킵 시 false.
 //   BYPASS_ADS 또는 SDK 미로드 시: 즉시 true (PoC 동작 유지).
 //   정상 동작 시: SDK rewarded 호출 후 이벤트로 결과 판정.
@@ -47,6 +70,7 @@ function isSdkReady(): boolean {
 // useCase 는 통계/분석용 메타 — GameMonetize SDK 가 광고 단위를 자체 관리해서
 // 코드에선 분기만 가능 (광고 단위 ID 를 직접 넘기지 않는다).
 export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
+  diagSdk()
   console.info('[ads] showRewardedAd called', { useCase, BYPASS_ADS, sdkReady: isSdkReady() })
   if (BYPASS_ADS) return true
   if (!isSdkReady()) {
@@ -113,6 +137,7 @@ export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
 // GameMonetize 활성화 자격은 실제 ad request 트래픽 누적이 필요해서, 세션당 1회 프리롤만으로도
 // "사용 중인 게임" 시그널이 명확해진다.
 export function showInterstitial(): void {
+  diagSdk()
   console.info('[ads] showInterstitial called', { BYPASS_ADS, sdkReady: isSdkReady() })
   if (BYPASS_ADS) return
   if (!isSdkReady()) return  // SDK 미로드 — dev/네트워크 차단. 조용히 패스
