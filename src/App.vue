@@ -47,18 +47,25 @@ function dismissSplash() {
   schedulePreroll()
 }
 
-// 세션당 1회만 프리롤. SDK 가 비동기 로드라 ready 될 때까지 짧게 polling.
+// 세션당 1회 프리롤. SDK 가 비동기 로드라 ready 될 때까지 polling.
+//   - 플래그는 "showInterstitial 호출 성공" 시점에 박는다. 폴링 실패 후
+//     SDK_READY 이벤트로 다시 시도할 수 있도록 (이전엔 시도 전에 박아서
+//     SDK 가 3초 내 안 떴으면 영영 못 봤음).
+const PREROLL_SESSION_KEY = 'gm_preroll_done'
 function schedulePreroll() {
-  const SESSION_KEY = 'gm_preroll_done'
-  if (sessionStorage.getItem(SESSION_KEY)) return
-  sessionStorage.setItem(SESSION_KEY, '1')
+  if (sessionStorage.getItem(PREROLL_SESSION_KEY)) return
+  console.info('[ads] preroll: scheduling — polling SDK ready up to 10s')
   let tries = 0
   const tick = () => {
+    if (sessionStorage.getItem(PREROLL_SESSION_KEY)) return  // 다른 경로에서 이미 발동
     if (isGameMonetizeReady()) {
+      console.info('[ads] preroll: SDK ready → firing interstitial')
+      sessionStorage.setItem(PREROLL_SESSION_KEY, '1')
       showInterstitial()
       return
     }
-    if (++tries < 30) setTimeout(tick, 100)  // 최대 3초 대기
+    if (++tries < 100) setTimeout(tick, 100)  // 최대 10초 대기
+    else console.warn('[ads] preroll: SDK never ready within 10s — skipping')
   }
   tick()
 }
@@ -147,7 +154,14 @@ onMounted(() => {
       // 화면이 그새 바뀌었을 수도 있어 현재 화면 기준 BGM 재보장
       playBgm(pickBgm())
     },
+    onReady: () => {
+      // SDK 준비된 즉시 프리롤 시도 (splash 클릭 경로와 별개 — 둘 중 먼저 발동되는 쪽이 이김)
+      schedulePreroll()
+    },
   })
+  // 리스너 attach 시점에 SDK 가 이미 ready 일 수 있다 (SDK_READY 이벤트를 놓쳤을 가능성).
+  // 이 경우에도 프리롤이 발동되도록 즉시 한 번 폴링 시작.
+  if (isGameMonetizeReady()) schedulePreroll()
 })
 onUnmounted(() => {
   if (typeof document !== 'undefined') {
