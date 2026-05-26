@@ -529,7 +529,7 @@ function showSkillDetail(key: string) {
         >
           <div class="flex items-center justify-between">
             <span :class="ac.failed ? 'text-gray-500 line-through' : 'text-trait-special font-bold'">
-              {{ td('challenge', def.key) || def.name }}
+              {{ t(`challenge.${def.key}`, def.name) }}
             </span>
             <span
               class="text-xs px-1.5 py-0.5 rounded"
@@ -540,14 +540,14 @@ function showSkillDetail(key: string) {
               {{ ac.failed ? t('status.failed', '실패') : (def.category === 'risk' ? t('status.risk', '리스크') : t('status.instant', '즉시')) }}
             </span>
           </div>
-          <div class="text-xs text-gray-400">{{ td('challenge.desc', def.key) || def.description }}</div>
+          <div class="text-xs text-gray-400">{{ t(`challenge.desc.${def.key}`, def.description) }}</div>
           <div class="text-xs">
             <span class="text-gray-500">{{ t('status.reward', '보상: ') }}</span>
-            <span class="text-log-reward">{{ td('challenge.reward', def.key) || def.reward }}</span>
+            <span class="text-log-reward">{{ t(`challenge.reward.${def.key}`, def.reward) }}</span>
           </div>
           <div class="text-xs">
             <span class="text-gray-500">{{ t('status.condition', '조건: ') }}</span>
-            <span class="text-status-burn">{{ td('challenge.penalty', def.key) || def.penalty }}</span>
+            <span class="text-status-burn">{{ t(`challenge.penalty.${def.key}`, def.penalty) }}</span>
           </div>
         </div>
       </div>

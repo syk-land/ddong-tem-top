@@ -330,11 +330,11 @@ async function editPlayerName() {
             </span>
             <span class="text-xs text-gray-500">{{ td('challenge.group', c.group) }}</span>
           </div>
-          <h3 :class="[isSelected(c.key) ? 'text-pink-200' : 'text-gray-100', 'font-bold text-sm']">{{ td('challenge', c.key) || c.name }}</h3>
-          <p class="text-xs text-gray-400 mt-1 leading-snug">{{ td('challenge.desc', c.key) || c.description }}</p>
+          <h3 :class="[isSelected(c.key) ? 'text-pink-200' : 'text-gray-100', 'font-bold text-sm']">{{ t(`challenge.${c.key}`, c.name) }}</h3>
+          <p class="text-xs text-gray-400 mt-1 leading-snug">{{ t(`challenge.desc.${c.key}`, c.description) }}</p>
           <div class="mt-2 space-y-0.5 text-xs">
-            <div class="text-log-reward">✦ {{ td('challenge.reward', c.key) || c.reward }}</div>
-            <div class="text-log-damage">✖ {{ td('challenge.penalty', c.key) || c.penalty }}</div>
+            <div class="text-log-reward">✦ {{ t(`challenge.reward.${c.key}`, c.reward) }}</div>
+            <div class="text-log-damage">✖ {{ t(`challenge.penalty.${c.key}`, c.penalty) }}</div>
           </div>
           <div v-if="c.scaleNote" class="mt-1 text-[10px] text-amber-300/80 leading-snug">↻ {{ c.scaleNote }}</div>
         </div>

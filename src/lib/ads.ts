@@ -46,10 +46,12 @@ function isSdkReady(): boolean {
 //
 // useCase 는 통계/분석용 메타 — GameMonetize SDK 가 광고 단위를 자체 관리해서
 // 코드에선 분기만 가능 (광고 단위 ID 를 직접 넘기지 않는다).
-export async function showRewardedAd(_useCase: AdUseCase): Promise<boolean> {
+export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
+  console.info('[ads] showRewardedAd called', { useCase, BYPASS_ADS, sdkReady: isSdkReady() })
   if (BYPASS_ADS) return true
   if (!isSdkReady()) {
     // SDK 미로드 — dev / 네트워크 차단 / SDK 비활성화 상태. 즉시 보상.
+    console.info('[ads] SDK not ready — granting immediate reward')
     return true
   }
 
@@ -61,12 +63,14 @@ export async function showRewardedAd(_useCase: AdUseCase): Promise<boolean> {
       settled = true
       clearTimeout(timeoutHandle)
       window.removeEventListener('gm-sdk-event', onEvent)
+      console.info('[ads] rewarded ad finished', { result: v, useCase })
       resolve(v)
     }
     const onEvent = (e: Event) => {
       const ce = e as CustomEvent
       const name = ce.detail?.name as string | undefined
       if (!name) return
+      console.info('[ads] gm-sdk-event', name)
       // GameMonetize SDK 이벤트 이름은 버전마다 약간 다를 수 있어서 보수적으로 매칭.
       switch (name) {
         case 'SDK_REWARDED_WATCH_COMPLETE':
@@ -96,6 +100,7 @@ export async function showRewardedAd(_useCase: AdUseCase): Promise<boolean> {
     window.addEventListener('gm-sdk-event', onEvent)
     try {
       const adType = window.sdk!.AdType?.Rewarded ?? 'rewarded'
+      console.info('[ads] calling sdk.showAd', { adType })
       window.sdk!.showAd(adType)
     } catch (e) {
       console.warn('[ads] GameMonetize 광고 표시 실패:', e)
@@ -108,9 +113,11 @@ export async function showRewardedAd(_useCase: AdUseCase): Promise<boolean> {
 // GameMonetize 활성화 자격은 실제 ad request 트래픽 누적이 필요해서, 세션당 1회 프리롤만으로도
 // "사용 중인 게임" 시그널이 명확해진다.
 export function showInterstitial(): void {
+  console.info('[ads] showInterstitial called', { BYPASS_ADS, sdkReady: isSdkReady() })
   if (BYPASS_ADS) return
   if (!isSdkReady()) return  // SDK 미로드 — dev/네트워크 차단. 조용히 패스
   try {
+    console.info('[ads] calling sdk.showAd (interstitial)')
     window.sdk!.showAd()  // no-arg = 인터스티셜
   } catch (e) {
     console.warn('[ads] GameMonetize 인터스티셜 표시 실패:', e)

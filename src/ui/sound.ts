@@ -451,8 +451,10 @@ export function playSkillSound(key: string, kind?: string) {
 //   - gemini: 캐릭터 생성 ~ 100층/사망 사이의 run 전체 (procedural, C major 발랄/벨 — 산뜻·몽환)
 // 같은 kind 호출은 dedup. 다른 kind 호출 시에만 페이드 아웃 후 새 트랙 시작.
 
+// vite base 가 './' 일 때 GameMonetize 서브디렉토리 호스팅에서도 동작하도록
+// BASE_URL prefix 사용 (절대경로 '/sound/...' 는 CDN 루트로 가서 404)
 const MP3_BGM_URLS: Record<string, string> = {
-  splash: '/sound/Beneath_the_Wet_Stone.mp3',
+  splash: `${import.meta.env.BASE_URL}sound/Beneath_the_Wet_Stone.mp3`,
 }
 
 interface BgmNote {

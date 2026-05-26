@@ -36,7 +36,7 @@ const challengeOneLine = computed(() => {
   const items = keys.map((k) => {
     const def = CHALLENGES_MAP[k]
     if (!def) return null
-    return td('challenge', def.key) || def.name
+    return t(`challenge.${def.key}`, def.name)
   }).filter((s): s is string => !!s)
   return items.join(' · ')
 })
