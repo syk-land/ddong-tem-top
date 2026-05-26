@@ -22,6 +22,7 @@ import ItemAnnounceModal from './ui/components/ItemAnnounceModal.vue'
 import SpeedControl from './ui/components/SpeedControl.vue'
 import TutorialOverlay from './ui/components/TutorialOverlay.vue'
 import { playBgm, pauseBgm, resumeBgm, type BgmKind } from './ui/sound'
+import { showInterstitial, onGameMonetizeLifecycle, isGameMonetizeReady } from './lib/ads'
 
 const game = useGameStore()
 const auth = useAuthStore()
@@ -40,6 +41,26 @@ function dismissSplash() {
   showSplash.value = false
   // 최초 실행이면 인트로 만화 자동 표시 (main → t1 → t2 → menu)
   game.autoShowIntroIfFirstTime()
+  // GameMonetize 활성화 트래픽 누적용 — 세션당 1회 프리롤 인터스티셜.
+  // SDK 미로드/no-fill 이면 조용히 패스. 사용자가 splash 클릭으로 autoplay 권한을
+  // 부여한 직후라 SDK 의 광고 자동재생 정책에도 안 걸린다.
+  schedulePreroll()
+}
+
+// 세션당 1회만 프리롤. SDK 가 비동기 로드라 ready 될 때까지 짧게 polling.
+function schedulePreroll() {
+  const SESSION_KEY = 'gm_preroll_done'
+  if (sessionStorage.getItem(SESSION_KEY)) return
+  sessionStorage.setItem(SESSION_KEY, '1')
+  let tries = 0
+  const tick = () => {
+    if (isGameMonetizeReady()) {
+      showInterstitial()
+      return
+    }
+    if (++tries < 30) setTimeout(tick, 100)  // 최대 3초 대기
+  }
+  tick()
 }
 
 // 화면 전환 BGM 라우팅 — 정확히 2개 트랙만 사용.
@@ -103,6 +124,10 @@ function onVisibility() {
   }
 }
 
+// GameMonetize SDK 광고 재생 라이프사이클 unsub. 광고 재생 직전 SDK 가 SDK_GAME_PAUSE 를
+// 던지고, 종료 후 SDK_GAME_START 를 던진다. 자동 틱 + BGM 을 광고에 맞춰 정지/복원한다.
+let unsubAdsLifecycle: (() => void) | null = null
+
 onMounted(() => {
   if (typeof document !== 'undefined') {
     // 페이지 마운트된 시점 = 사용자에게 보이는 시점 → paused 초기화 (혹시 잔재 방지)
@@ -111,6 +136,18 @@ onMounted(() => {
     window.addEventListener('pagehide', onVisibility)
     window.addEventListener('pageshow', onVisibility)
   }
+  unsubAdsLifecycle = onGameMonetizeLifecycle({
+    onPause: () => {
+      game.setPaused(true)
+      pauseBgm()
+    },
+    onResume: () => {
+      game.setPaused(false)
+      resumeBgm()
+      // 화면이 그새 바뀌었을 수도 있어 현재 화면 기준 BGM 재보장
+      playBgm(pickBgm())
+    },
+  })
 })
 onUnmounted(() => {
   if (typeof document !== 'undefined') {
@@ -118,6 +155,8 @@ onUnmounted(() => {
     window.removeEventListener('pagehide', onVisibility)
     window.removeEventListener('pageshow', onVisibility)
   }
+  unsubAdsLifecycle?.()
+  unsubAdsLifecycle = null
 })
 </script>
 

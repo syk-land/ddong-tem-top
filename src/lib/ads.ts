@@ -103,3 +103,42 @@ export async function showRewardedAd(_useCase: AdUseCase): Promise<boolean> {
     }
   })
 }
+
+// 인터스티셜 광고 — 프리롤/스테이지 간 노출용. rewarded 와 달리 결과 판정 없음 (표시 자체가 목적).
+// GameMonetize 활성화 자격은 실제 ad request 트래픽 누적이 필요해서, 세션당 1회 프리롤만으로도
+// "사용 중인 게임" 시그널이 명확해진다.
+export function showInterstitial(): void {
+  if (BYPASS_ADS) return
+  if (!isSdkReady()) return  // SDK 미로드 — dev/네트워크 차단. 조용히 패스
+  try {
+    window.sdk!.showAd()  // no-arg = 인터스티셜
+  } catch (e) {
+    console.warn('[ads] GameMonetize 인터스티셜 표시 실패:', e)
+  }
+}
+
+// SDK 가 광고 재생 직전 SDK_GAME_PAUSE, 종료 후 SDK_GAME_START 를 던진다.
+// 게임 자동 틱 / BGM 토글을 이 이벤트에 맞춰 동기화하면 광고 재생 중 게임이 진행되는 사고를 막을 수 있다.
+// SDK_READY 는 SDK 가 광고 호출을 받을 준비가 된 시점.
+export type GameMonetizeHandlers = {
+  onPause?: () => void
+  onResume?: () => void
+  onReady?: () => void
+}
+
+export function onGameMonetizeLifecycle(handlers: GameMonetizeHandlers): () => void {
+  const listener = (e: Event) => {
+    const name = (e as CustomEvent).detail?.name as string | undefined
+    if (!name) return
+    if (name === 'SDK_GAME_PAUSE') handlers.onPause?.()
+    else if (name === 'SDK_GAME_START') handlers.onResume?.()
+    else if (name === 'SDK_READY') handlers.onReady?.()
+  }
+  window.addEventListener('gm-sdk-event', listener)
+  return () => window.removeEventListener('gm-sdk-event', listener)
+}
+
+// SDK_READY 이벤트를 우리 리스너 attach 이전에 놓쳤을 가능성 대비 — 객체 존재로도 판정.
+export function isGameMonetizeReady(): boolean {
+  return isSdkReady()
+}
