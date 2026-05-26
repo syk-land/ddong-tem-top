@@ -14,11 +14,20 @@
 //   3) 아래 BYPASS_ADS 를 false 로 변경
 // ============================================================
 
-// GameMonetize SDK 가 window 에 주입하는 객체 타입 (느슨한 정의)
+// GameMonetize SDK 가 window 에 주입하는 함수/객체 타입 (느슨한 정의).
+//
+// 실측(2026-05): 진단 로그에 따르면 SDK 는 자기 자신을 'sdk' 객체로 노출하지
+// 않고 (있어도 showAd 미보유), 탑레벨 함수 ShowAds() / ShowAds2() / MobileInGame()
+// 으로 노출한다 (구 GameDistribution SDK 와 동일한 네이밍 유지).
+//   - ShowAds()           : interstitial
+//   - ShowAds('rewarded') : rewarded video
 declare global {
   interface Window {
+    ShowAds?: (type?: string) => void
+    ShowAds2?: (type?: string) => void
+    MobileInGame?: (type?: string) => void
     sdk?: {
-      showAd: (type?: string) => void
+      showAd?: (type?: string) => void
       AdType?: { Rewarded?: string; Interstitial?: string }
       [k: string]: unknown
     }
@@ -35,9 +44,25 @@ const BYPASS_ADS = false
 export type AdUseCase = 'revive' | 'fastSpeed' | 'autoEnter'
 
 function isSdkReady(): boolean {
-  return typeof window !== 'undefined' &&
-         !!window.sdk &&
-         typeof window.sdk.showAd === 'function'
+  if (typeof window === 'undefined') return false
+  // 정식 API — GameMonetize 가 노출하는 탑레벨 함수
+  if (typeof window.ShowAds === 'function') return true
+  // 폴백 — 일부 빌드/버전이 sdk.showAd 로 노출하는 경우 호환
+  if (window.sdk && typeof window.sdk.showAd === 'function') return true
+  return false
+}
+
+// SDK 호출 단일 진입점. 타입 미지정(또는 'interstitial') = 인터스티셜, 'rewarded' = 보상형.
+function callShowAd(type?: string): void {
+  if (typeof window.ShowAds === 'function') {
+    window.ShowAds(type)
+    return
+  }
+  if (window.sdk && typeof window.sdk.showAd === 'function') {
+    window.sdk.showAd(type)
+    return
+  }
+  throw new Error('GameMonetize SDK function (ShowAds / sdk.showAd) not found on window')
 }
 
 // 진단: GameMonetize SDK 가 window 의 어디에 자기 자신을 노출하는지 찾기.
@@ -123,9 +148,9 @@ export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
     }, TIMEOUT_MS)
     window.addEventListener('gm-sdk-event', onEvent)
     try {
-      const adType = window.sdk!.AdType?.Rewarded ?? 'rewarded'
-      console.info('[ads] calling sdk.showAd', { adType })
-      window.sdk!.showAd(adType)
+      const adType = window.sdk?.AdType?.Rewarded ?? 'rewarded'
+      console.info('[ads] calling SDK ShowAds (rewarded)', { adType })
+      callShowAd(adType)
     } catch (e) {
       console.warn('[ads] GameMonetize 광고 표시 실패:', e)
       finish(false)
@@ -142,8 +167,8 @@ export function showInterstitial(): void {
   if (BYPASS_ADS) return
   if (!isSdkReady()) return  // SDK 미로드 — dev/네트워크 차단. 조용히 패스
   try {
-    console.info('[ads] calling sdk.showAd (interstitial)')
-    window.sdk!.showAd()  // no-arg = 인터스티셜
+    console.info('[ads] calling SDK ShowAds (interstitial)')
+    callShowAd()  // no-arg = 인터스티셜
   } catch (e) {
     console.warn('[ads] GameMonetize 인터스티셜 표시 실패:', e)
   }
