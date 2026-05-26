@@ -2110,7 +2110,7 @@ export const useGameStore = defineStore('game', {
         title: '진짜 보스의 부름',
         okLabel: '도전하기',
         cancelLabel: '나중에',
-        imageUrl: `${A}/images/REALBOSS/진짜보스직전.webp`,
+        imageUrl: `${A}/images/REALBOSS/realboss_intro.webp`,
       })
       if (!ok) {
         // 누적 골드는 보존 — 이번 세션은 거절 처리 (메뉴 재진입 시 다시 안 뜸)

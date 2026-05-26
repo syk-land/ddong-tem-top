@@ -319,7 +319,7 @@ async function editPlayerName() {
         >
           <!-- 챌린지 1/2/3 배지 이미지 (우상단) -->
           <img
-            :src="`${A}/images/UI/챌린지${idx + 1}.webp`"
+            :src="`${A}/images/UI/challenge${idx + 1}.webp`"
             :alt="t('create.challenge.badgeAlt', `챌린지 ${idx + 1}`, { n: idx + 1 })"
             class="absolute -top-3 -right-3 w-14 h-14 object-contain drop-shadow-lg z-10"
             @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"

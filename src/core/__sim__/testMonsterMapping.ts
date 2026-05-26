@@ -34,12 +34,12 @@ function parseMonsterFileMap(): Record<string, string> {
 const MONSTER_FILE_MAP = parseMonsterFileMap()
 
 function monsterImageFilename(name: string): string {
-  if (name.startsWith('미믹')) return '미믹.webp'
+  if (name.startsWith('미믹')) return 'mimic.webp'
   if (MONSTER_FILE_MAP[name]) return `${MONSTER_FILE_MAP[name]}.webp`
   for (const [key, file] of Object.entries(MONSTER_FILE_MAP)) {
     if (name.includes(key)) return `${file}.webp`
   }
-  return '몬스터.webp'
+  return 'monster.webp'
 }
 
 let pass = 0
@@ -64,7 +64,7 @@ for (const [theme, def] of Object.entries(CHAPTER_THEMES)) {
     const filename = monsterImageFilename(name)
     const filePath = join(IMG_ROOT, filename)
     const exists = existsSync(filePath)
-    const isDefault = filename === '몬스터.webp'
+    const isDefault = filename === 'monster.webp'
     check(`  ${name} → ${filename}`, exists && !isDefault, !exists ? '파일 없음' : '기본값 폴백 — 매핑 누락')
   }
 }
@@ -73,13 +73,13 @@ console.log('\n========== 2. PVP 적 매핑 ==========')
 for (const name of ['악당 모험가', '격노한 수집가']) {
   const filename = monsterImageFilename(name)
   const exists = existsSync(join(IMG_ROOT, filename))
-  check(`  ${name} → ${filename}`, exists && filename !== '몬스터.webp', '매핑 누락')
+  check(`  ${name} → ${filename}`, exists && filename !== 'monster.webp', '매핑 누락')
 }
 
 console.log('\n========== 3. 미믹 매핑 ==========')
 for (const name of ['미믹 (고블린 족장 모방)', '미믹 (고블린 전사 모방)', '미믹']) {
   const filename = monsterImageFilename(name)
-  check(`  ${name} → ${filename}`, filename === '미믹.webp', '미믹.webp 로 매핑되지 않음')
+  check(`  ${name} → ${filename}`, filename === 'mimic.webp', 'mimic.webp 로 매핑되지 않음')
 }
 
 console.log('\n========== 4. MONSTER_FILE_MAP 키와 chapters.ts 이름 정합성 ==========')

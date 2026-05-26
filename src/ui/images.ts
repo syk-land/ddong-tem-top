@@ -7,21 +7,22 @@ import type { SpecialEventKey } from '@/core/events'
 const A = import.meta.env.BASE_URL.replace(/\/$/, '')
 
 // =========================================================
-// 챕터 테마별 배경 (모바일 / WIDE 분기)
-// 파일명 대소문자 혼재(WIDE / wide) 때문에 매핑 테이블 사용
+// 챕터 테마별 배경 (모바일 / wide 분기)
+// 한글 파일명을 GameMonetize CDN 이 깨뜨려 ASCII 로 통일.
+// THEME_FILE: ChapterTheme(한글 키) → 파일 basename(ASCII).
 // =========================================================
-const WIDE_SUFFIX: Record<ChapterTheme, string> = {
-  고블린: 'WIDE',
-  골렘: 'WIDE',
-  언데드: 'WIDE',
-  환영: 'WIDE',
-  흡혈귀: 'wide',
-  심해: 'wide',
-  기계: 'wide',
-  용암: 'wide',
-  암흑: 'wide',
-  천공: 'wide',
-  맹독: 'wide',
+const THEME_FILE: Record<ChapterTheme, string> = {
+  고블린: 'goblin',
+  골렘: 'golem',
+  언데드: 'undead',
+  환영: 'mirage',
+  흡혈귀: 'vampire',
+  심해: 'deepsea',
+  기계: 'machine',
+  용암: 'lava',
+  암흑: 'dark',
+  천공: 'sky',
+  맹독: 'toxic',
 }
 
 const WIDE_BREAKPOINT = 768
@@ -32,18 +33,16 @@ export function isWideViewport(): boolean {
   return window.innerWidth >= WIDE_BREAKPOINT
 }
 
-/** 챕터 테마 배경 URL — wide=true면 WIDE 버전(웹), false면 모바일 */
+/** 챕터 테마 배경 URL — wide=true면 wide 버전(웹), false면 모바일 */
 export function themeBgUrl(theme: ChapterTheme, wide?: boolean): string {
   const w = wide ?? isWideViewport()
-  if (w) {
-    return `${A}/images/BACKGROUND/${theme}${WIDE_SUFFIX[theme]}.webp`
-  }
-  return `${A}/images/BACKGROUND/${theme}.webp`
+  const f = THEME_FILE[theme]
+  return `${A}/images/BACKGROUND/${f}${w ? '_wide' : ''}.webp`
 }
 
 /** 기본 메뉴/타이틀 배경 */
 export function defaultBgUrl(): string {
-  return `${A}/images/BACKGROUND/배경.webp`
+  return `${A}/images/BACKGROUND/main_bg.webp`
 }
 
 // =========================================================
@@ -54,7 +53,7 @@ export type RankKey = typeof RANK_KEYS[number]
 
 export function rankIconUrl(rank: string): string | null {
   if ((RANK_KEYS as readonly string[]).includes(rank)) {
-    return `${A}/images/UI/${rank}등급.webp`
+    return `${A}/images/UI/${rank}_grade.webp`
   }
   return null
 }
@@ -64,11 +63,11 @@ export function rankIconUrl(rank: string): string | null {
 // =========================================================
 // v6 5스탯 아이콘 매핑 (기존 자산 재활용)
 const STAT_FILE: Record<StatKey, string | null> = {
-  힘: '물공',
-  민첩: '속도',
-  체력: '체력',
-  마력: '마력',
-  행운: '행운',
+  힘: 'patk',
+  민첩: 'spd',
+  체력: 'vit',
+  마력: 'int_stat',
+  행운: 'luk',
 }
 
 export function statIconUrl(stat: StatKey): string | null {
@@ -80,11 +79,11 @@ export function statIconUrl(stat: StatKey): string | null {
 // 상태이상 아이콘
 // =========================================================
 const STATUS_FILE: Record<StatusKind, string | null> = {
-  점화: '점화',
-  출혈: '출혈',
-  독: '중독',  // 파일명은 "중독"
-  둔화: '둔화',
-  감전: '감전',
+  점화: 'burn',
+  출혈: 'bleed',
+  독: 'poison',
+  둔화: 'slow',
+  감전: 'shock',
   암흑: null,  // 이미지 없음 → 이모지 폴백
 }
 
@@ -97,12 +96,12 @@ export function statusIconUrl(kind: StatusKind): string | null {
 // 특별 이벤트 NPC 아이콘
 // =========================================================
 const NPC_FILE: Record<SpecialEventKey, string> = {
-  crisis_adventurer: '모험가',
-  wandering_smith: '대장장이',
-  cursed_gambler: '도박사',
-  exchange_altar: '제단',
-  black_market: '암시장',
-  greedy_collector: '수집가',
+  crisis_adventurer: 'adventurer',
+  wandering_smith: 'smith',
+  cursed_gambler: 'gambler',
+  exchange_altar: 'altar',
+  black_market: 'blackmarket',
+  greedy_collector: 'collector',
 }
 
 export function npcIconUrl(key: SpecialEventKey): string {
@@ -110,7 +109,7 @@ export function npcIconUrl(key: SpecialEventKey): string {
 }
 
 export function shopIconUrl(): string {
-  return `${A}/images/NPC/상점.webp`
+  return `${A}/images/NPC/shop.webp`
 }
 
 // 게임 메인 일러스트 (최초 실행 화면)
@@ -126,7 +125,7 @@ export function mainImagePortraitUrl(): string {
 
 // 진짜 보스 도전 이미지 (챕터 테마 → 보스 일러스트)
 export function realBossImageUrl(theme: ChapterTheme): string {
-  return `${A}/images/REALBOSS/${theme}.webp`
+  return `${A}/images/REALBOSS/${THEME_FILE[theme]}.webp`
 }
 
 // 인트로 만화 페이지 (1, 2, 3) — v=3 캐시 무효화
@@ -206,16 +205,34 @@ export function playerBustUrl(avatarKey?: string | null): string {
 }
 
 // =========================================================
-// 스킬 아이콘 (19종)
+// 스킬 아이콘 — 한글 스킬 key → ASCII 파일명 매핑
 // =========================================================
-const SKILL_FILE_OVERRIDE: Record<string, string> = {
-  스매쉬: '스매시',
-  불굴의의지: '불굴의의지',
+const SKILL_FILE: Record<string, string> = {
+  스매쉬: 'smash',
+  피어스: 'pierce',
+  연속공격: 'comboattack',
+  정밀타격: 'precisestrike',
+  급습: 'ambush',
+  방어: 'defense',
+  회피: 'evade',
+  패링: 'parry',
+  불굴의의지: 'ironwill',
+  빙결의화살: 'frostarrow',
+  화염구: 'fireball',
+  폭풍칼날: 'stormblade',
+  바위충격: 'rockshock',
+  번개창: 'lightningspear',
+  그림자일격: 'shadowstrike',
+  정화의광선: 'purifyray',
+  배리어: 'barrier',
+  마력충전: 'manacharge',
+  저항의결계: 'resistward',
 }
 
 export function skillIconUrl(skillKey: string): string {
-  const name = SKILL_FILE_OVERRIDE[skillKey] ?? skillKey
-  return `${A}/images/SKILL/${name}.webp`
+  const f = SKILL_FILE[skillKey]
+  if (!f) return `${A}/images/SKILL/skillattack.webp`
+  return `${A}/images/SKILL/${f}.webp`
 }
 
 // =========================================================
@@ -223,30 +240,30 @@ export function skillIconUrl(skillKey: string): string {
 // =========================================================
 const WEAPON_FILE: Record<string, string> = {
   // 근접
-  건틀릿: '건틀릿',
-  단검: '단검',
-  사슬낫: '사슬낫',
-  검: '검',
-  창: '창',
-  철퇴: '철퇴',
-  대검: '대검',
-  양날도끼: '양날도끼',
-  할버드: '할버드',
+  건틀릿: 'gauntlet',
+  단검: 'dagger',
+  사슬낫: 'chainsickle',
+  검: 'sword',
+  창: 'spear',
+  철퇴: 'mace',
+  대검: 'greatsword',
+  양날도끼: 'doubleaxe',
+  할버드: 'halberd',
   // 활
-  숏보우: '숏보우',
-  롱보우: '롱보우',
-  석궁: '석궁',
+  숏보우: 'shortbow',
+  롱보우: 'longbow',
+  석궁: 'crossbow',
   // 마법
-  완드: '완드',
-  스태프: '스태프',
-  마도서: '마도서',
+  완드: 'wand',
+  스태프: 'staff',
+  마도서: 'grimoire',
 }
 
 const ARMOR_FILE: Record<string, string> = {
-  판금: '판갑',
-  중갑: '판갑',
-  가죽갑: '가죽갑',
-  로브: '로브',
+  판금: 'plate',
+  중갑: 'plate',
+  가죽갑: 'leather',
+  로브: 'robe',
 }
 
 export function itemImageUrl(kind: 'weapon' | 'armor', baseKey: string): string | null {
@@ -273,86 +290,86 @@ export function itemImageUrl(kind: 'weapon' | 'armor', baseKey: string): string 
 // =========================================================
 const MONSTER_FILE_MAP: Record<string, string> = {
   // 고블린
-  '고블린 전사': '고블린전사',
-  '고블린 궁수': '고블린궁수',
-  '고블린 주술사': '고블린주술사',
-  '고블린 족장': '고블린왕',
-  '고블린 해방군 사령관': '고블린왕',
+  '고블린 전사': 'goblinwarrior',
+  '고블린 궁수': 'goblinarcher',
+  '고블린 주술사': 'goblinshaman',
+  '고블린 족장': 'goblinking',
+  '고블린 해방군 사령관': 'goblinking',
   // 골렘
-  '바위 골렘': '바위골렘',
-  '철갑 골렘': '돌골렘',
-  '룬 골렘': '대지골렘',
-  '고대 거신 골렘': '고대골렘',
-  '고대 마도 골렘 군주': '고대골렘',
+  '바위 골렘': 'rockgolem',
+  '철갑 골렘': 'stonegolem',
+  '룬 골렘': 'earthgolem',
+  '고대 거신 골렘': 'ancientgolem',
+  '고대 마도 골렘 군주': 'ancientgolem',
   // 언데드
-  '부패한 좀비': '좀비',
-  '무덤 스켈레톤': '해골병사',
-  '구울': '유령',
-  '리치왕': '리치',
-  '저주받은 리치 황제': '리치',
+  '부패한 좀비': 'zombie',
+  '무덤 스켈레톤': 'skeleton',
+  '구울': 'ghost',
+  '리치왕': 'lich',
+  '저주받은 리치 황제': 'lich',
   // 환영 — 자산 시각에 맞춰 이름 변경 (chapters.ts)
-  '신기루 새': '환영새',
-  '환영 고양이': '환영짐승',
-  '환영 슬라임': '환영슬라임',
-  '환영의 지배자': '환영드래곤',
-  '신기루 군주': '환영드래곤',
+  '신기루 새': 'miragebird',
+  '환영 고양이': 'miragebeast',
+  '환영 슬라임': 'mirageslime',
+  '환영의 지배자': 'miragedragon',
+  '신기루 군주': 'miragedragon',
   // 흡혈귀 — '핏빛 사도'(작은 뱀파이어), '흡혈 기사'(갑옷)
-  '흡혈 박쥐': '흡혈박쥐',
-  '핏빛 사도': '흡혈하수인',
-  '흡혈 기사': '흡혈기사',
-  '백작 블러드 로드': '흡혈귀공작',
-  '진조 블러드 로드': '흡혈귀공작',
+  '흡혈 박쥐': 'vampirebat',
+  '핏빛 사도': 'vampireminion',
+  '흡혈 기사': 'vampireknight',
+  '백작 블러드 로드': 'vampirelord',
+  '진조 블러드 로드': 'vampirelord',
   // 심해 — 자산 시각에 맞춰 이름 변경
-  '심해 아귀': '아귀물고기',
-  '심해 물고기': '심해어',
-  '심해 문어': '촉수괴물',
-  '크라켄': '크라켄',
-  '심해의 압박자': '거대기계거미',
-  // 기계 — 거대기계거미.webp(큰 거미 로봇)를 보스에 활용. 일반 3종은 스파이더로봇.
-  '스파이더 마인': '스파이더로봇',
-  '경비 거미 로봇': '스파이더로봇',
-  '강화 거미 로봇': '스파이더로봇',
-  '거대 메카닉 거미': '거대기계거미',
-  '자동화 공장 코어': '거대기계거미',
+  '심해 아귀': 'anglerfish',
+  '심해 물고기': 'abyssfish',
+  '심해 문어': 'tentaclemonster',
+  '크라켄': 'kraken',
+  '심해의 압박자': 'giantmechspider',
+  // 기계 — giantmechspider.webp(큰 거미 로봇)를 보스에 활용. 일반 3종은 spiderbot.
+  '스파이더 마인': 'spiderbot',
+  '경비 거미 로봇': 'spiderbot',
+  '강화 거미 로봇': 'spiderbot',
+  '거대 메카닉 거미': 'giantmechspider',
+  '자동화 공장 코어': 'giantmechspider',
   // 용암
-  '화염 슬라임': '용암슬라임',
-  '라바 하운드': '용암게',
-  '파이어 엘리멘탈': '용암정령',
-  '화염의 군주 이프리트': '파이어드래곤',
-  '종말의 화신': '파이어드래곤',
+  '화염 슬라임': 'lavaslime',
+  '라바 하운드': 'lavacrab',
+  '파이어 엘리멘탈': 'lavaspirit',
+  '화염의 군주 이프리트': 'firedragon',
+  '종말의 화신': 'firedragon',
   // 암흑 — 자산 시각에 맞춰 이름 변경
-  '그림자 고양이': '그림자짐승',
-  '그림자 슬라임': '어둠슬라임',
-  '암흑 정령': '암흑정령',
-  '어둠의 마왕': '암흑의마왕',
-  '공허의 군주': '암흑의마왕',
+  '그림자 고양이': 'shadowbeast',
+  '그림자 슬라임': 'darkslime',
+  '암흑 정령': 'darkspirit',
+  '어둠의 마왕': 'darklord',
+  '공허의 군주': 'darklord',
   // 천공 — 자산 시각에 맞춰 이름 변경 (페가수스, 천사)
-  '하늘 새': '하늘새',
-  '천공 페가수스': '날개달린뱀',
-  '폭풍 천사': '천사',
-  '천공의 용': '천공의용',
-  '폭풍룡': '천공의용',
+  '하늘 새': 'skybird',
+  '천공 페가수스': 'wingedserpent',
+  '폭풍 천사': 'angel',
+  '천공의 용': 'skydragon',
+  '폭풍룡': 'skydragon',
   // 맹독 — 자산 시각에 맞춰 이름 변경
-  '독 개구리': '독개구리',
-  '역병 슬라임': '독슬라임',
-  '맹독 거미': '독거미',
-  '독룡 히드라': '하이드라',
-  '치명적 역병 그 자체': '하이드라',
+  '독 개구리': 'poisonfrog',
+  '역병 슬라임': 'poisonslime',
+  '맹독 거미': 'poisonspider',
+  '독룡 히드라': 'hydra',
+  '치명적 역병 그 자체': 'hydra',
   // 특수
-  '악당 모험가': '악당',
-  '격노한 수집가': '강도',
+  '악당 모험가': 'villain',
+  '격노한 수집가': 'bandit',
 }
 
 export function monsterImageUrl(name: string): string {
   // "미믹 (X 모방)" 같은 동적 이름도 매칭
-  if (name.startsWith('미믹')) return `${A}/images/MONSTER/미믹.webp`
+  if (name.startsWith('미믹')) return `${A}/images/MONSTER/mimic.webp`
   // 정확 매칭
   if (MONSTER_FILE_MAP[name]) return `${A}/images/MONSTER/${MONSTER_FILE_MAP[name]}.webp`
   // 부분 매칭 (fallback): 키 중 일부가 이름에 포함되면 해당 이미지
   for (const [key, file] of Object.entries(MONSTER_FILE_MAP)) {
     if (name.includes(key)) return `${A}/images/MONSTER/${file}.webp`
   }
-  return `${A}/images/MONSTER/몬스터.webp`
+  return `${A}/images/MONSTER/monster.webp`
 }
 
 // =========================================================
