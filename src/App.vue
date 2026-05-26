@@ -113,6 +113,15 @@ watch(currentScreen, async () => {
   if (mainEl) mainEl.scrollTop = 0
 })
 
+// GameMonetize 검수 요구사항 — win/lose 이벤트마다 인터스티셜 노출.
+// 'victory'(100층 클리어), 'gameover'(사망/챌린지 위반), 'realboss_result'(라운드 보스 결과)
+// 진입 시 1회 발동. fire-and-forget — SDK 미로드/no-fill 이면 ads.ts 가 조용히 패스.
+const AD_TRIGGER_SCREENS = new Set(['victory', 'gameover', 'realboss_result'])
+watch(currentScreen, (next, prev) => {
+  if (next === prev) return
+  if (AD_TRIGGER_SCREENS.has(next)) showInterstitial()
+})
+
 // ============================================================
 // 백그라운드 전환 시 일시정지 (BGM + 자동 틱)
 // ============================================================
