@@ -23,10 +23,17 @@ function loadLang(): Lang {
     const v = localStorage.getItem(STORAGE_KEY)
     if (v === 'en' || v === 'ko') return v
   } catch { /* localStorage 차단 환경 */ }
-  return 'ko'
+  // GameMonetize 정책: 기본 언어 영어. 한국어는 사용자가 토글해야만 적용 (localStorage 저장).
+  return 'en'
 }
 
 const _lang = ref<Lang>(loadLang())
+
+// 접근성/SEO: <html lang> 을 실제 표시 언어와 일치시킨다 (브라우저/스크린리더 힌트).
+function syncHtmlLang(v: Lang) {
+  try { document.documentElement.lang = v } catch { /* SSR/non-DOM 환경 */ }
+}
+syncHtmlLang(_lang.value)
 
 export const currentLang = computed(() => _lang.value)
 export function getLang(): Lang { return _lang.value }
@@ -34,6 +41,7 @@ export function getLang(): Lang { return _lang.value }
 export function setLang(v: Lang) {
   if (_lang.value === v) return
   _lang.value = v
+  syncHtmlLang(v)
   try { localStorage.setItem(STORAGE_KEY, v) } catch { /* ignore */ }
 }
 

@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { rankColorClass } from '@/ui/colors'
 import { rankIconUrl, defaultBgUrl } from '@/ui/images'
 import { useI18n } from '@/lib/i18n'
+import { showInterstitial } from '@/lib/ads'
 
 const bgUrl = defaultBgUrl()
 const game = useGameStore()
 const { t } = useI18n()
 const pending = computed(() => game.pendingClear)
+
+onMounted(() => {
+  // GameMonetize 정책: win 이벤트마다 인터스티셜. SDK 가 내부 빈도 캡 처리.
+  showInterstitial()
+})
 
 function confirm() {
   // 분배 없이 메타 totalBonusStats 에만 적립. 분배는 캐릭터 생성에서.

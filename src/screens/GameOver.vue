@@ -4,6 +4,7 @@ import { useGameStore } from '@/stores/game'
 import { defaultBgUrl } from '@/ui/images'
 import { logColorClass, logPrefix } from '@/ui/colors'
 import { useI18n } from '@/lib/i18n'
+import { showInterstitial } from '@/lib/ads'
 
 const game = useGameStore()
 const { t } = useI18n()
@@ -16,6 +17,8 @@ const logEl = ref<HTMLElement | null>(null)
 
 onMounted(async () => {
   game.resetSavedRunFlag()
+  // GameMonetize 정책: lose 이벤트마다 인터스티셜. SDK 가 내부 빈도 캡 처리.
+  showInterstitial()
   // 로그를 마지막 줄로 자동 스크롤 — 사망 결정타가 가장 잘 보이도록
   await nextTick()
   if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight
