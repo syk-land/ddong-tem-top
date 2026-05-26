@@ -23,6 +23,7 @@
 | 12 | [WebP 이미지 파이프라인](./features/webp-pipeline.md) | 모든 일러스트/아이콘 WebP 화 + 캐릭터 그리드 분할 자동화. PNG 대비 -90~-95% 용량 |
 | 13 | [시스템 다크모드 강제 변환 차단](./features/dark-mode-block.md) | `color-scheme: dark` 메타·CSS 로 모바일 브라우저 강제 다크화 차단 |
 | 14 | [v10 밸런스 리밸런싱](./features/v10-balance.md) | 전투 템포 1초당 10 tick + HP/MP 풀 ×2 + 챕터 1~4 보스 약화 + 행운 골드 보너스 제거 |
+| 15 | [GameMonetize 통합 (광고 SDK + 호스팅 트랙)](./features/gamemonetize.md) | Firebase 와 동일 빌드로 GM 포털 배포. `window.ShowAds` 호출 경로, no-fill 폴백, 한글 파일명 ASCII 정책, 검증/활성화 절차 |
 
 ---
 
