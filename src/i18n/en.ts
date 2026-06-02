@@ -1201,4 +1201,132 @@ export const en: Record<string, string> = {
   'event.roulette': 'Roulette',
   'event.altar': 'Altar of Equivalent Exchange',
   'event.collector': 'Greedy Collector',
+
+  // ── Special event names / descriptions (intro modal) ──────
+  'event.crisis_adventurer.name': 'Adventurer in Distress',
+  'event.crisis_adventurer.desc': 'You found an adventurer caught in a trap. You must decide whether to save them.',
+  'event.wandering_smith.name': 'Wandering Blacksmith',
+  'event.wandering_smith.desc': 'A strange blacksmith offers to enhance your gear.',
+  'event.cursed_gambler.name': "Cursed Gambler's Roulette",
+  'event.cursed_gambler.desc': "The devil's roulette awaits. Will you wager a stat?",
+  'event.exchange_altar.name': 'Altar of Equivalent Exchange',
+  'event.exchange_altar.desc': 'You may sacrifice one stat to gain another.',
+  'event.black_market.name': 'Black Market Stat Broker',
+  'event.black_market.desc': 'A merchant of the dark who sells stats for gold.',
+  'event.greedy_collector.name': 'Greedy Collector',
+  'event.greedy_collector.desc': 'The collector demands your finest gear.',
+
+  // ── Common labels (common.weapon / common.armor defined above) ──
+  'common.equipped': 'Equipped',
+  'common.inv': 'Inventory',
+
+  // ── Floor / challenge restriction modals ──────────────────
+  'evt.challengeRestrict': 'Challenge Restriction',
+  'evt.challengeViolation': 'Challenge Violation',
+  'evt.combatStart': 'Battle Begins',
+  'evt.noShop': '💸 No-Buy Challenge: shop unavailable',
+  'evt.noHealSpring': 'Pure Abstinence Challenge: healing spring unavailable',
+  'evt.noReroll': 'No-Reroll Challenge: refresh unavailable',
+  'evt.healSpring': 'Restored HP +{n} at the healing spring.',
+  'evt.healSpringTitle': 'Healing Spring',
+
+  // ── Crisis adventurer ─────────────────────────────────────
+  'evt.crisis.body': '🆘 You found an adventurer in distress.\n\nSaving them: 70% ally (shop boost) / 30% villain PVP.',
+  'evt.crisis.title': 'Adventurer in Distress',
+  'evt.crisis.help': 'Save',
+  'evt.crisis.ignore': 'Ignore',
+  'evt.disbeliever': '💀 Disbeliever: died for the sin of saving the adventurer...',
+  'evt.ally': '🤝 An ally adventurer! Next shop refresh slot +1',
+  'evt.allyFound': 'Ally Found',
+  'evt.adventurerEnemy': 'The adventurer was an enemy! Battle begins!',
+  'evt.villainPvp': 'Villain PVP',
+
+  // ── Wandering smith ───────────────────────────────────────
+  'evt.smith.title': '🔨 Blacksmith',
+  'evt.smith.dlgTitle': '🔨 Wandering Blacksmith',
+  'evt.smith.noGear': 'The blacksmith left, saying you have no gear to enhance.',
+  'evt.smith.body': '{slot}: {item} (sell {sell}G)\nGold {gold}G — bet 0~{max}G\nHigher bet → higher success (max 90%)',
+  'evt.smith.maxBet': 'Max bet ({max}G)',
+  'evt.smith.custom': 'Enter manually',
+  'evt.smith.betTitle': '🔨 Enter Bet Gold',
+  'evt.smith.betBody': 'Gold {gold}G, 0 ~ {max}G',
+  'evt.smith.betPlaceholder': 'Bet gold',
+  'evt.smith.betZero': 'Bet was 0, so the blacksmith left.',
+  'evt.smith.success': '🔥 {slot} enhancement succeeded!',
+  'evt.smith.fail': 'Bet {g}G lost',
+  'evt.smith.failTitle': '💔 Enhancement Failed',
+
+  // ── Cursed gambler ────────────────────────────────────────
+  'evt.gambler.title': "Cursed Gambler's Roulette",
+  'evt.gambler.body': 'Choose a stat to wager. Result: Great Success +5 ~ Great Failure -5 (Luck decides EV)',
+  'evt.roulette': 'Roulette',
+  'roulette.대성공': 'Great Success',
+  'roulette.성공': 'Success',
+  'roulette.무효': 'No Effect',
+  'roulette.실패': 'Failure',
+  'roulette.대실패': 'Great Failure',
+
+  // ── Exchange altar ────────────────────────────────────────
+  'evt.altar.title': 'Altar of Equivalent Exchange',
+  'evt.altar.body': 'Chosen stat -3 → another stat +2\n({n}/3)',
+  'evt.altar.exchange': 'Exchange',
+  'evt.altar.end': 'End',
+  'evt.altar.giveStat': 'Stat to give',
+  'evt.altar.recvStat': 'Stat to receive',
+  'evt.altar.tooLow': '{stat} is too low for -3 (must keep at least 3)',
+  'evt.altar.cannot': 'Not allowed',
+
+  // ── Black market ──────────────────────────────────────────
+  'evt.bm.title': 'Black Market',
+  'evt.bm.body': 'Gold {gold}G — buy stat +1',
+  'evt.bm.priceSub': 'Current {cur} · price {price}G',
+  'evt.bm.leave': 'Leave the black market',
+  'evt.bm.needGold': '{stat} +1 — needs {price}G. Not enough gold.',
+  'evt.bm.tradeFail': '💸 Trade Failed',
+  'evt.bm.tradeFail2': 'Trade Failed',
+  'evt.bm.confirm': 'Buy {stat} +1 for {price}G?\n(Current {cur} → {next}, gold {gold}G → {after}G)',
+  'evt.bm.confirmTitle': 'Confirm Black Market Trade',
+  'evt.bm.buy': 'Buy',
+  'evt.bm.noGold': '💸 Not enough gold',
+
+  // ── Greedy collector ──────────────────────────────────────
+  'evt.collector.empty': 'The collector saw you were empty-handed and simply left.',
+  'evt.collector.body': '{item} (tier {tier}, {from})\n\nGive: random stat +1. Refuse: PVP at 70% boss strength.',
+  'evt.collector.title': 'The Greedy Collector Demands',
+  'evt.collector.give': 'Give',
+  'evt.collector.refuse': 'Refuse',
+  'evt.collector.done': 'Handover Complete',
+  'evt.collector.rage': 'The collector flies into a rage!',
+
+  // ── List dialog stat sub-labels ───────────────────────────
+  'evt.cur': 'Current {n}',
+  'evt.statArrow': 'Current {a} → {b}',
+
+  // ── Shop / equip modals ───────────────────────────────────
+  'shop.noGold': 'Not enough gold.',
+  'shop.cantBuy': '💸 Cannot Buy',
+  'shop.cantEquipChallenge': 'Cannot equip due to challenge restriction',
+  'shop.challenge': 'Challenge',
+  'shop.noInvBody': 'There is no inventory space to store your current gear "{item}".\nDiscard it and equip the new gear?',
+  'shop.noInvTitle': 'No Inventory',
+  'shop.invFullBody': 'There is no empty inventory slot for your current gear "{item}".\nDiscard it and equip the new gear?',
+  'shop.invFullTitle': 'Inventory Full',
+  'shop.discardEquip': 'Discard & Equip',
+  'shop.cancelBuy': 'Cancel Purchase',
+
+  // ── Combat log ────────────────────────────────────────────
+  'log.mimicChest': 'The treasure chest was a Mimic!',
+  'log.fled': 'Fled...',
+  'log.villainPvp': 'PVP against the villain adventurer!',
+  'log.collectorBattle': 'Battle against the enraged collector!',
+  'log.gold': 'Gold',
+  'log.itemBlocked': '🚫 Item Seal — drop blocked',
+  'log.bossDrop': 'Boss drop',
+  'log.mimicDrop': 'Mimic drop',
+  'log.realBossChallenge': 'Real Boss [{name}] challenge!',
+
+  // ── Real boss summon ──────────────────────────────────────
+  'realboss.challengeAsk': 'Challenge the Real Boss?',
+  'realboss.callTitle': 'Call of the Real Boss',
+  'realboss.later': 'Later',
 }

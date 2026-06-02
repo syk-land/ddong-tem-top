@@ -42,7 +42,7 @@ import {
 } from '@/core/challengeRuntime'
 import { computeWeaponSkillProc } from '@/core/buildBalance'
 import { computeItemValue } from '@/core/itemValue'
-import { t as i18nT, tLabel as i18nTLabel } from '@/lib/i18n'
+import { t as i18nT, td as i18nTd, tLabel as i18nTLabel } from '@/lib/i18n'
 import { npcIconUrl, pickRandomUserAvatars, isValidAvatarKey, allUserAvatarKeys, defaultCharacterName } from '@/ui/images'
 import { showRewardedAd } from '@/lib/ads'
 import { IS_DEV_SERVER } from '@/lib/platform'
@@ -627,7 +627,7 @@ export const useGameStore = defineStore('game', {
         case 'shop': {
           // 챌린지: 불매 운동 (noShop) — 상점 진입 차단
           if (this.challengeContext && shopForbidden(this.challengeContext)) {
-            this.alertModal('💸 불매 운동 챌린지: 상점 이용 불가', '챌린지 제약')
+            this.alertModal(i18nT('evt.noShop', '💸 불매 운동 챌린지: 상점 이용 불가'), i18nT('evt.challengeRestrict', '챌린지 제약'))
               .then(() => this.advance())
             break
           }
@@ -647,7 +647,7 @@ export const useGameStore = defineStore('game', {
             if (this.autoEnter) {
               this.advance()
             } else {
-              this.alertModal('절대 정수 챌린지: 회복샘 이용 불가', '챌린지 제약')
+              this.alertModal(i18nT('evt.noHealSpring', '절대 정수 챌린지: 회복샘 이용 불가'), i18nT('evt.challengeRestrict', '챌린지 제약'))
                 .then(() => this.advance())
             }
             break
@@ -658,7 +658,7 @@ export const useGameStore = defineStore('game', {
           if (this.autoEnter) {
             this.advance()
           } else {
-            this.alertModal(`회복샘에서 HP +${heal} 회복했다.`, '회복샘').then(() => this.advance())
+            this.alertModal(i18nT('evt.healSpring', `회복샘에서 HP +${heal} 회복했다.`, { n: heal }), i18nT('evt.healSpringTitle', '회복샘')).then(() => this.advance())
           }
           break
         }
@@ -737,7 +737,7 @@ export const useGameStore = defineStore('game', {
           const monster = makeMonster(bossTemplate, chapter, 'mimic', this.meta.realBossClearCount ?? 0)
           monster.template = { ...bossTemplate, name: `미믹 (${bossTemplate.name} 모방)` }
           this.combat = createCombatContext(this.run.character, monster, this.meta.realBossClearCount ?? 0)
-          pushLog(this.combat, `보물상자가 미믹이었다!`, 'enemy')
+          pushLog(this.combat, i18nT('log.mimicChest', '보물상자가 미믹이었다!'), 'enemy')
           this.screen = 'combat'
         }
         return
@@ -1151,7 +1151,7 @@ export const useGameStore = defineStore('game', {
       }
       this.combat.ended = true
       this.combat.victory = false
-      pushLog(this.combat, '도주했다...', 'info')
+      pushLog(this.combat, i18nT('log.fled', '도주했다...'), 'info')
       this.handleCombatEnd()
     },
 
@@ -1449,7 +1449,11 @@ export const useGameStore = defineStore('game', {
       }
       const key = pickOne(SPECIAL_EVENTS) as SpecialEventKey
       const info = SPECIAL_EVENT_INFO[key]
-      await this.alertModal(info.description, `${info.name}`, npcIconUrl(key))
+      await this.alertModal(
+        i18nT(`event.${key}.desc`, info.description),
+        i18nT(`event.${key}.name`, info.name),
+        npcIconUrl(key),
+      )
 
       let pvpStarted = false
       switch (key) {
@@ -1478,14 +1482,14 @@ export const useGameStore = defineStore('game', {
     async eventCrisisAdventurer(chapter: number): Promise<boolean> {
       if (!this.run) return false
       const help = await this.confirmModal(
-        '🆘 위기에 빠진 모험가를 발견했다.\n\n구해주면 70% 동료(상점 부스트) / 30% 악당 PVP.',
-        { title: '위기 모험가', okLabel: '구해준다', cancelLabel: '무시한다' }
+        i18nT('evt.crisis.body', '🆘 위기에 빠진 모험가를 발견했다.\n\n구해주면 70% 동료(상점 부스트) / 30% 악당 PVP.'),
+        { title: i18nT('evt.crisis.title', '위기 모험가'), okLabel: i18nT('evt.crisis.help', '구해준다'), cancelLabel: i18nT('evt.crisis.ignore', '무시한다') }
       )
       if (!help) return false
 
       const flags = this.challengeContext ? mergedFlags(this.challengeContext) : {}
       if (flags.noRescueAdventurer) {
-        await this.alertModal('💀 불신주의자: 모험가를 구한 죄로 사망...', '챌린지 위반')
+        await this.alertModal(i18nT('evt.disbeliever', '💀 불신주의자: 모험가를 구한 죄로 사망...'), i18nT('evt.challengeViolation', '챌린지 위반'))
         this.run.character.hp = 0
         clearRun()
         this.savedRunExists = false
@@ -1496,10 +1500,10 @@ export const useGameStore = defineStore('game', {
       const outcome = resolveCrisisAdventurer()
       if (outcome === 'ally') {
         applyRefreshBoost(this.run.refreshState)
-        await this.alertModal('🤝 동료 모험가다! 다음 상점 새로고침 슬롯 +1', '동료 발견')
+        await this.alertModal(i18nT('evt.ally', '🤝 동료 모험가다! 다음 상점 새로고침 슬롯 +1'), i18nT('evt.allyFound', '동료 발견'))
         return false
       }
-      await this.alertModal('모험가는 적이었다! 전투 개시!', '악당 PVP')
+      await this.alertModal(i18nT('evt.adventurerEnemy', '모험가는 적이었다! 전투 개시!'), i18nT('evt.villainPvp', '악당 PVP'))
       const themeDef = CHAPTER_THEMES[currentChapter(this.run).theme]
       const baseTemplate = pickOne(themeDef.normalMonsters)
       const template = {
@@ -1511,7 +1515,7 @@ export const useGameStore = defineStore('game', {
       const monster = makeMonster(template, chapter + 1, 'normal', this.meta.realBossClearCount ?? 0)
       this.combat = createCombatContext(this.run.character, monster, this.meta.realBossClearCount ?? 0)
       this.combat.isPvp = true
-      pushLog(this.combat, '악당 모험가와의 PVP!', 'info')
+      pushLog(this.combat, i18nT('log.villainPvp', '악당 모험가와의 PVP!'), 'info')
       this.screen = 'combat'
       return true
     },
@@ -1522,21 +1526,22 @@ export const useGameStore = defineStore('game', {
       // 60% 무기 / 40% 방어구 — 한쪽만 보유 시 그쪽으로 자동 폴백
       const slot = pickSmithSlot(c)
       if (!slot) {
-        await this.alertModal('대장장이가 강화할 장비가 없다며 떠났다.', '🔨 대장장이')
+        await this.alertModal(i18nT('evt.smith.noGear', '대장장이가 강화할 장비가 없다며 떠났다.'), i18nT('evt.smith.title', '🔨 대장장이'))
         return
       }
       const target = slot === 'weapon' ? c.weapon! : c.armor!
-      const slotLabel = slot === 'weapon' ? '무기' : '방어구'
+      const slotLabel = slot === 'weapon' ? i18nT('common.weapon', '무기') : i18nT('common.armor', '방어구')
+      const targetName = `${i18nTd('tier', target.trait)} ${i18nTd('grade', target.grade)} ${i18nTd(slot === 'weapon' ? 'weapon' : 'armor', target.baseKey)}`
       const maxBet = Math.min(c.gold, target.sellPrice * 2)
       const choice = await this.showDialog({
-        title: '🔨 떠돌이 대장장이',
-        message: `${slotLabel}: ${target.trait} ${target.grade} ${target.baseKey} (판매가 ${target.sellPrice}G)\n` +
-          `보유 ${c.gold}G — 베팅 ${0}~${maxBet}G\n` +
-          `베팅이 많을수록 성공률 ↑ (최대 90%)`,
+        title: i18nT('evt.smith.dlgTitle', '🔨 떠돌이 대장장이'),
+        message: i18nT('evt.smith.body',
+          `${slotLabel}: ${targetName} (판매가 ${target.sellPrice}G)\n보유 ${c.gold}G — 베팅 0~${maxBet}G\n베팅이 많을수록 성공률 ↑ (최대 90%)`,
+          { slot: slotLabel, item: targetName, sell: target.sellPrice, gold: c.gold, max: maxBet }),
         buttons: [
-          { label: `최대 베팅 (${maxBet}G)`, value: 'max', primary: true },
-          { label: '직접 입력', value: 'custom' },
-          { label: '취소', value: null },
+          { label: i18nT('evt.smith.maxBet', `최대 베팅 (${maxBet}G)`, { max: maxBet }), value: 'max', primary: true },
+          { label: i18nT('evt.smith.custom', '직접 입력'), value: 'custom' },
+          { label: i18nT('common.cancel', '취소'), value: null },
         ],
       })
       if (choice === null) return
@@ -1545,17 +1550,17 @@ export const useGameStore = defineStore('game', {
         bet = maxBet
       } else {
         const betStr = await this.showInputDialog({
-          title: '🔨 베팅 골드 입력',
-          message: `보유 ${c.gold}G, 0 ~ ${maxBet}G`,
+          title: i18nT('evt.smith.betTitle', '🔨 베팅 골드 입력'),
+          message: i18nT('evt.smith.betBody', `보유 ${c.gold}G, 0 ~ ${maxBet}G`, { gold: c.gold, max: maxBet }),
           defaultValue: Math.floor(maxBet / 2).toString(),
           maxValue: maxBet,
-          placeholder: '베팅 골드',
+          placeholder: i18nT('evt.smith.betPlaceholder', '베팅 골드'),
         })
         if (betStr === null) return
         bet = Math.max(0, Math.min(parseInt(betStr) || 0, maxBet))
       }
       if (bet <= 0) {
-        await this.alertModal('베팅이 0이라 대장장이가 떠났다.', '취소')
+        await this.alertModal(i18nT('evt.smith.betZero', '베팅이 0이라 대장장이가 떠났다.'), i18nT('common.cancel', '취소'))
         return
       }
       const result = applySmithUpgrade(c, bet, slot)
@@ -1564,12 +1569,12 @@ export const useGameStore = defineStore('game', {
       }
       if (result.success && result.newItem) {
         await this.alertModal(
-          `${result.newItem.trait} ${result.newItem.grade} ${result.newItem.baseKey}`,
-          `🔥 ${slotLabel} 강화 성공!`
+          `${i18nTd('tier', result.newItem.trait)} ${i18nTd('grade', result.newItem.grade)} ${i18nTd(slot === 'weapon' ? 'weapon' : 'armor', result.newItem.baseKey)}`,
+          i18nT('evt.smith.success', `🔥 ${slotLabel} 강화 성공!`, { slot: slotLabel }),
         )
         if (this.challengeContext) onEquipItem(this.challengeContext, result.newItem, target)
       } else {
-        await this.alertModal(`베팅 ${bet}G 소실`, '💔 강화 실패')
+        await this.alertModal(i18nT('evt.smith.fail', `베팅 ${bet}G 소실`, { g: bet }), i18nT('evt.smith.failTitle', '💔 강화 실패'))
       }
       saveRun(this.run)
     },
@@ -1578,12 +1583,12 @@ export const useGameStore = defineStore('game', {
       if (!this.run) return
       const stats: StatKey[] = ['힘', '민첩', '체력', '마력', '행운']
       const stat = await this.showListDialog<StatKey>({
-        title: '저주받은 도박사의 룰렛',
-        message: '베팅할 스탯을 선택. 결과: 대성공 +5 ~ 대실패 -5 (행운이 EV 결정)',
+        title: i18nT('evt.gambler.title', '저주받은 도박사의 룰렛'),
+        message: i18nT('evt.gambler.body', '베팅할 스탯을 선택. 결과: 대성공 +5 ~ 대실패 -5 (행운이 EV 결정)'),
         options: stats.map((s) => ({
-          label: s,
+          label: i18nTd('stat', s),
           value: s,
-          sub: `현재 ${this.run!.character.stats[s]}`,
+          sub: i18nT('evt.cur', `현재 ${this.run!.character.stats[s]}`, { n: this.run!.character.stats[s] }),
         })),
       })
       if (!stat) return
@@ -1592,8 +1597,8 @@ export const useGameStore = defineStore('game', {
       applyRouletteResult(this.run.character, stat, result.delta)
       const emoji = result.delta >= 0 ? '🎉' : '😱'
       await this.alertModal(
-        `${stat} ${result.delta >= 0 ? '+' : ''}${result.delta}`,
-        `${emoji} 룰렛: ${result.outcome}!`
+        `${i18nTd('stat', stat)} ${result.delta >= 0 ? '+' : ''}${result.delta}`,
+        `${emoji} ${i18nT('evt.roulette', '룰렛')}: ${i18nTd('roulette', result.outcome)}!`,
       )
       if (this.challengeContext) onRouletteResult(this.challengeContext, result.outcome)
       saveRun(this.run)
@@ -1609,31 +1614,31 @@ export const useGameStore = defineStore('game', {
       let exchangeCount = 0
       while (exchangeCount < 3) {
         const proceed = await this.confirmModal(
-          `선택 스탯 -3 → 다른 스탯 +2\n(${exchangeCount + 1}/3회)`,
-          { title: '등가교환 제단', okLabel: '교환', cancelLabel: '종료' }
+          i18nT('evt.altar.body', `선택 스탯 -3 → 다른 스탯 +2\n(${exchangeCount + 1}/3회)`, { n: exchangeCount + 1 }),
+          { title: i18nT('evt.altar.title', '등가교환 제단'), okLabel: i18nT('evt.altar.exchange', '교환'), cancelLabel: i18nT('evt.altar.end', '종료') }
         )
         if (!proceed) break
         const from = await this.showListDialog<StatKey>({
-          title: '줄 스탯',
+          title: i18nT('evt.altar.giveStat', '줄 스탯'),
           options: allStats.map((s) => ({
-            label: s,
+            label: i18nTd('stat', s),
             value: s,
-            sub: `현재 ${this.run!.character.stats[s]} → ${this.run!.character.stats[s] - 3}`,
+            sub: i18nT('evt.statArrow', `현재 ${this.run!.character.stats[s]} → ${this.run!.character.stats[s] - 3}`, { a: this.run!.character.stats[s], b: this.run!.character.stats[s] - 3 }),
           })),
         })
         if (!from) break
         if (this.run.character.stats[from] < 6) {
-          await this.alertModal(`${from}이(가) 너무 적어 -3 불가 (최소 3 유지)`, '불가')
+          await this.alertModal(i18nT('evt.altar.tooLow', `${i18nTd('stat', from)}이(가) 너무 적어 -3 불가 (최소 3 유지)`, { stat: i18nTd('stat', from) }), i18nT('evt.altar.cannot', '불가'))
           continue
         }
         const to = await this.showListDialog<StatKey>({
-          title: '받을 스탯',
+          title: i18nT('evt.altar.recvStat', '받을 스탯'),
           options: allStats
             .filter((s) => s !== from)
             .map((s) => ({
-              label: s,
+              label: i18nTd('stat', s),
               value: s,
-              sub: `현재 ${this.run!.character.stats[s]} → ${this.run!.character.stats[s] + 2}`,
+              sub: i18nT('evt.statArrow', `현재 ${this.run!.character.stats[s]} → ${this.run!.character.stats[s] + 2}`, { a: this.run!.character.stats[s], b: this.run!.character.stats[s] + 2 }),
             })),
         })
         if (!to) break
@@ -1651,30 +1656,31 @@ export const useGameStore = defineStore('game', {
       while (true) {
         const c = this.run.character
         const stat = await this.showListDialog<StatKey | null>({
-          title: '암시장',
-          message: `보유 ${c.gold}G — 스탯 +1 구매`,
+          title: i18nT('evt.bm.title', '암시장'),
+          message: i18nT('evt.bm.body', `보유 ${c.gold}G — 스탯 +1 구매`, { gold: c.gold }),
           options: allStats.map((s) => ({
-            label: `${s} +1`,
+            label: `${i18nTd('stat', s)} +1`,
             value: s,
-            sub: `현재 ${c.stats[s]} · 가격 ${blackMarketPrice(chapter, s)}G`,
+            sub: i18nT('evt.bm.priceSub', `현재 ${c.stats[s]} · 가격 ${blackMarketPrice(chapter, s)}G`, { cur: c.stats[s], price: blackMarketPrice(chapter, s) }),
             class: c.gold < blackMarketPrice(chapter, s) ? 'opacity-40' : '',
           })),
-          cancelLabel: '암시장 떠나기',
+          cancelLabel: i18nT('evt.bm.leave', '암시장 떠나기'),
         })
         if (!stat) break
         const price = blackMarketPrice(chapter, stat)
         if (c.gold < price) {
-          await this.alertModal(`${stat} +1 — ${price}G 필요. 골드 부족.`, '💸 거래 실패')
+          await this.alertModal(i18nT('evt.bm.needGold', `${i18nTd('stat', stat)} +1 — ${price}G 필요. 골드 부족.`, { stat: i18nTd('stat', stat), price }), i18nT('evt.bm.tradeFail', '💸 거래 실패'))
           continue
         }
         // 구매 확인 모달
         const ok = await this.confirmModal(
-          `${stat} +1 을 ${price}G 에 구매하시겠습니까?\n(현재 ${c.stats[stat]} → ${c.stats[stat] + 1}, 보유 ${c.gold}G → ${c.gold - price}G)`,
-          { title: '암시장 거래 확인', okLabel: '구매', cancelLabel: '취소' },
+          i18nT('evt.bm.confirm', `${i18nTd('stat', stat)} +1 을 ${price}G 에 구매하시겠습니까?\n(현재 ${c.stats[stat]} → ${c.stats[stat] + 1}, 보유 ${c.gold}G → ${c.gold - price}G)`,
+            { stat: i18nTd('stat', stat), price, cur: c.stats[stat], next: c.stats[stat] + 1, gold: c.gold, after: c.gold - price }),
+          { title: i18nT('evt.bm.confirmTitle', '암시장 거래 확인'), okLabel: i18nT('evt.bm.buy', '구매'), cancelLabel: i18nT('common.cancel', '취소') },
         )
         if (!ok) continue
         if (!buyStatPoint(c, chapter, stat)) {
-          await this.alertModal('💸 골드 부족', '거래 실패')
+          await this.alertModal(i18nT('evt.bm.noGold', '💸 골드 부족'), i18nT('evt.bm.tradeFail2', '거래 실패'))
           continue
         }
         if (this.challengeContext) onBlackMarketUsed(this.challengeContext)
@@ -1694,17 +1700,20 @@ export const useGameStore = defineStore('game', {
       if (c.armor)  cands.push({ item: c.armor,  from: '장착' })
       for (const it of inv) cands.push({ item: it, from: '인벤' })
       if (cands.length === 0) {
-        await this.alertModal('수집가가 빈손인 당신을 보고 그냥 떠났다.', '탐욕의 수집가')
+        await this.alertModal(i18nT('evt.collector.empty', '수집가가 빈손인 당신을 보고 그냥 떠났다.'), i18nT('event.greedy_collector.name', '탐욕의 수집가'))
         return false
       }
       let highest = cands[0]
       for (let i = 1; i < cands.length; i++) {
         if (cands[i].item.tier > highest.item.tier) highest = cands[i]
       }
+      const fromLabel = highest.from === '장착' ? i18nT('common.equipped', '장착') : i18nT('common.inv', '인벤')
+      const highestName = `${i18nTd('tier', highest.item.trait)} ${i18nTd('grade', highest.item.grade)} ${i18nTd(highest.item.kind === 'weapon' ? 'weapon' : 'armor', highest.item.baseKey)}`
       const give = await this.confirmModal(
-        `${highest.item.trait} ${highest.item.grade} ${highest.item.baseKey} (티어 ${highest.item.tier}, ${highest.from})\n\n` +
-          `양도 시 무작위 스탯 +1, 거절 시 보스 70% 강도 PVP`,
-        { title: '탐욕의 수집가가 요구한다', okLabel: '양도', cancelLabel: '거절' }
+        i18nT('evt.collector.body',
+          `${highestName} (티어 ${highest.item.tier}, ${fromLabel})\n\n양도 시 무작위 스탯 +1, 거절 시 보스 70% 강도 PVP`,
+          { item: highestName, tier: highest.item.tier, from: fromLabel }),
+        { title: i18nT('evt.collector.title', '탐욕의 수집가가 요구한다'), okLabel: i18nT('evt.collector.give', '양도'), cancelLabel: i18nT('evt.collector.refuse', '거절') }
       )
       if (give) {
         const result = greedyCollectorTake(c, inv)
@@ -1712,11 +1721,11 @@ export const useGameStore = defineStore('game', {
         if (result.fromInventoryIndex !== undefined && result.fromInventoryIndex >= 0) {
           inv.splice(result.fromInventoryIndex, 1)
         }
-        await this.alertModal(`${result.randomStat} +1`, '양도 완료')
+        await this.alertModal(`${i18nTd('stat', result.randomStat)} +1`, i18nT('evt.collector.done', '양도 완료'))
         saveRun(this.run)
         return false
       }
-      await this.alertModal('수집가가 격노한다!', '전투 개시')
+      await this.alertModal(i18nT('evt.collector.rage', '수집가가 격노한다!'), i18nT('evt.combatStart', '전투 개시'))
       const themeDef = CHAPTER_THEMES[currentChapter(this.run).theme]
       const template = {
         ...themeDef.boss,
@@ -1728,7 +1737,7 @@ export const useGameStore = defineStore('game', {
       const monster = makeMonster(template, chapter, 'normal', this.meta.realBossClearCount ?? 0)
       this.combat = createCombatContext(c, monster, this.meta.realBossClearCount ?? 0)
       this.combat.isPvp = true
-      pushLog(this.combat, '격노한 수집가와의 전투!', 'info')
+      pushLog(this.combat, i18nT('log.collectorBattle', '격노한 수집가와의 전투!'), 'info')
       this.screen = 'combat'
       return true
     },
@@ -1825,7 +1834,7 @@ export const useGameStore = defineStore('game', {
 
       this.run.character.gold += reward
       if (this.challengeContext) onGoldGain(this.challengeContext, reward)
-      pushLog(this.combat, `골드 +${reward}`, 'gold')
+      pushLog(this.combat, `${i18nT('log.gold', '골드')} +${reward}`, 'gold')
 
       // 보스/미믹 처치 시 드랍 아이템 (다수 전투는 드랍 X — 골드만)
       // item_block trait 가진 적이 전투에 포함되어 있으면 드랍 차단 (그리폰 등)
@@ -1833,17 +1842,17 @@ export const useGameStore = defineStore('game', {
         (m) => m.template.trait === 'item_block',
       )
       if (blockedByItemBlock) {
-        pushLog(this.combat, '🚫 아이템 봉쇄 — 드랍 차단됨', 'info')
+        pushLog(this.combat, i18nT('log.itemBlocked', '🚫 아이템 봉쇄 — 드랍 차단됨'), 'info')
       } else if (isBossFight) {
         const drop = rollItem({ kind: Math.random() < 0.5 ? 'weapon' : 'armor', chapter: chapterNum, source: 'boss' })
         this.receiveItem(drop)
-        pushLog(this.combat, `보스 드랍: ${drop.trait} ${drop.grade} ${drop.baseKey}`, 'reward')
+        pushLog(this.combat, `${i18nT('log.bossDrop', '보스 드랍')}: ${i18nTd('tier', drop.trait)} ${i18nTd('grade', drop.grade)} ${i18nTd(drop.kind === 'weapon' ? 'weapon' : 'armor', drop.baseKey)}`, 'reward')
       } else if (isMimicFight) {
         // 튜토리얼 학습 중에는 openTreasure 가 미믹 자체를 우회하므로 여기 도달 X.
         // 일반 모드의 미믹 드랍 — 통상 1개.
         const drop = rollItem({ kind: Math.random() < 0.5 ? 'weapon' : 'armor', chapter: chapterNum, source: 'treasure' })
         this.receiveItem(drop)
-        pushLog(this.combat, `미믹 드랍: ${drop.trait} ${drop.grade} ${drop.baseKey}`, 'reward')
+        pushLog(this.combat, `${i18nT('log.mimicDrop', '미믹 드랍')}: ${i18nTd('tier', drop.trait)} ${i18nTd('grade', drop.grade)} ${i18nTd(drop.kind === 'weapon' ? 'weapon' : 'armor', drop.baseKey)}`, 'reward')
       }
 
       saveRun(this.run)
@@ -1900,7 +1909,7 @@ export const useGameStore = defineStore('game', {
     async buyItemAndEquip(item: ItemInstance): Promise<boolean> {
       if (!this.run) return false
       if (this.run.character.gold < item.buyPrice) {
-        await this.alertModal('골드가 부족합니다.', '💸 구매 불가')
+        await this.alertModal(i18nT('shop.noGold', '골드가 부족합니다.'), i18nT('shop.cantBuy', '💸 구매 불가'))
         return false
       }
       const c = this.run.character
@@ -1911,7 +1920,7 @@ export const useGameStore = defineStore('game', {
       if (this.challengeContext) {
         const check = canEquipItem(item, this.challengeContext)
         if (!check.ok) {
-          await this.alertModal(check.reason ?? '챌린지 제약으로 장착 불가', '챌린지')
+          await this.alertModal(i18nTLabel(check.reason ?? i18nT('shop.cantEquipChallenge', '챌린지 제약으로 장착 불가')), i18nT('shop.challenge', '챌린지'))
           return false
         }
       }
@@ -1921,16 +1930,18 @@ export const useGameStore = defineStore('game', {
       if (prev) {
         if (this.run.inventoryCap <= 0) {
           // 미니멀리스트: 인벤토리 0칸 → 기존 장비 폐기 동의
+          const prevName = `${i18nTd('tier', prev.trait)} ${i18nTd('grade', prev.grade)} ${i18nTd(prev.kind === 'weapon' ? 'weapon' : 'armor', prev.baseKey)}`
           const ok = await this.confirmModal(
-            `기존 장비 "${prev.trait} ${prev.grade} ${prev.baseKey}"를 보관할 인벤토리가 없습니다.\n폐기하고 새 장비를 장착할까요?`,
-            { title: '인벤토리 없음', danger: true, okLabel: '폐기 후 장착', cancelLabel: '구매 취소' }
+            i18nT('shop.noInvBody', `기존 장비 "${prevName}"를 보관할 인벤토리가 없습니다.\n폐기하고 새 장비를 장착할까요?`, { item: prevName }),
+            { title: i18nT('shop.noInvTitle', '인벤토리 없음'), danger: true, okLabel: i18nT('shop.discardEquip', '폐기 후 장착'), cancelLabel: i18nT('shop.cancelBuy', '구매 취소') }
           )
           if (!ok) return false
           prevDiscarded = true
         } else if (this.run.inventory.length >= this.run.inventoryCap) {
+          const prevName = `${i18nTd('tier', prev.trait)} ${i18nTd('grade', prev.grade)} ${i18nTd(prev.kind === 'weapon' ? 'weapon' : 'armor', prev.baseKey)}`
           const ok = await this.confirmModal(
-            `기존 장비 "${prev.trait} ${prev.grade} ${prev.baseKey}"를 넣을 인벤토리 빈 자리가 없습니다.\n폐기하고 새 장비를 장착할까요?`,
-            { title: '인벤토리 가득', danger: true, okLabel: '폐기 후 장착', cancelLabel: '구매 취소' }
+            i18nT('shop.invFullBody', `기존 장비 "${prevName}"를 넣을 인벤토리 빈 자리가 없습니다.\n폐기하고 새 장비를 장착할까요?`, { item: prevName }),
+            { title: i18nT('shop.invFullTitle', '인벤토리 가득'), danger: true, okLabel: i18nT('shop.discardEquip', '폐기 후 장착'), cancelLabel: i18nT('shop.cancelBuy', '구매 취소') }
           )
           if (!ok) return false
           prevDiscarded = true
@@ -1986,7 +1997,7 @@ export const useGameStore = defineStore('game', {
       if (!this.run || !this.shop) return false
       // 챌린지: 리롤 금지령 (noShopRefresh) — 새로고침 차단
       if (this.challengeContext && shopRefreshForbidden(this.challengeContext)) {
-        this.alertModal('리롤 금지령 챌린지: 새로고침 불가', '챌린지 제약')
+        this.alertModal(i18nT('evt.noReroll', '리롤 금지령 챌린지: 새로고침 불가'), i18nT('evt.challengeRestrict', '챌린지 제약'))
         return false
       }
       const chapter = currentChapter(this.run).chapter
@@ -2106,10 +2117,10 @@ export const useGameStore = defineStore('game', {
       const latest = pickChallengeRecord(this.meta)
       if (!latest) return
 
-      const ok = await this.confirmModal('진짜 보스에 도전하시겠습니까?', {
-        title: '진짜 보스의 부름',
-        okLabel: '도전하기',
-        cancelLabel: '나중에',
+      const ok = await this.confirmModal(i18nT('realboss.challengeAsk', '진짜 보스에 도전하시겠습니까?'), {
+        title: i18nT('realboss.callTitle', '진짜 보스의 부름'),
+        okLabel: i18nT('realboss.accept', '도전하기'),
+        cancelLabel: i18nT('realboss.later', '나중에'),
         imageUrl: `${A}/images/REALBOSS/realboss_intro.webp`,
       })
       if (!ok) {
@@ -2154,7 +2165,7 @@ export const useGameStore = defineStore('game', {
         actionGauge: 0,
       }
       this.combat = createCombatContext(character, [boss], this.meta.realBossClearCount ?? 0)
-      pushLog(this.combat, `진짜 보스 [${boss.template.name}]와의 도전!`, 'info')
+      pushLog(this.combat, i18nT('log.realBossChallenge', `진짜 보스 [${boss.template.name}]와의 도전!`, { name: i18nTd('monster', boss.template.name) }), 'info')
       this.screen = 'combat'
     },
 

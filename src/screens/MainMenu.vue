@@ -14,6 +14,7 @@ import {
 } from '@/lib/inAppBrowser'
 import { themeColorClass } from '@/ui/colors'
 import HpMpBar from '@/ui/components/HpMpBar.vue'
+import ComicImage from '@/ui/components/ComicImage.vue'
 import type { TowerRun } from '@/types'
 import { REAL_BOSS_ORDER } from '@/core/realboss'
 import { CHAPTER_THEMES } from '@/data/chapters'
@@ -313,10 +314,10 @@ async function resetMeta() {
           >✕</button>
           <div class="text-center mb-2 text-amber-300 font-bold text-sm">{{ codexModalLabel }}</div>
           <div class="relative">
-            <img
+            <ComicImage
               :src="codexModalImages[codexModalIndex]"
               :alt="codexModalLabel"
-              class="w-full rounded-lg shadow-lg"
+              class="w-full rounded-lg shadow-lg overflow-hidden"
             />
             <button
               v-if="codexModalIndex > 0"

@@ -16,21 +16,23 @@
 
 // GameMonetize SDK 가 window 에 주입하는 함수/객체 타입 (느슨한 정의).
 //
-// 실측(2026-05): 진단 로그에 따르면 SDK 는 자기 자신을 'sdk' 객체로 노출하지
-// 않고 (있어도 showAd 미보유), 탑레벨 함수 ShowAds() / ShowAds2() / MobileInGame()
-// 으로 노출한다 (구 GameDistribution SDK 와 동일한 네이밍 유지).
-//   - ShowAds()           : interstitial
-//   - ShowAds('rewarded') : rewarded video
+// 공식 API (GameMonetize.com-SDK README): SDK 는 `window.sdk` 객체로 노출되고
+// 광고는 `sdk.showBanner()` 로 표시한다 (인자 없음 — 인터스티셜/보상형을 SDK 가
+// 자체 관리, 완료는 SDK_GAME_START 이벤트로 통지).
+//   if (typeof sdk !== 'undefined' && sdk.showBanner !== undefined) sdk.showBanner()
+//
+// 폴백: 일부 구버전/포크는 탑레벨 ShowAds() / sdk.showAd() 로 노출하므로 호환 유지.
 declare global {
   interface Window {
-    ShowAds?: (type?: string) => void
-    ShowAds2?: (type?: string) => void
-    MobileInGame?: (type?: string) => void
     sdk?: {
+      showBanner?: () => void
       showAd?: (type?: string) => void
       AdType?: { Rewarded?: string; Interstitial?: string }
       [k: string]: unknown
     }
+    ShowAds?: (type?: string) => void
+    ShowAds2?: (type?: string) => void
+    MobileInGame?: (type?: string) => void
     SDK_OPTIONS?: unknown
   }
 }
@@ -45,15 +47,23 @@ export type AdUseCase = 'revive' | 'fastSpeed' | 'autoEnter'
 
 function isSdkReady(): boolean {
   if (typeof window === 'undefined') return false
-  // 정식 API — GameMonetize 가 노출하는 탑레벨 함수
+  // 공식 API — GameMonetize 가 노출하는 sdk.showBanner()
+  if (window.sdk && typeof window.sdk.showBanner === 'function') return true
+  // 폴백 — 구버전/포크 호환
   if (typeof window.ShowAds === 'function') return true
-  // 폴백 — 일부 빌드/버전이 sdk.showAd 로 노출하는 경우 호환
   if (window.sdk && typeof window.sdk.showAd === 'function') return true
   return false
 }
 
-// SDK 호출 단일 진입점. 타입 미지정(또는 'interstitial') = 인터스티셜, 'rewarded' = 보상형.
+// SDK 호출 단일 진입점.
+//   공식 GameMonetize SDK 의 showBanner() 는 인자가 없다 — 인터스티셜/보상형
+//   구분 없이 SDK 가 적절한 광고를 띄우고, 완료는 SDK_GAME_START 이벤트로 통지.
+//   type 인자는 폴백(ShowAds/showAd) 경로에서만 사용.
 function callShowAd(type?: string): void {
+  if (window.sdk && typeof window.sdk.showBanner === 'function') {
+    window.sdk.showBanner()
+    return
+  }
   if (typeof window.ShowAds === 'function') {
     window.ShowAds(type)
     return
@@ -62,7 +72,7 @@ function callShowAd(type?: string): void {
     window.sdk.showAd(type)
     return
   }
-  throw new Error('GameMonetize SDK function (ShowAds / sdk.showAd) not found on window')
+  throw new Error('GameMonetize SDK function (sdk.showBanner / ShowAds / sdk.showAd) not found on window')
 }
 
 // 진단: GameMonetize SDK 가 window 의 어디에 자기 자신을 노출하는지 찾기.
@@ -76,12 +86,13 @@ function diagSdk(): void {
   if (typeof window === 'undefined') return
   const w = window as unknown as Record<string, unknown>
   const keys = Object.keys(w).filter((k) => /sdk|game|ad|monet/i.test(k))
-  const summary: Array<{ key: string; type: string; hasShowAd: boolean }> = []
+  const summary: Array<{ key: string; type: string; hasShowBanner: boolean; hasShowAd: boolean }> = []
   for (const k of keys) {
-    const v = w[k] as { showAd?: unknown } | undefined
+    const v = w[k] as { showBanner?: unknown; showAd?: unknown } | undefined
     summary.push({
       key: k,
       type: typeof v,
+      hasShowBanner: !!v && typeof v === 'object' && typeof v.showBanner === 'function',
       hasShowAd: !!v && typeof v === 'object' && typeof v.showAd === 'function',
     })
   }

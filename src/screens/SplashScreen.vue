@@ -47,6 +47,25 @@ function pickLang(v: 'ko' | 'en', e: Event) {
       :style="{ backgroundImage: `url(${imgUrl})` }"
     />
 
+    <!--
+      영어 모드 제목 오버레이 — main.webp / main-portrait.webp 상단에 한글 제목
+      "이번 판은 똥템으로 탑을 오르겠습니다" 가 픽셀로 박혀 있어 영어 검수 시 노출됨.
+      상단 그라데이션 밴드로 그 영역을 덮고 영어 제목을 얹는다 (한국어 모드는 원본 노출).
+      ※ 밴드 높이/제목 위치는 브라우저(npm run dev)에서 미세조정 필요.
+    -->
+    <div
+      v-if="lang === 'en'"
+      class="absolute top-0 inset-x-0 z-10 text-center pointer-events-none"
+      style="padding: 3rem 1rem 11rem; background: linear-gradient(to bottom, #000 0%, #000 70%, rgba(0,0,0,0.85) 88%, rgba(0,0,0,0) 100%)"
+    >
+      <div style="font-size: 0.95rem; font-weight: 700; letter-spacing: 0.3em; color: #c4b5fd; text-shadow: 0 2px 6px rgba(0,0,0,0.95)">
+        THIS RUN
+      </div>
+      <h1 style="margin-top: 0.35rem; font-size: 2.1rem; line-height: 1.1; font-weight: 800; color: #fff; text-shadow: 0 3px 10px rgba(0,0,0,0.95)">
+        Climbing the Tower<br />with Junk Gear
+      </h1>
+    </div>
+
     <!-- 언어 전환 (우상단) — 클릭 전파 차단 -->
     <div class="absolute top-3 right-3 flex items-center gap-1 cursor-default" @click.stop>
       <button

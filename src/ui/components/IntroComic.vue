@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { tutorialImageUrl } from '@/ui/images'
 import { useI18n } from '@/lib/i18n'
+import ComicImage from '@/ui/components/ComicImage.vue'
 
 const game = useGameStore()
 const { t } = useI18n()
@@ -36,11 +37,9 @@ function advance() {
     tabindex="0"
   >
     <div class="flex-1 w-full flex items-center justify-center overflow-hidden">
-      <img
+      <ComicImage
         :src="imgUrl"
         :alt="t('intro.pageAlt', `인트로 페이지 ${game.introPage}`, { page: game.introPage })"
-        class="max-w-full max-h-full object-contain"
-        draggable="false"
       />
     </div>
     <div class="w-full py-4 text-center text-white text-sm sm:text-base font-bold animate-pulse pointer-events-none">
