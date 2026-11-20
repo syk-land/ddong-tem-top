@@ -21,5 +21,5 @@ export const IS_PORTAL_EMBED: boolean = (() => {
     return true
   }
   const host = window.location?.hostname ?? ''
-  return /gamemonetize|poki|crazygames|gamedistribution/i.test(host)
+  return /gamemonetize|poki|crazygames|gamedistribution|yandex/i.test(host)
 })()

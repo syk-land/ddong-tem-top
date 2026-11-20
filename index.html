@@ -42,8 +42,31 @@
           }
         },
       }
+      ;(function () {
+        var host = (window.location && window.location.hostname) || ''
+        var s = document.createElement('script')
+        s.async = true
+        if (/yandex/i.test(host)) {
+          s.src = '/sdk.js'
+          s.onload = function () {
+            if (window.YaGames && typeof window.YaGames.init === 'function') {
+              window.YaGames.init()
+                .then(function (ysdk) {
+                  window.__ysdk = ysdk
+                  try {
+                    ysdk.features && ysdk.features.LoadingAPI && ysdk.features.LoadingAPI.ready()
+                  } catch (e) {}
+                  window.dispatchEvent(new CustomEvent('gm-sdk-event', { detail: { name: 'SDK_READY' } }))
+                })
+                .catch(function () {})
+            }
+          }
+        } else {
+          s.src = 'https://api.gamemonetize.com/sdk.js'
+        }
+        document.head.appendChild(s)
+      })()
     </script>
-    <script async src="https://api.gamemonetize.com/sdk.js"></script>
 
   </head>
   <body>

@@ -24,6 +24,13 @@
 // 폴백: 일부 구버전/포크는 탑레벨 ShowAds() / sdk.showAd() 로 노출하므로 호환 유지.
 declare global {
   interface Window {
+    __ysdk?: {
+      adv?: {
+        showFullscreenAdv?: (opts?: unknown) => void
+        showRewardedVideo?: (opts?: unknown) => void
+      }
+      features?: { LoadingAPI?: { ready?: () => void } }
+    }
     sdk?: {
       showBanner?: () => void
       showAd?: (type?: string) => void
@@ -47,6 +54,7 @@ export type AdUseCase = 'revive' | 'fastSpeed' | 'autoEnter'
 
 function isSdkReady(): boolean {
   if (typeof window === 'undefined') return false
+  if (window.__ysdk?.adv) return true
   // 공식 API — GameMonetize 가 노출하는 sdk.showBanner()
   if (window.sdk && typeof window.sdk.showBanner === 'function') return true
   // 폴백 — 구버전/포크 호환
@@ -84,6 +92,30 @@ function callShowAd(type?: string): void {
 export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
   void useCase
   if (BYPASS_ADS) return true
+  // Yandex Games SDK 우선 처리
+  if (window.__ysdk?.adv?.showRewardedVideo) {
+    return new Promise<boolean>((resolve) => {
+      let rewarded = false
+      try {
+        window.__ysdk!.adv!.showRewardedVideo!({
+          callbacks: {
+            onOpen: () => window.dispatchEvent(new CustomEvent('gm-sdk-event', { detail: { name: 'SDK_GAME_PAUSE' } })),
+            onRewarded: () => { rewarded = true },
+            onClose: () => {
+              window.dispatchEvent(new CustomEvent('gm-sdk-event', { detail: { name: 'SDK_GAME_START' } }))
+              resolve(rewarded)
+            },
+            onError: () => {
+              window.dispatchEvent(new CustomEvent('gm-sdk-event', { detail: { name: 'SDK_GAME_START' } }))
+              resolve(true)
+            },
+          },
+        })
+      } catch {
+        resolve(true)
+      }
+    })
+  }
   if (!isSdkReady()) {
     // SDK 미로드 — dev / 네트워크 차단 / SDK 비활성화 상태. 즉시 보상.
     return true
@@ -153,6 +185,20 @@ export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
 // 인터스티셜 광고 — 프리롤/스테이지 간 노출용. rewarded 와 달리 결과 판정 없음 (표시 자체가 목적).
 export function showInterstitial(): void {
   if (BYPASS_ADS) return
+  if (window.__ysdk?.adv?.showFullscreenAdv) {
+    try {
+      window.__ysdk.adv.showFullscreenAdv({
+        callbacks: {
+          onOpen: () => window.dispatchEvent(new CustomEvent('gm-sdk-event', { detail: { name: 'SDK_GAME_PAUSE' } })),
+          onClose: () => window.dispatchEvent(new CustomEvent('gm-sdk-event', { detail: { name: 'SDK_GAME_START' } })),
+          onError: () => window.dispatchEvent(new CustomEvent('gm-sdk-event', { detail: { name: 'SDK_GAME_START' } })),
+        },
+      })
+    } catch {
+      // silent fallback
+    }
+    return
+  }
   if (!isSdkReady()) return
   try {
     callShowAd()
