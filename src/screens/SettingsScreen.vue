@@ -8,6 +8,7 @@ import {
   isBgmEnabled, getBgmVolume, setBgmEnabled, setBgmVolume,
 } from '@/ui/sound'
 import { useI18n } from '@/lib/i18n'
+import { IS_PORTAL_EMBED } from '@/lib/platform'
 
 const game = useGameStore()
 const auth = useAuthStore()
@@ -198,8 +199,8 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- ── 클라우드 동기화 ── -->
-    <div class="rounded-lg border border-sky-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
+    <!-- ── 클라우드 동기화 (포털 iframe 임베드 환경에서는 숨김) ── -->
+    <div v-if="!IS_PORTAL_EMBED" class="rounded-lg border border-sky-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
       <div class="px-3 py-1.5 bg-sky-950/30 border-b border-sky-500/20 flex items-center">
         <span class="text-xs font-bold text-sky-200">☁ {{ t('settings.cloud', '클라우드 저장') }}</span>
       </div>
@@ -245,8 +246,8 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- ── 게임 종료 ── -->
-    <div class="rounded-lg border border-rose-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
+    <!-- ── 게임 종료 (포털 iframe 임베드 환경에서는 숨김) ── -->
+    <div v-if="!IS_PORTAL_EMBED" class="rounded-lg border border-rose-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
       <div class="px-3 py-1.5 bg-rose-950/30 border-b border-rose-500/20 flex items-center">
         <span class="text-xs font-bold text-rose-200">⏻ {{ t('settings.quit', '종료') }}</span>
       </div>

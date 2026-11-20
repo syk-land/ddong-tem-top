@@ -113,14 +113,14 @@ export function shopIconUrl(): string {
 }
 
 // 게임 메인 일러스트 (최초 실행 화면)
-// ?v 쿼리는 워터마크 제거 후 브라우저 캐시 무효화용
+// ?v 쿼리는 텍스트리스 키아트 교체 후 브라우저 캐시 무효화용
 export function mainImageUrl(): string {
-  return `${A}/images/main.webp?v=3`
+  return `${A}/images/main.webp?v=4`
 }
 
 // 세로 화면 (안드로이드 / portrait) 전용 메인 일러스트
 export function mainImagePortraitUrl(): string {
-  return `${A}/images/main-portrait.webp?v=2`
+  return `${A}/images/main-portrait.webp?v=4`
 }
 
 // 진짜 보스 도전 이미지 (챕터 테마 → 보스 일러스트)
@@ -128,9 +128,9 @@ export function realBossImageUrl(theme: ChapterTheme): string {
   return `${A}/images/REALBOSS/${THEME_FILE[theme]}.webp`
 }
 
-// 인트로 만화 페이지 (1, 2, 3) — v=3 캐시 무효화
+// 인트로 만화 페이지 (1, 2, 3) — v=4 캐시 무효화
 export function tutorialImageUrl(page: 1 | 2 | 3): string {
-  return `${A}/images/TUTORIAL/${page}.webp?v=3`
+  return `${A}/images/TUTORIAL/${page}.webp?v=4`
 }
 
 // 플레이어 캐릭터 이미지 — 사용자 선택

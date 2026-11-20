@@ -24,34 +24,9 @@ export function comicKeyFromUrl(url: string | null | undefined): string | null {
 }
 
 export const COMIC_OVERLAYS: Record<string, ComicMeta> = {
-  // ── 인트로 만화 (1856×2304) ──────────────────────────────
-  'TUTORIAL/1': { aspect: '1856 / 2304', bubbles: [
-    { top: 45, left: 6,  width: 28, fs: 2.8, text: 'I have to wipe out all these monsters…' },
-    { top: 58, left: 39, width: 24, fs: 2.7, text: 'But what can I do… I’ll just sleep.' },
-    { top: 56, left: 69, width: 26, fs: 2.5, text: 'I grant you power — to protect the world.' },
-    { top: 81, left: 62, width: 23, fs: 2.9, text: 'I’m… awakening?!!' },
-  ] },
-  'TUTORIAL/2': { aspect: '1856 / 2304', bubbles: [
-    { top: 5,  left: 25, width: 23, fs: 2.7, text: 'I am the God of Time.' },
-    { top: 7,  left: 55, width: 25, fs: 2.4, text: 'Huh? A god? Not a beggar..? Figures… what a silly dream.' },
-    { top: 50, left: 25, width: 21, fs: 2.5, text: 'I really am a god. I’ve just spent too much power.' },
-    { top: 51, left: 55, width: 33, fs: 2.4, text: 'From now on you will climb the tower. Reach the top to be rewarded.' },
-    { top: 80, left: 47, width: 25, fs: 2.5, text: 'But the less power you use to climb, the greater your reward.' },
-  ] },
-  'TUTORIAL/3': { aspect: '1856 / 2304', bubbles: [
-    { top: 11, left: 5,  width: 18, fs: 2.6, text: 'Failed again..?' },
-    { top: 10, left: 78, width: 18, fs: 2.6, text: 'This time too…' },
-    { top: 29, left: 5,  width: 17, fs: 2.6, text: 'I can’t stop…' },
-    { top: 29, left: 78, width: 18, fs: 2.6, text: 'Just a bit at a time…' },
-    { top: 21, left: 34, width: 32, fs: 2.5, text: 'Failed this run too, but I improved a little… next will be better.' },
-  ] },
+  // TUTORIAL/1~3 및 REALBOSS/realboss_intro 는 텍스트리스 일러스트 + 네이티브 UI 자막으로 교체됨.
 
-  // ── 진짜 보스 인트로 (1696×2528) ─────────────────────────
-  'REALBOSS/realboss_intro': { aspect: '1696 / 2528', bubbles: [
-    { top: 11, left: 31, width: 40, fs: 3.3, text: 'Finally, I have power. Shall I go slay those monsters?' },
-  ] },
-
-  // ── 보스 도감 만화 (479×1024, 세로 스트립) ───────────────
+  // ── 보스 도감 만화 (세로 스트립) ───────────────
   'COMIC/1-1': { aspect: '479 / 1024', bubbles: [
     { top: 7,  left: 47, width: 23, fs: 3.0, text: 'This isn’t enough…' },
     { top: 37, left: 8,  width: 20, fs: 3.0, text: '1st death' },

@@ -4,6 +4,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
+        display: ['Cinzel', 'Georgia', 'serif'],
         mono: ['JetBrains Mono', 'Consolas', 'Menlo', 'monospace'],
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },

@@ -38,6 +38,8 @@ interface DamageEvent {
 }
 const damageEvents = ref<DamageEvent[]>([])
 const shakingIdx = ref<Set<number>>(new Set())
+const screenShaking = ref(false)
+const critFlash = ref(false)
 const previousHp = ref<number[]>([])
 let dmgIdCounter = 0
 
@@ -58,9 +60,15 @@ watch(
       if (delta > 0) {
         const id = ++dmgIdCounter
         const recentLog = log.value[log.value.length - 1]
-        const isCrit = !!recentLog && /크리티컬/.test(recentLog.text)
+        const isCrit = !!recentLog && (recentLog.kind === 'critical' || /크리티컬|CRIT/i.test(recentLog.text))
         damageEvents.value.push({ id, monsterIdx: i, amount: delta, isCrit })
         shakingIdx.value.add(i)
+        if (isCrit) {
+          screenShaking.value = true
+          critFlash.value = true
+          setTimeout(() => { screenShaking.value = false }, 260)
+          setTimeout(() => { critFlash.value = false }, 220)
+        }
         setTimeout(() => {
           damageEvents.value = damageEvents.value.filter((e) => e.id !== id)
         }, 900)
@@ -299,7 +307,12 @@ watch(
 <template>
   <section class="flex-1 flex flex-col px-2 py-2 sm:px-3 sm:py-3 max-w-4xl mx-auto w-full">
     <!-- 통합 배경 컨테이너 -->
-    <div class="relative flex-1 flex flex-col rounded-lg overflow-hidden border border-slate-700">
+    <div
+      :class="[
+        'relative flex-1 flex flex-col rounded-lg overflow-hidden border border-slate-700 transition-transform',
+        screenShaking ? 'animate-shake' : '',
+      ]"
+    >
       <!-- 챕터 배경 -->
       <div
         v-if="bgUrl"
@@ -307,6 +320,16 @@ watch(
         :style="{ backgroundImage: `url(${bgUrl})` }"
       />
       <div class="absolute inset-0 bg-black/50" />
+      <!-- 크리티컬 임팩트 플래시 -->
+      <div
+        v-if="critFlash"
+        class="absolute inset-0 z-20 pointer-events-none bg-amber-300/15 shadow-[inset_0_0_50px_rgba(251,191,36,0.45)] transition-opacity"
+      />
+      <!-- 플레이어 피격 레드 비네트 -->
+      <div
+        v-if="playerShaking"
+        class="absolute inset-0 z-20 pointer-events-none shadow-[inset_0_0_55px_rgba(239,68,68,0.55)] transition-opacity"
+      />
 
       <div class="relative z-10 flex flex-col gap-2 p-2 sm:gap-3 sm:p-3">
         <!-- ====================================================== -->
@@ -351,12 +374,12 @@ watch(
               <div
                 v-for="ev in damageFor(idx)"
                 :key="ev.id"
-                class="absolute left-1/2 top-2 pointer-events-none font-bold animate-damage-float"
+                class="absolute left-1/2 top-2 pointer-events-none font-display font-black animate-damage-float whitespace-nowrap"
                 :class="ev.isCrit
-                  ? 'text-3xl text-log-critical drop-shadow-[0_0_4px_rgba(245,158,11,0.8)]'
-                  : 'text-2xl text-status-burn drop-shadow-[0_0_3px_rgba(239,68,68,0.8)]'"
+                  ? 'text-3xl text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.95)]'
+                  : 'text-2xl text-status-burn drop-shadow-[0_0_4px_rgba(239,68,68,0.85)]'"
               >
-                -{{ ev.amount }}<span v-if="ev.isCrit" class="text-sm ml-0.5">✦</span>
+                <span v-if="ev.isCrit" class="text-xs tracking-wider mr-0.5 text-amber-200">CRIT</span>-{{ ev.amount }}<span v-if="ev.isCrit" class="text-sm ml-0.5">✦</span>
               </div>
             </div>
           </div>

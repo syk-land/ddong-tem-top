@@ -19,6 +19,7 @@ import type { TowerRun } from '@/types'
 import { REAL_BOSS_ORDER } from '@/core/realboss'
 import { CHAPTER_THEMES } from '@/data/chapters'
 import { useI18n } from '@/lib/i18n'
+import { IS_PORTAL_EMBED } from '@/lib/platform'
 
 const game = useGameStore()
 const auth = useAuthStore()
@@ -379,7 +380,8 @@ async function resetMeta() {
         @click="startNew"
       >{{ t('menu.newChar', '새 캐릭터 시작') }} <span class="opacity-80 text-sm font-normal ml-1">{{ t('menu.newChar.sub', '(3챌린지 선택)') }}</span></button>
 
-      <!-- ── Google 로그인 / 로그아웃 ── -->
+      <!-- ── Google 로그인 / 로그아웃 (포털 iframe 임베드 환경에서는 숨김) ── -->
+      <template v-if="!IS_PORTAL_EMBED">
       <div
         v-if="auth.isLoggedIn"
         class="rounded-lg border border-slate-600/60 bg-white/95 px-3 py-2.5 flex items-center gap-2.5"
@@ -424,6 +426,7 @@ async function resetMeta() {
         {{ t('menu.inApp.warn1', `⚠ ${inAppBrowserName(inAppBrowser)} 인앱 브라우저에서는 Google 로그인이 막힙니다.`, { name: inAppBrowserName(inAppBrowser) }) }}<br />
         {{ t('menu.inApp.warn2', '버튼을 누르면 외부 브라우저(Chrome/Safari)로 여는 방법을 안내해요.') }}
       </p>
+      </template>
 
       <!-- ── 데이터 리셋 (작은 푸터 링크) ── -->
       <div class="pt-1 text-center">

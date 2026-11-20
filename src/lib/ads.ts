@@ -75,30 +75,6 @@ function callShowAd(type?: string): void {
   throw new Error('GameMonetize SDK function (sdk.showBanner / ShowAds / sdk.showAd) not found on window')
 }
 
-// 진단: GameMonetize SDK 가 window 의 어디에 자기 자신을 노출하는지 찾기.
-// SDK_READY 후에도 window.sdk 가 undefined 인 케이스가 보고됨 — 객체 이름이
-// 'sdk' 가 아닐 수 있음(SDK / gameMonetize / GameMonetize 등). 모든 후보 키와
-// showAd 보유 여부를 한 번 출력해 실체를 파악.
-let _sdkDiagPrinted = false
-function diagSdk(): void {
-  if (_sdkDiagPrinted) return
-  _sdkDiagPrinted = true
-  if (typeof window === 'undefined') return
-  const w = window as unknown as Record<string, unknown>
-  const keys = Object.keys(w).filter((k) => /sdk|game|ad|monet/i.test(k))
-  const summary: Array<{ key: string; type: string; hasShowBanner: boolean; hasShowAd: boolean }> = []
-  for (const k of keys) {
-    const v = w[k] as { showBanner?: unknown; showAd?: unknown } | undefined
-    summary.push({
-      key: k,
-      type: typeof v,
-      hasShowBanner: !!v && typeof v === 'object' && typeof v.showBanner === 'function',
-      hasShowAd: !!v && typeof v === 'object' && typeof v.showAd === 'function',
-    })
-  }
-  console.info('[ads-diag] window keys matching /sdk|game|ad|monet/i', summary)
-}
-
 // 보상형 광고 표시 — 시청 완료 시 true, 실패/스킵 시 false.
 //   BYPASS_ADS 또는 SDK 미로드 시: 즉시 true (PoC 동작 유지).
 //   정상 동작 시: SDK rewarded 호출 후 이벤트로 결과 판정.
@@ -106,24 +82,20 @@ function diagSdk(): void {
 // useCase 는 통계/분석용 메타 — GameMonetize SDK 가 광고 단위를 자체 관리해서
 // 코드에선 분기만 가능 (광고 단위 ID 를 직접 넘기지 않는다).
 export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
-  diagSdk()
-  console.info('[ads] showRewardedAd called', { useCase, BYPASS_ADS, sdkReady: isSdkReady() })
+  void useCase
   if (BYPASS_ADS) return true
   if (!isSdkReady()) {
     // SDK 미로드 — dev / 네트워크 차단 / SDK 비활성화 상태. 즉시 보상.
-    console.info('[ads] SDK not ready — granting immediate reward')
     return true
   }
 
   return new Promise<boolean>((resolve) => {
-    let rewarded = false
     let settled = false
     const finish = (v: boolean) => {
       if (settled) return
       settled = true
       clearTimeout(timeoutHandle)
       window.removeEventListener('gm-sdk-event', onEvent)
-      console.info('[ads] rewarded ad finished', { result: v, useCase })
       resolve(v)
     }
     const onEvent = (e: Event) => {
@@ -131,7 +103,6 @@ export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
       const detail = ce.detail as { name?: string; message?: string } | undefined
       const name = detail?.name
       if (!name) return
-      console.info('[ads] gm-sdk-event', name, detail?.message ?? '')
       // GameMonetize SDK 이벤트 이름은 버전마다 약간 다를 수 있어서 보수적으로 매칭.
       switch (name) {
         // ── 정상 완료 ──
@@ -140,7 +111,6 @@ export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
         case 'AD_REWARDED':
         case 'AD_FINISHED':
         case 'AD_COMPLETE':
-          rewarded = true
           finish(true)
           break
         // ── 사용자가 명시적으로 스킵 (보상 거부) ──
@@ -153,54 +123,41 @@ export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
         case 'AD_CANCELED':
         case 'AD_ERROR':
         case 'SDK_REWARDED_NOT_AVAILABLE':
-          rewarded = true
           finish(true)
           break
         // ── 광고 흐름 종료 ──
         //   위에서 이미 settle 됐으면 no-op, 아니면 보상 폴백.
         case 'SDK_GAME_START':
           if (!settled) {
-            rewarded = true
             finish(true)
           }
           break
       }
     }
     // 안전망 timeout — 이벤트가 전혀 fire 안 하거나 SDK stuck 상태인 경우.
-    // GameMonetize SDK 가 inventory 없을 때 첫 시도는 12초 safety timer 로
-    // AD_CANCELED 던지지만, 이후 ShowAds() 호출은 침묵하는 경우 관측됨.
     // → 8초 안에 아무 이벤트 없으면 "SDK 침묵 = no-fill" 로 간주, 보상 지급.
     const TIMEOUT_MS = 8_000
     const timeoutHandle = setTimeout(() => {
-      console.warn('[ads] GameMonetize 광고 응답 8초 초과 — no-fill 로 간주, 보상 지급')
-      rewarded = true
       finish(true)
     }, TIMEOUT_MS)
     window.addEventListener('gm-sdk-event', onEvent)
     try {
       const adType = window.sdk?.AdType?.Rewarded ?? 'rewarded'
-      console.info('[ads] calling SDK ShowAds (rewarded)', { adType })
       callShowAd(adType)
-    } catch (e) {
-      console.warn('[ads] GameMonetize 광고 표시 실패:', e)
+    } catch {
       finish(false)
     }
   })
 }
 
 // 인터스티셜 광고 — 프리롤/스테이지 간 노출용. rewarded 와 달리 결과 판정 없음 (표시 자체가 목적).
-// GameMonetize 활성화 자격은 실제 ad request 트래픽 누적이 필요해서, 세션당 1회 프리롤만으로도
-// "사용 중인 게임" 시그널이 명확해진다.
 export function showInterstitial(): void {
-  diagSdk()
-  console.info('[ads] showInterstitial called', { BYPASS_ADS, sdkReady: isSdkReady() })
   if (BYPASS_ADS) return
-  if (!isSdkReady()) return  // SDK 미로드 — dev/네트워크 차단. 조용히 패스
+  if (!isSdkReady()) return
   try {
-    console.info('[ads] calling SDK ShowAds (interstitial)')
-    callShowAd()  // no-arg = 인터스티셜
-  } catch (e) {
-    console.warn('[ads] GameMonetize 인터스티셜 표시 실패:', e)
+    callShowAd()
+  } catch {
+    // silent fallback
   }
 }
 

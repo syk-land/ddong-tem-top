@@ -47,23 +47,30 @@ function pickLang(v: 'ko' | 'en', e: Event) {
       :style="{ backgroundImage: `url(${imgUrl})` }"
     />
 
-    <!--
-      영어 모드 제목 오버레이 — main.webp / main-portrait.webp 상단에 한글 제목
-      "이번 판은 똥템으로 탑을 오르겠습니다" 가 픽셀로 박혀 있어 영어 검수 시 노출됨.
-      상단 그라데이션 밴드로 그 영역을 덮고 영어 제목을 얹는다 (한국어 모드는 원본 노출).
-      ※ 밴드 높이/제목 위치는 브라우저(npm run dev)에서 미세조정 필요.
-    -->
+    <!-- 상단/하단 시네마틱 비네트 (텍스트리스 키아트 위에 EN/KO 게임 타이틀 렌더링) -->
     <div
-      v-if="lang === 'en'"
-      class="absolute top-0 inset-x-0 z-10 text-center pointer-events-none"
-      style="padding: 3rem 1rem 11rem; background: linear-gradient(to bottom, #000 0%, #000 70%, rgba(0,0,0,0.85) 88%, rgba(0,0,0,0) 100%)"
-    >
-      <div style="font-size: 0.95rem; font-weight: 700; letter-spacing: 0.3em; color: #c4b5fd; text-shadow: 0 2px 6px rgba(0,0,0,0.95)">
-        THIS RUN
-      </div>
-      <h1 style="margin-top: 0.35rem; font-size: 2.1rem; line-height: 1.1; font-weight: 800; color: #fff; text-shadow: 0 3px 10px rgba(0,0,0,0.95)">
-        Climbing the Tower<br />with Junk Gear
-      </h1>
+      class="absolute inset-0 pointer-events-none"
+      style="background: linear-gradient(to bottom, rgba(6,8,16,0.78) 0%, rgba(6,8,16,0.22) 32%, rgba(6,8,16,0.05) 62%, rgba(6,8,16,0.82) 100%)"
+    />
+
+    <!-- 게임 타이틀 (EN / KO 네이티브 렌더링) -->
+    <div class="absolute top-12 sm:top-16 inset-x-0 z-10 px-4 text-center pointer-events-none">
+      <template v-if="lang === 'en'">
+        <div class="font-display text-xs sm:text-sm font-bold tracking-[0.35em] text-amber-300/95 uppercase drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)]">
+          THIS RUN
+        </div>
+        <h1 class="font-display mt-1.5 text-3xl sm:text-4xl font-black leading-tight tracking-wide text-transparent bg-clip-text bg-gradient-to-b from-amber-100 via-amber-200 to-amber-500 drop-shadow-[0_4px_14px_rgba(0,0,0,0.95)]">
+          Climbing the Tower<br />with Junk Gear
+        </h1>
+      </template>
+      <template v-else>
+        <div class="text-xs sm:text-sm font-bold tracking-[0.28em] text-amber-300/95 drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)]">
+          이번 판은
+        </div>
+        <h1 class="mt-1.5 text-3xl sm:text-4xl font-extrabold leading-tight tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-amber-100 via-amber-200 to-amber-500 drop-shadow-[0_4px_14px_rgba(0,0,0,0.95)]">
+          똥템으로 탑을<br />오르겠습니다
+        </h1>
+      </template>
     </div>
 
     <!-- 언어 전환 (우상단) — 클릭 전파 차단 -->
