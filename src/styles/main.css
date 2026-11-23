@@ -20,6 +20,10 @@
     -webkit-tap-highlight-color: transparent;
     user-select: none;
   }
+  img {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
   #app {
     @apply h-screen flex flex-col;
     /* 세로 폰 비율 (9:16) 고정 + 브라우저 세로 높이에 맞춤.
