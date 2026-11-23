@@ -109,11 +109,15 @@ export function loadMeta(): MetaBonuses {
       currentBossBestDrain: m.currentBossBestDrain ?? 0,
       totalGoldEarned: m.totalGoldEarned ?? 0,
       tutorialSeen: migrateTutorialSeen(m.tutorialSeen),
+      prologueRiftSeen: m.prologueRiftSeen ?? ((m.clearCount ?? 0) > 0),
+      prologueBonusGranted: m.prologueBonusGranted ?? false,
+      discoveredQuirks: Array.isArray(m.discoveredQuirks) ? m.discoveredQuirks : [],
     }
-    // 불변식 정합성 — permanentStartBonus = clearCount×60 + floor(60×bestDrain).
+    // 불변식 정합성 — permanentStartBonus = clearCount×60 + floor(60×bestDrain) + (prologueBonusGranted ? 5 : 0).
     {
       const expected = (loaded.realBossClearCount * 60)
         + Math.floor(60 * (loaded.currentBossBestDrain ?? 0))
+        + (loaded.prologueBonusGranted ? 5 : 0)
       if (loaded.permanentStartBonus !== expected) {
         loaded.permanentStartBonus = expected
       }
@@ -189,6 +193,9 @@ export function defaultMeta(): MetaBonuses {
     currentBossBestDrain: 0,
     totalGoldEarned: 0,
     tutorialSeen: defaultTutorialSeen(),
+    prologueRiftSeen: false,
+    prologueBonusGranted: false,
+    discoveredQuirks: [],
   }
 }
 

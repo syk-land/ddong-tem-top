@@ -1,6 +1,7 @@
 import type { CombatContext } from './combat'
-import { computeDamage, pushLog, checkMonsterDeath, rollHit, currentTarget, aliveMonsters, applyHealing } from './combat'
+import { computeDamage, pushLog, checkMonsterDeath, rollHit, currentTarget, aliveMonsters, applyHealing, chargeSurge } from './combat'
 import { computeEffectiveStats } from './stats'
+import { getPlayerSynergy, isBrokenArmorActive } from './junkSynergy'
 import { applyStatus, purgeDebuffs } from './status'
 import { SKILLS } from '@/data/skills'
 import { WEAPONS } from '@/data/weapons'
@@ -201,18 +202,42 @@ function attackSkill(
   const target = currentTarget(ctx)
   if (!target) return
   const eff = computeEffectiveStats(ctx.player)
-  if (!rollHit(eff.명중률 + (opts.accBonus ?? 0), target.eva)) {
+  const syn = getPlayerSynergy(ctx.player)
+  const surgeGuaranteedHit = !!(ctx.surgeNextAttackMult && ctx.surgeNextAttackMult > 1)
+  if (!surgeGuaranteedHit && !rollHit(eff.명중률 + (opts.accBonus ?? 0), target.eva)) {
     pushLog(ctx, i18nT('log.miss', '공격이 빗나갔다.'), 'miss')
+    chargeSurge(ctx, 10)
     return
+  }
+  let finalMult = multiplier
+  let forceCrit = false
+  let flatPenBonus = 0
+  let critBonusChance = 0
+  if (isBrokenArmorActive(ctx.player, syn.hasLoopholeMaster)) {
+    finalMult *= 1 + 0.5 * syn.loopholeMult
+  }
+  if (syn.hasDavidStone && target.isBoss) {
+    critBonusChance += 0.25
+    flatPenBonus += 30
+  }
+  if (ctx.heavyArmorPenBonus && ctx.heavyArmorPenBonus > 0) {
+    flatPenBonus += ctx.heavyArmorPenBonus
+    ctx.heavyArmorPenBonus = 0
+  }
+  if (ctx.surgeNextAttackMult && ctx.surgeNextAttackMult > 1) {
+    finalMult *= ctx.surgeNextAttackMult
+    forceCrit = true
+    ctx.surgeNextAttackMult = undefined
   }
   const { dmg, isCrit } = computeDamage(
     { 공격력: eff.공격력, 민첩: eff.민첩, 행운: eff.행운, 관통: eff.관통 },
     { 방어: target.def },
-    { multiplier, penBoost: opts.penBoost ?? 1.0 }
+    { multiplier: finalMult, penBoost: opts.penBoost ?? 1.0, forceCrit, critBonusChance, flatPenBonus }
   )
   const finalDmg = opts.critMultiplier && isCrit ? Math.round(dmg * (opts.critMultiplier / 2)) : dmg
   target.hp -= finalDmg
   target._hitsTaken = (target._hitsTaken ?? 0) + 1
+  chargeSurge(ctx, isCrit ? 18 : 12)
   const _tn = i18nTd('monster', target.template.name)
   if (isCrit) {
     pushLog(ctx, i18nT('log.crit', `⚡ 크리티컬! ${_tn}에게 ${finalDmg} 데미지`, { name: _tn, dmg: finalDmg }), 'critical')
@@ -264,17 +289,41 @@ function magicAttackOnTarget(
 ) {
   if (target.hp <= 0) return
   const eff = computeEffectiveStats(ctx.player)
-  if (!rollHit(eff.명중률 + (opts.accBonus ?? 0), target.eva)) {
+  const syn = getPlayerSynergy(ctx.player)
+  const surgeGuaranteedHit = !!(ctx.surgeNextAttackMult && ctx.surgeNextAttackMult > 1)
+  if (!surgeGuaranteedHit && !rollHit(eff.명중률 + (opts.accBonus ?? 0), target.eva)) {
     if (!opts.silent) pushLog(ctx, i18nT('log.magicMiss', '마법이 빗나갔다.'), 'miss')
+    chargeSurge(ctx, 10)
     return
+  }
+  let finalMult = multiplier
+  let forceCrit = false
+  let flatPenBonus = 0
+  let critBonusChance = 0
+  if (isBrokenArmorActive(ctx.player, syn.hasLoopholeMaster)) {
+    finalMult *= 1 + 0.5 * syn.loopholeMult
+  }
+  if (syn.hasDavidStone && target.isBoss) {
+    critBonusChance += 0.25
+    flatPenBonus += 30
+  }
+  if (ctx.heavyArmorPenBonus && ctx.heavyArmorPenBonus > 0) {
+    flatPenBonus += ctx.heavyArmorPenBonus
+    ctx.heavyArmorPenBonus = 0
+  }
+  if (ctx.surgeNextAttackMult && ctx.surgeNextAttackMult > 1) {
+    finalMult *= ctx.surgeNextAttackMult
+    forceCrit = true
+    ctx.surgeNextAttackMult = undefined
   }
   const { dmg, isCrit } = computeDamage(
     { 공격력: eff.마법공격력, 민첩: eff.민첩, 행운: eff.행운, 관통: eff.관통 },
     { 방어: target.def },
-    { multiplier }
+    { multiplier: finalMult, forceCrit, critBonusChance, flatPenBonus }
   )
   target.hp -= dmg
   target._hitsTaken = (target._hitsTaken ?? 0) + 1
+  chargeSurge(ctx, isCrit ? 18 : 12)
   const _tn2 = i18nTd('monster', target.template.name)
   if (isCrit) {
     pushLog(ctx, i18nT('log.critMagic', `⚡ 크리티컬! ${_tn2}에게 ${dmg} 마법 데미지`, { name: _tn2, dmg }), 'critical')

@@ -3,12 +3,14 @@ import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { rankColorClass } from '@/ui/colors'
 import { rankIconUrl, defaultBgUrl } from '@/ui/images'
+import { getRealBossProgress } from '@/core/realboss'
 import { useI18n } from '@/lib/i18n'
 
 const bgUrl = defaultBgUrl()
 const game = useGameStore()
 const { t } = useI18n()
 const pending = computed(() => game.pendingClear)
+const riftProgress = computed(() => getRealBossProgress(game.meta))
 
 function confirm() {
   // 분배 없이 메타 totalBonusStats 에만 적립. 분배는 캐릭터 생성에서.
@@ -53,8 +55,19 @@ function confirm() {
 
       <button class="btn-primary w-full min-h-12 text-base font-bold" @click="confirm">{{ t('victory.confirmToMenu', '확정 → 메인 메뉴') }}</button>
 
-      <div v-if="pending.finalGold !== undefined" class="text-xs text-stat-luck font-mono font-bold tabular-nums">
-        ⬢ {{ pending.finalGold.toLocaleString() }}G
+      <div v-if="pending.finalGold !== undefined" class="space-y-1.5 pt-1">
+        <div class="text-xs text-stat-luck font-mono font-bold tabular-nums">
+          ⬢ {{ pending.finalGold.toLocaleString() }}G
+        </div>
+        <div class="rounded-md border border-rose-500/35 bg-rose-950/20 px-3 py-2 space-y-1">
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="font-bold text-rose-300">⏳ {{ t('menu.rift.label', '현실 균열') }}</span>
+            <span class="font-mono text-gray-300 tabular-nums">{{ riftProgress.pct }}% ({{ riftProgress.current.toLocaleString() }} / {{ riftProgress.target.toLocaleString() }}G)</span>
+          </div>
+          <div class="h-1.5 w-full rounded-full bg-slate-900 overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-rose-500 to-amber-400" :style="{ width: riftProgress.pct + '%' }" />
+          </div>
+        </div>
       </div>
     </div>
   </section>

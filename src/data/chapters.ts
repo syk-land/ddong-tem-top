@@ -153,41 +153,38 @@ export interface BaselineStats {
   eva: number      // v9: 회피 (%p)
 }
 
-// v9 일반 몬스터
-// v10: HP ×2 (플레이어 HP ×2 와 보조 맞춤). 보스/미믹 베이스라인이 이 값에서 파생되므로
-//   여기만 늘리면 자동 전파.
+// v11.2: 전투 호흡 확보 — 일반 몹이 2~3방에 녹지 않고 5~8방 버티도록 HP 대폭 상향.
+//   (상태이상·똥템 허점·시간의 파동이 실제 전투에서 활약할 시간 확보)
 export function getNormalMonsterBaseline(chapter: number): BaselineStats {
   return {
-    hp: 100 + 12 * chapter,
-    atk: 8 + 1.2 * chapter,
-    def: 3 + 1.0 * chapter,       // 챕터 1 = 4%, 챕터 10 = 13%
+    hp: 380 + 55 * chapter,       // 챕터 1 = 435, 챕터 5 = 655, 챕터 10 = 930
+    atk: 13 + 1.8 * chapter,      // 챕터 1 = 14.8, 챕터 10 = 31.0
+    def: 6 + 1.3 * chapter,       // 챕터 1 = 7.3%, 챕터 10 = 19%
     speed: 8,
     ticks: 10,
-    acc: 30 + 3 * chapter,        // 챕터 1 = 33, 챕터 10 = 60
-    eva: 5 + 1 * chapter,         // 챕터 1 = 6, 챕터 10 = 15
+    acc: 48 + 3 * chapter,        // 챕터 1 = 51, 챕터 10 = 78
+    eva: 8 + 1.2 * chapter,       // 챕터 1 = 9.2, 챕터 10 = 20
   }
 }
 
-// v9 보스 — 도전감 위해 hp/atk 강화
-// v10: 챕터 1~4 보스는 초반 진입 장벽 완화 위해 hp/atk 일부 감산.
-//   ch5+ 부터는 풀 강도(=1.0). 챕터 6~10 하드 보스는 영향 없음.
+// v11.3 보스 — 시뮬레이터 검증 기반 리밸런싱:
+//   일반 몹 HP(435~930) 상향에 맞춰 보스 HP 배수 4.2, ATK 배수 1.25 (ticks=8 이므로 실 DPS 1.56배)
 const EARLY_BOSS_SOFTNESS: Record<number, { hp: number; atk: number }> = {
-  1: { hp: 0.70, atk: 0.80 },
-  2: { hp: 0.78, atk: 0.85 },
-  3: { hp: 0.86, atk: 0.90 },
-  4: { hp: 0.93, atk: 0.95 },
+  1: { hp: 0.85, atk: 0.90 },
+  2: { hp: 0.92, atk: 0.95 },
+  3: { hp: 0.96, atk: 0.98 },
 }
 export function getBossBaseline(chapter: number): BaselineStats {
   const n = getNormalMonsterBaseline(chapter)
   const soft = EARLY_BOSS_SOFTNESS[chapter] ?? { hp: 1.0, atk: 1.0 }
   return {
-    hp: n.hp * 16.0 * soft.hp,
-    atk: n.atk * 1.7 * soft.atk,
-    def: n.def * 1.55,
+    hp: n.hp * 4.2 * soft.hp,
+    atk: n.atk * 1.25 * soft.atk,
+    def: n.def * 1.35,
     speed: 10,
     ticks: 8,                     // 보스는 빠름
-    acc: n.acc + 10,              // 보스 명중 +10
-    eva: n.eva + 5,               // 보스 회피 +5
+    acc: n.acc + 5,               // 보스 명중 +5
+    eva: n.eva + 4,               // 보스 회피 +4
   }
 }
 

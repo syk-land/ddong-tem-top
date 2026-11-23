@@ -100,12 +100,26 @@ export interface TraitEffect {
   resist_poison?: number
 }
 
+export type TraitQuirkId =
+  | 'old_weapon'
+  | 'rust_weapon'
+  | 'heavy_weapon'
+  | 'rust_armor'
+  | 'heavy_armor'
+  | 'broken_armor'
+
+export type JunkResonanceId =
+  | 'loophole_master'
+  | 'david_stone'
+  | 'tetanus_set'
+
 export interface TraitDef {
   name: string
   tier: TraitTier
   price: number       // sell_price 베이스
   effects: TraitEffect
   fixed_self_dot?: boolean  // 저주의: grade coef 미적용
+  quirk?: TraitQuirkId      // 하급 똥템 전용 숨은 허점 기믹
 }
 
 // ====== 무기 ======
@@ -321,9 +335,13 @@ export interface MetaBonuses {
   realBossDefeated: boolean         // 진짜 보스를 한 번이라도 깎은 비율 100% 클리어 했는지 (게임 클리어)
   realBossClearCount: number        // (v2 도입 후) 진짜 보스 100% 클리어 누적 횟수 — REAL_BOSS_ORDER 인덱스 + 모든 몬스터 HP×(1+0.9×N)
   currentBossBestDrain: number      // 현재 미클리어 보스에 대한 최고 깎은 비율 0~1 — 재도전 시 max() 갱신, 완전 클리어 시 0 리셋
-  totalGoldEarned: number           // 클리어 시점 남은 골드 누적 — 5만 도달 시 진짜 보스 트리거 (내부, UI 표시 X)
+  totalGoldEarned: number           // 클리어 시점 남은 골드 누적 — 3만 도달 시 진짜 보스 트리거
   // ── 튜토리얼 진행도 ──
   tutorialSeen: TutorialSeen        // 단계별 1회성 안내 노출 여부
+  // ── v11: 프롤로그 균열 조우 & 똥템 허점 발견 도감 ──
+  prologueRiftSeen?: boolean        // 1회차 1챕터 클리어/첫 사망 시 진짜 보스 환영 조우 완료 여부
+  prologueBonusGranted?: boolean    // 프롤로그 조우 보상 (+5pt 영구 시작 스탯) 지급 여부
+  discoveredQuirks?: TraitQuirkId[] // 전투 중 최초 발동으로 해금된 똥템 허점 목록
 }
 
 // 인게임 튜토리얼 — 각 단계는 처음 만날 때 1회만 노출.

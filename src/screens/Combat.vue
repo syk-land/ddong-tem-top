@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { SKILLS } from '@/data/skills'
+import { getActiveResonances, RESONANCE_INFO } from '@/core/junkSynergy'
 import HpMpBar from '@/ui/components/HpMpBar.vue'
 import ItemName from '@/ui/components/ItemName.vue'
 import StatusBadges from '@/ui/components/StatusBadges.vue'
@@ -20,6 +21,13 @@ const log = computed(() => combat.value.log)
 const logEl = ref<HTMLElement | null>(null)
 
 const playerGauge = computed(() => Math.min(100, combat.value.player.actionGauge))
+const surgeGauge = computed(() => Math.min(100, Math.max(0, combat.value?.surgeGauge ?? 0)))
+const surgeReady = computed(() => !combat.value?.ended && surgeGauge.value >= 100)
+const activeResonances = computed(() => {
+  if (!combat.value?.player) return []
+  return getActiveResonances(combat.value.player).map((id) => RESONANCE_INFO[id])
+})
+const surgeFlash = ref(false)
 const bgUrl = computed(() => {
   const ch = game.currentChapterState
   return ch ? themeBgUrl(ch.theme) : ''
@@ -96,6 +104,74 @@ interface PlayerDmgEvent {
 const playerDamageEvents = ref<PlayerDmgEvent[]>([])
 const playerShaking = ref(false)
 const prevPlayerHp = ref(combat.value?.player.hp ?? 0)
+
+// ============================================================
+// v11: 액션 / 허점 배지 팝업 & 시간의 파동 1버튼 + 히트스톱
+// ============================================================
+interface FloatingBadge {
+  id: number
+  target: 'player' | 'monster'
+  monsterIdx?: number
+  text: string
+  tone: 'gold' | 'cyan' | 'rose'
+}
+const floatingBadges = ref<FloatingBadge[]>([])
+let lastBadgeId = 0
+
+// 새 CombatContext 인스턴스로 교체 시 (예: 프롤로그 균열 조우전 진입) 로컬 상태 및 ticker 초기화
+watch(
+  () => game.combat,
+  (next) => {
+    if (!next) return
+    lastBadgeId = 0
+    floatingBadges.value = []
+    previousHp.value = next.monsters.map((m) => m.hp)
+    prevPlayerHp.value = next.player.hp
+    if (!next.ended && !game.paused && !game.tutorialActive) {
+      restartTicker()
+    }
+  }
+)
+
+watch(
+  () => combat.value?.badges.length ?? 0,
+  () => {
+    const list = combat.value?.badges ?? []
+    for (const b of list) {
+      if (b.id <= lastBadgeId) continue
+      lastBadgeId = b.id
+      floatingBadges.value.push({ ...b })
+      if (b.tone === 'gold') sfx.loophole()
+      else if (b.text.includes('COUNTER')) sfx.counter()
+      const bid = b.id
+      setTimeout(() => {
+        floatingBadges.value = floatingBadges.value.filter((x) => x.id !== bid)
+      }, 1050)
+    }
+  }
+)
+
+function badgesForMonster(idx: number): FloatingBadge[] {
+  return floatingBadges.value.filter((b) => b.target === 'monster' && (b.monsterIdx ?? 0) === idx)
+}
+const playerBadges = computed(() => floatingBadges.value.filter((b) => b.target === 'player'))
+
+function onTriggerSurge() {
+  if (!surgeReady.value) return
+  const ok = game.triggerCombatSurge()
+  if (!ok) return
+  // 120ms 히트스톱 + 화면 흔들림 + 시안 임팩트 플래시
+  stopAutoTick()
+  screenShaking.value = true
+  surgeFlash.value = true
+  setTimeout(() => {
+    screenShaking.value = false
+    if (!combat.value?.ended && !game.paused && !game.tutorialActive) {
+      startAutoTick()
+    }
+  }, 120)
+  setTimeout(() => { surgeFlash.value = false }, 280)
+}
 
 watch(
   () => combat.value?.player.hp,
@@ -325,6 +401,11 @@ watch(
         v-if="critFlash"
         class="absolute inset-0 z-20 pointer-events-none bg-amber-300/15 shadow-[inset_0_0_50px_rgba(251,191,36,0.45)] transition-opacity"
       />
+      <!-- 시간의 파동 임팩트 플래시 -->
+      <div
+        v-if="surgeFlash"
+        class="absolute inset-0 z-20 pointer-events-none bg-cyan-300/20 shadow-[inset_0_0_70px_rgba(34,211,238,0.65)] transition-opacity"
+      />
       <!-- 플레이어 피격 레드 비네트 -->
       <div
         v-if="playerShaking"
@@ -381,6 +462,16 @@ watch(
               >
                 <span v-if="ev.isCrit" class="text-xs tracking-wider mr-0.5 text-amber-200">CRIT</span>-{{ ev.amount }}<span v-if="ev.isCrit" class="text-sm ml-0.5">✦</span>
               </div>
+              <div
+                v-for="b in badgesForMonster(idx)"
+                :key="'mb-' + b.id"
+                class="absolute left-1/2 -top-2 -translate-x-1/2 z-20 pointer-events-none px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap animate-damage-float border shadow-lg"
+                :class="b.tone === 'gold'
+                  ? 'bg-amber-950/90 text-amber-200 border-amber-400/80'
+                  : b.tone === 'cyan'
+                    ? 'bg-cyan-950/90 text-cyan-200 border-cyan-400/80'
+                    : 'bg-rose-950/90 text-rose-200 border-rose-400/80'"
+              >{{ b.text }}</div>
             </div>
           </div>
 
@@ -437,6 +528,14 @@ watch(
                 >
                   -{{ ev.amount }}
                 </div>
+                <div
+                  v-for="b in playerBadges"
+                  :key="'pb-' + b.id"
+                  class="absolute left-1/2 -top-2 -translate-x-1/2 z-20 pointer-events-none px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap animate-damage-float border shadow-lg"
+                  :class="b.tone === 'gold'
+                    ? 'bg-amber-950/90 text-amber-200 border-amber-400/80'
+                    : 'bg-cyan-950/90 text-cyan-200 border-cyan-400/80'"
+                >{{ b.text }}</div>
               </div>
               <div data-tutorial-target="combat-bars" class="flex-1 min-w-0 space-y-1.5">
                 <HpMpBar :current="player.hp" :max="player.maxHp" kind="hp" />
@@ -456,6 +555,40 @@ watch(
               <div class="flex-1 h-[3px] bg-slate-900/70 rounded-full overflow-hidden">
                 <div class="h-full bg-cyan-400/80 transition-all" :style="{ width: playerGauge + '%' }" />
               </div>
+            </div>
+
+            <!-- 활성화된 똥템 공명 배지 -->
+            <div v-if="activeResonances.length > 0" class="flex flex-wrap items-center gap-1.5 pt-0.5">
+              <span
+                v-for="r in activeResonances"
+                :key="r.id"
+                class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-950/70 text-amber-200 border border-amber-400/60 shadow-[0_0_8px_rgba(251,191,36,0.25)]"
+                :title="r.descKo"
+              >💡 {{ r.nameKo }}</span>
+            </div>
+
+            <!-- v11: 시간의 파동 (전투 1버튼 능동 개입) -->
+            <div class="pt-1">
+              <button
+                type="button"
+                :disabled="!surgeReady"
+                @click="onTriggerSurge"
+                class="relative w-full min-h-10 rounded-lg overflow-hidden border font-bold text-xs tracking-wide transition active:scale-[0.98]"
+                :class="surgeReady
+                  ? 'border-cyan-300 bg-gradient-to-r from-cyan-600/90 via-sky-500/90 to-amber-500/90 text-white shadow-[0_0_18px_rgba(34,211,238,0.65)] animate-pulse cursor-pointer'
+                  : 'border-slate-700/80 bg-slate-900/70 text-slate-400 cursor-default'"
+              >
+                <div
+                  v-if="!surgeReady"
+                  class="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-700/50 to-cyan-400/50 transition-all duration-150"
+                  :style="{ width: surgeGauge + '%' }"
+                />
+                <span class="relative z-10 flex items-center justify-center gap-1.5">
+                  <span>⚡</span>
+                  <span v-if="surgeReady">{{ t('combat.surgeReady', '시간의 파동 발동! (확정 크리 ×1.5 · 적 지연)') }}</span>
+                  <span v-else>{{ t('combat.surgeCharging', `시간의 파동 충전 중 ${surgeGauge}%`, { pct: surgeGauge }) }}</span>
+                </span>
+              </button>
             </div>
 
             <!-- 자동 발동 스킬 — 칩 (탭하면 상세 모달) -->

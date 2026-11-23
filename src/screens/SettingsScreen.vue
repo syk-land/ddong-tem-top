@@ -44,6 +44,7 @@ const STORAGE_KEYS = [
   'climetop:creation:v1',
   'climetop:speed:v1',
   'climetop:autoEnter:v1',
+  'climetop:autoSurge:v1',
   'climetop:tutorialSeen:v1',
   'climetop:sound:v1',
 ]
@@ -141,6 +142,26 @@ onMounted(() => {
             @click="setLang('en')"
           >{{ t('lang.en', 'English') }}</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ── 전투 편의 (시간의 파동 자동 발동) ── -->
+    <div class="rounded-lg border border-amber-400/40 bg-bg-secondary/70 backdrop-blur-sm overflow-hidden">
+      <div class="px-3 py-1.5 bg-amber-950/30 border-b border-amber-500/20 flex items-center">
+        <span class="text-xs font-bold text-amber-200">⚡ {{ t('settings.combat', '전투 옵션') }}</span>
+      </div>
+      <div class="p-3 flex items-center justify-between gap-3">
+        <div class="space-y-0.5">
+          <div class="text-sm font-bold text-gray-100">{{ t('settings.autoSurge.title', '시간의 파동 자동 발동') }}</div>
+          <div class="text-xs text-gray-400">{{ t('settings.autoSurge.desc', 'OFF: 수동 발동 시 ×1.5 (최대 효과) · ON: 100% 도달 시 자동 발동 (×1.2)') }}</div>
+        </div>
+        <button
+          class="px-3 min-h-9 rounded-md text-xs font-bold border-2 transition active:scale-95 shrink-0"
+          :class="game.autoSurge
+            ? 'bg-amber-600/30 text-amber-200 border-amber-400/60'
+            : 'bg-slate-800 text-gray-400 border-slate-700'"
+          @click="game.setAutoSurge(!game.autoSurge)"
+        >{{ game.autoSurge ? t('common.on', 'ON') : t('common.off', 'OFF') }}</button>
       </div>
     </div>
 

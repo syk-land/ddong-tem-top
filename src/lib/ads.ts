@@ -44,6 +44,8 @@ declare global {
   }
 }
 
+import { IS_PORTAL_EMBED } from './platform'
+
 // ─── 임시 우회 (GameMonetize 활성화 전) ─────────────────────
 // 콘솔 게임 상태가 "New" 단계에선 광고 호출이 no-fill 로 실패함.
 // 그동안 "광고 보기" 버튼을 누르면 광고 없이 보상이 즉시 지급되도록 우회.
@@ -121,8 +123,16 @@ export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
     return true
   }
 
+  // Firebase Hosting 등 포털 iframe 외부 직접 접속에서는 GameMonetize H5 광고가
+  // 도메인 정책으로 송출되지 않고 즉시 실패/스킵되는 경우가 많다.
+  // 실제 포털(IS_PORTAL_EMBED) 밖에서는 즉시 보상 폴백으로 테스트·플레이를 막지 않는다.
+  if (!IS_PORTAL_EMBED) {
+    return true
+  }
+
   return new Promise<boolean>((resolve) => {
     let settled = false
+    const startedAt = Date.now()
     const finish = (v: boolean) => {
       if (settled) return
       settled = true
@@ -146,19 +156,17 @@ export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
           finish(true)
           break
         // ── 사용자가 명시적으로 스킵 (보상 거부) ──
+        //   단, 호출 후 1.5초 미만으로 즉시 AD_SKIPPED 가 오면 광고 자체가 안 뜬 no-fill 이므로 보상 허용.
         case 'AD_SKIPPED':
-          finish(false)
+          finish(Date.now() - startedAt < 1500)
           break
         // ── 광고 fill 실패 / 인벤토리 부족 / SDK 오류 ──
-        //   사용자 잘못 X (no-fill 은 "New" 단계의 정상 상황).
-        //   클릭한 의도를 존중해 보상 지급.
         case 'AD_CANCELED':
         case 'AD_ERROR':
         case 'SDK_REWARDED_NOT_AVAILABLE':
           finish(true)
           break
         // ── 광고 흐름 종료 ──
-        //   위에서 이미 settle 됐으면 no-op, 아니면 보상 폴백.
         case 'SDK_GAME_START':
           if (!settled) {
             finish(true)
@@ -167,7 +175,6 @@ export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
       }
     }
     // 안전망 timeout — 이벤트가 전혀 fire 안 하거나 SDK stuck 상태인 경우.
-    // → 8초 안에 아무 이벤트 없으면 "SDK 침묵 = no-fill" 로 간주, 보상 지급.
     const TIMEOUT_MS = 8_000
     const timeoutHandle = setTimeout(() => {
       finish(true)
@@ -177,7 +184,8 @@ export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
       const adType = window.sdk?.AdType?.Rewarded ?? 'rewarded'
       callShowAd(adType)
     } catch {
-      finish(false)
+      // SDK 내부 예외는 사용자 잘못이 아니므로 보상 폴백
+      finish(true)
     }
   })
 }

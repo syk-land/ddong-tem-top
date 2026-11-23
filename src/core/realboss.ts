@@ -64,8 +64,8 @@ export function pickChallengeRecord(meta: MetaBonuses): CharacterRecord | null {
 // 라운드 보스 HP = 3520 × boss.hpMod × HARD_BOSS_HP_MULT × 누적 × REAL_BOSS_HP_MULT.
 // hardBoss 의 hpMod/atkMod/defMod 시뮬 fitting을 폐기하고 가짜 보스 (theme.boss) 기준으로
 // 단순화 — 라운드 보스 stat은 multipliers 만으로 결정.
-export const HARD_BOSS_HP_MULT = 2.5  // 가짜 → 라운드 변환
-export const REAL_BOSS_HP_MULT = 2.5  // 라운드 보스 전용 추가 HP 배수
+export const HARD_BOSS_HP_MULT = 2.0  // 가짜 → 라운드 변환 (v11.2 보스 HP 상향 보정)
+export const REAL_BOSS_HP_MULT = 1.6  // 라운드 보스 전용 추가 HP 배수
 export const REAL_BOSS_ATK_MULT = 7.0  // ATK 배수 (시뮬 기반 조정)
 export const REAL_BOSS_DEF_MULT = 1.0  // DEF 배수 (시뮬 기반 조정)
 
@@ -122,4 +122,18 @@ export function makeRealBoss(theme: ChapterTheme, realBossClearCount: number = 0
 export function computeStartBonusFromDrain(drainRatio: number): number {
   const clamped = Math.max(0, Math.min(1, drainRatio))
   return Math.floor(START_STAT_BASE * clamped)
+}
+
+// 프롤로그 균열 조우전용 환영 보스 (최초 1회 — 압도적 위압감 체험용)
+export function makePrologueRiftBoss(): MonsterInstance {
+  const theme: ChapterTheme = REAL_BOSS_ORDER[0]
+  return makeRealBoss(theme, 0)
+}
+
+// 현실 균열 진행도 (누적 골드 / 30,000G) — UI 게이지 표시용
+export function getRealBossProgress(meta: MetaBonuses): { current: number; target: number; pct: number } {
+  const current = Math.max(0, meta.totalGoldEarned ?? 0)
+  const target = REAL_BOSS_GOLD_THRESHOLD
+  const pct = Math.min(100, Math.round((current / target) * 100))
+  return { current, target, pct }
 }

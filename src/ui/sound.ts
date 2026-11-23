@@ -174,6 +174,26 @@ export const sfx = {
     playTone({ freq: 1320, type: 'square', duration: 100, gain: 0.5, delay: 40 })
   },
 
+  // 시간의 파동 (Time Surge) — 저음 임팩트 + 역재생 느낌 신스
+  surge() {
+    playNoise(110, 0.85, 650)
+    playTone({ freq: 110, freqEnd: 55, type: 'sawtooth', duration: 220, gain: 0.7 })
+    playTone({ freq: 330, freqEnd: 1320, type: 'triangle', duration: 260, gain: 0.55, delay: 30 })
+  },
+
+  // 허점 공략 발동 — 경쾌한 황금 화음
+  loophole() {
+    playTone({ freq: 587, type: 'triangle', duration: 70, gain: 0.5 })
+    playTone({ freq: 880, type: 'triangle', duration: 90, gain: 0.5, delay: 45 })
+    playTone({ freq: 1175, type: 'sine', duration: 130, gain: 0.45, delay: 90 })
+  },
+
+  // 갑옷 반사 / 카운터 — 금속성 타격
+  counter() {
+    playTone({ freq: 920, freqEnd: 460, type: 'square', duration: 90, gain: 0.45 })
+    playNoise(45, 0.5, 2400, 10)
+  },
+
   // 스킬 — 마법 느낌 sweep (fallback)
   skill() {
     playTone({ freq: 220, freqEnd: 880, type: 'triangle', duration: 200, gain: 0.4 })
@@ -454,7 +474,7 @@ export function playSkillSound(key: string, kind?: string) {
 // vite base 가 './' 일 때 GameMonetize 서브디렉토리 호스팅에서도 동작하도록
 // BASE_URL prefix 사용 (절대경로 '/sound/...' 는 CDN 루트로 가서 404)
 const MP3_BGM_URLS: Record<string, string> = {
-  splash: `${import.meta.env.BASE_URL}sound/Beneath_the_Wet_Stone.mp3`,
+  splash: `${import.meta.env?.BASE_URL ?? './'}sound/Beneath_the_Wet_Stone.mp3`,
 }
 
 interface BgmNote {

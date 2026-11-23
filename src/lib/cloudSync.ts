@@ -3,7 +3,7 @@ import {
   collection, query, orderBy, limit, getDocs,
 } from 'firebase/firestore'
 import { firestore } from './firebase'
-import type { MetaBonuses, CharacterRecord } from '@/types'
+import type { MetaBonuses, CharacterRecord, TraitQuirkId } from '@/types'
 import type { User } from 'firebase/auth'
 
 // ============================================================
@@ -36,6 +36,9 @@ export interface CloudMeta {
   // 최근 캐릭터 히스토리는 양이 많아서 별도 처리 가능 — 일단 최대 50개 그대로 저장
   characterHistory: CharacterRecord[]
   challengeChampion?: CharacterRecord | null
+  prologueRiftSeen?: boolean
+  prologueBonusGranted?: boolean
+  discoveredQuirks?: TraitQuirkId[]
   updatedAt?: unknown
 }
 
@@ -85,6 +88,9 @@ export async function saveCloudMeta(uid: string, meta: MetaBonuses): Promise<voi
     totalGoldEarned: meta.totalGoldEarned,
     characterHistory: meta.characterHistory ?? [],
     challengeChampion: meta.challengeChampion ?? null,
+    prologueRiftSeen: meta.prologueRiftSeen ?? false,
+    prologueBonusGranted: meta.prologueBonusGranted ?? false,
+    discoveredQuirks: meta.discoveredQuirks ?? [],
     updatedAt: serverTimestamp(),
   }
   await setDoc(doc(firestore, 'meta', uid), payload, { merge: true })

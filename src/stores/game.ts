@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import type {
   Screen, TowerRun, MetaBonuses, Stats, StatKey, ItemInstance, MonsterInstance, ChapterTheme, CharacterRecord,
-  TutorialStep,
+  TutorialStep, TraitQuirkId,
 } from '@/types'
 import { createCharacter, generateRandomStats, uniformStartingStats, computeMaxMp, computeMaxHp } from '@/core/character'
 import { makeTowerRun, currentChapter, currentFloor, advanceFloor } from '@/core/tower'
@@ -11,10 +11,10 @@ import {
   pushCharacterHistory, incrementRunCounter, consumeChallengeTrigger, accumulateClearGold,
 } from '@/core/meta'
 import {
-  isChallengeDue, pickChallengeRecord, makeRealBoss,
+  isChallengeDue, pickChallengeRecord, makeRealBoss, makePrologueRiftBoss,
   pickNextRealBossTheme, startStatScale,
 } from '@/core/realboss'
-import { createCombatContext, type CombatContext, advanceTick, checkActionReady, consumeAction, playerBasicAttack, monsterAttack, makeMonster, pushLog } from '@/core/combat'
+import { createCombatContext, type CombatContext, advanceTick, checkActionReady, consumeAction, playerBasicAttack, monsterAttack, makeMonster, pushLog, triggerTimeSurge } from '@/core/combat'
 import { useSkill, getAvailableSkills, pickAutoAction } from '@/core/skills'
 import { createShop, refreshShop } from '@/core/shop'
 import type { ShopState } from '@/types'
@@ -150,6 +150,13 @@ interface GameState {
   combatSpeed: number
   // 자동 진입 토글 — 일반몬스터/보스/치유샘만 자동 진입 (상점/보물/이벤트는 사용자 입력)
   autoEnter: boolean
+  // v11: 시간의 파동 자동 발동 토글 (기본 OFF — 수동 발동 시 ×1.5, 자동 ×1.2)
+  autoSurge: boolean
+  // v11: 전투 간 이월되는 시간의 파동 게이지 (최대 50)
+  carriedSurgeGauge: number
+  // v11: 프롤로그 균열 조우전 상태
+  prologueRiftActive: boolean
+  prologueRiftAfterMode: 'dungeon' | 'gameover' | null
   // 현재 챕터에서 새로고침 사용 여부 (트래킹용)
   refreshUsedThisChapter: boolean
   // 저장된 진행 중인 런 존재 여부 (reactive)
@@ -256,6 +263,12 @@ export const useGameStore = defineStore('game', {
     challengeContext: null,
     combatSpeed: 1,
     autoEnter: false,
+    autoSurge: (() => {
+      try { return localStorage.getItem('climetop:autoSurge:v1') === '1' } catch { return false }
+    })(),
+    carriedSurgeGauge: 0,
+    prologueRiftActive: false,
+    prologueRiftAfterMode: null,
     refreshUsedThisChapter: false,
     savedRunExists: false,
     pendingPickup: null,
@@ -539,6 +552,7 @@ export const useGameStore = defineStore('game', {
       // 주사위 굴린 결과가 있으면 사용, 없으면 균등 시작 (모두 8)
       const customStats = this.rolledStats ?? uniformStartingStats()
       // 영구 누적 시작 스탯 보너스 (진짜 보스 도전 누적). 1회성 pending은 deprecated.
+      this.carriedSurgeGauge = 0
       const startBonus = (this.meta.permanentStartBonus ?? 0) + (this.meta.pendingStartBonus ?? 0)
       const character = createCharacter(bonusAllocation, customStats, startBonus)
       // 메타 풀에서 분배한 만큼 차감
@@ -702,7 +716,10 @@ export const useGameStore = defineStore('game', {
         }
       }
 
-      this.combat = createCombatContext(this.run.character, monsters, this.meta.realBossClearCount ?? 0)
+      this.combat = createCombatContext(this.run.character, monsters, this.meta.realBossClearCount ?? 0, {
+        initialSurgeGauge: this.carriedSurgeGauge,
+        onQuirkTriggered: (q) => this.recordDiscoveredQuirk(q),
+      })
       const intro = monsters.length === 1
         ? `${monsters[0].template.name}와(과)의 전투!`
         : `${monsters.length}마리의 적이 등장! (${monsters.map((m) => m.template.name).join(', ')})`
@@ -736,7 +753,10 @@ export const useGameStore = defineStore('game', {
         if (this.run) {
           const monster = makeMonster(bossTemplate, chapter, 'mimic', this.meta.realBossClearCount ?? 0)
           monster.template = { ...bossTemplate, name: `미믹 (${bossTemplate.name} 모방)` }
-          this.combat = createCombatContext(this.run.character, monster, this.meta.realBossClearCount ?? 0)
+          this.combat = createCombatContext(this.run.character, monster, this.meta.realBossClearCount ?? 0, {
+            initialSurgeGauge: this.carriedSurgeGauge,
+            onQuirkTriggered: (q) => this.recordDiscoveredQuirk(q),
+          })
           pushLog(this.combat, i18nT('log.mimicChest', '보물상자가 미믹이었다!'), 'enemy')
           this.screen = 'combat'
         }
@@ -1046,8 +1066,13 @@ export const useGameStore = defineStore('game', {
       }
       if (willEndChapter) {
         this.refreshUsedThisChapter = false
-        // first_chapter_clear 트리거는 챕터 2 1층 진입 시점 (Dungeon.vue) 에서 발화.
-        // 챕터 클리어 직후 (advance) 가 아니라 다음 챕터 첫 화면에서 학습하는 게 자연스러움.
+        // v11: 1챕터(10층) 최초 클리어 직후 프롤로그 균열 조우전 (최초 1회)
+        if (ch.chapter === 1 && !this.meta.prologueRiftSeen && !this.isAutoMode) {
+          this.combat = null
+          this.shop = null
+          void this.startPrologueRift('dungeon')
+          return
+        }
       }
 
       if (result.ended) {
@@ -1187,6 +1212,11 @@ export const useGameStore = defineStore('game', {
         consumeAction(m, m.ticks)
       }
 
+      // 시간의 파동 자동 발동 (설정 ON 또는 dev 자동화 모드)
+      if (!this.combat.ended && (this.autoSurge || this.isAutoMode) && this.combat.surgeGauge >= 100) {
+        triggerTimeSurge(this.combat, false)
+      }
+
       // 플레이어 자동 행동
       if (!this.combat.ended && this.combat.player.actionGauge >= playerEff.무기ticks) {
         this.playerAutoAct(playerEff.무기ticks)
@@ -1194,6 +1224,36 @@ export const useGameStore = defineStore('game', {
 
       if (this.combat.ended) {
         this.handleCombatEnd()
+      }
+    },
+
+    // v11: 전투 중 수동 1버튼 — 시간의 파동 발동
+    triggerCombatSurge(): boolean {
+      if (!this.combat || this.combat.ended) return false
+      const ok = triggerTimeSurge(this.combat, true)
+      if (!ok) return false
+      sfx.surge()
+      const playerEff = computeEffectiveStats(this.combat.player)
+      if (!this.combat.ended && this.combat.player.actionGauge >= playerEff.무기ticks) {
+        this.playerAutoAct(playerEff.무기ticks)
+      }
+      if (this.combat.ended) {
+        this.handleCombatEnd()
+      }
+      return true
+    },
+
+    setAutoSurge(v: boolean) {
+      this.autoSurge = v
+      try { localStorage.setItem('climetop:autoSurge:v1', v ? '1' : '0') } catch {}
+    },
+
+    recordDiscoveredQuirk(quirk: TraitQuirkId) {
+      if (!this.meta.discoveredQuirks) this.meta.discoveredQuirks = []
+      if (!this.meta.discoveredQuirks.includes(quirk)) {
+        this.meta.discoveredQuirks.push(quirk)
+        sfx.loophole()
+        this.persistMeta()
       }
     },
 
@@ -1788,24 +1848,18 @@ export const useGameStore = defineStore('game', {
             }
           }
         }
-        // 사망 → 게임 오버. (도전 모드 카운터는 클리어만 증가하므로 여기선 카운트 X)
-        sfx.death()
-        // v10: 도달 챕터 기반 보상 (4~6=F=+1pt / 7~9=E=+2pt / 1~3=없음)
-        const reachedChapter = currentChapter(this.run).chapter
-        const pending = computePendingBonus(this.run.character, { cleared: false, reachedChapter })
-        if (pending.bonus > 0) {
-          this.pendingClear = pending
-          // 메타 풀에 적립 + 히스토리 기록 (클리어 보상과 동일 흐름의 미니 버전)
-          const lastCh = this.run.chapters[Math.max(0, this.run.currentChapterIndex)]
-          pushCharacterHistory(this.meta, this.run.character, pending.score, pending.rank, this.runAvatar, lastCh?.theme ?? '고블린', false)
-          // 도중 사망 + 등반 보상 → climbCount ++  (clearCount 는 100층 클리어 전용)
-          commitClearBonus(this.meta, {}, pending.bonus, false)
+        // v11: 첫 사망 직전 아직 프롤로그 균열 조우를 안 봤다면 먼저 연출 (최초 1회)
+        if (!this.meta.prologueRiftSeen && !this.isAutoMode) {
+          await this.startPrologueRift('gameover')
+          return
         }
-        clearRun()
-        this.savedRunExists = false
-        this.screen = 'gameover'
+        // 사망 → 게임 오버. (도전 모드 카운터는 클리어만 증가하므로 여기선 카운트 X)
+        this.finalizeDeathGameOver()
         return
       }
+
+      // 전투 승리 시 시간의 파동 게이지 50% 다음 전투로 이월
+      this.carriedSurgeGauge = Math.min(50, Math.round((this.combat.surgeGauge ?? 0) * 0.5))
 
       const monsters = this.combat.monsters
       const isBossFight = monsters.some((m) => m.isBoss)
@@ -2164,23 +2218,114 @@ export const useGameStore = defineStore('game', {
         statuses: [],
         actionGauge: 0,
       }
-      this.combat = createCombatContext(character, [boss], this.meta.realBossClearCount ?? 0)
+      this.combat = createCombatContext(character, [boss], this.meta.realBossClearCount ?? 0, {
+        onQuirkTriggered: (q) => this.recordDiscoveredQuirk(q),
+      })
       pushLog(this.combat, i18nT('log.realBossChallenge', `진짜 보스 [${boss.template.name}]와의 도전!`, { name: i18nTd('monster', boss.template.name) }), 'info')
       this.screen = 'combat'
     },
 
+    // v11: 사망 후 GameOver 마무리 (프롤로그 조우전 후에도 재사용)
+    finalizeDeathGameOver() {
+      if (!this.run) {
+        this.screen = 'gameover'
+        return
+      }
+      sfx.death()
+      this.carriedSurgeGauge = 0
+      const reachedChapter = currentChapter(this.run).chapter
+      const pending = computePendingBonus(this.run.character, { cleared: false, reachedChapter })
+      if (pending.bonus > 0) {
+        this.pendingClear = pending
+        const lastCh = this.run.chapters[Math.max(0, this.run.currentChapterIndex)]
+        pushCharacterHistory(this.meta, this.run.character, pending.score, pending.rank, this.runAvatar, lastCh?.theme ?? '고블린', false)
+        commitClearBonus(this.meta, {}, pending.bonus, false)
+      }
+      clearRun()
+      this.savedRunExists = false
+      this.screen = 'gameover'
+    },
+
+    // v11: 프롤로그 균열 조우전 시작 (1챕터 클리어 또는 첫 사망 시 최초 1회)
+    async startPrologueRift(afterMode: 'dungeon' | 'gameover') {
+      if (!this.run) return
+      this.meta.prologueRiftSeen = true
+      this.persistMeta()
+      await this.alertModal(
+        i18nT(
+          'prologue.introBody',
+          '꿈의 탑 너머, 현실의 괴물이 눈을 떴습니다.\n지금의 힘으로는 감당할 수 없지만, 시간의 신이 당신에게 현실의 일면을 보여줍니다.'
+        ),
+        i18nT('prologue.introTitle', '⏳ 시간의 균열')
+      )
+      const boss = makePrologueRiftBoss()
+      const src = this.run.character
+      const cloneChar = {
+        stats: { ...src.stats },
+        hp: src.maxHp,
+        maxHp: src.maxHp,
+        mp: src.maxMp,
+        maxMp: src.maxMp,
+        weapon: src.weapon ? JSON.parse(JSON.stringify(src.weapon)) : null,
+        armor: src.armor ? JSON.parse(JSON.stringify(src.armor)) : null,
+        gold: src.gold,
+        statuses: [],
+        actionGauge: 0,
+      }
+      this.realBossTheme = '고블린'
+      this.realBossMonster = boss
+      this.realBossInitialMaxHp = boss.maxHp
+      this.prologueRiftActive = true
+      this.prologueRiftAfterMode = afterMode
+      this.combat = createCombatContext(cloneChar, [boss], 0, {
+        initialSurgeGauge: 100, // 첫 조우전에서는 시간의 파동 1버튼을 바로 체험 가능!
+        isPrologueRift: true,
+        onQuirkTriggered: (q) => this.recordDiscoveredQuirk(q),
+      })
+      pushLog(this.combat, i18nT('log.prologueStart', '⏳ 현실의 균열 — 진짜 보스의 환영이 나타났다!'), 'enemy')
+      this.screen = 'combat'
+    },
+
+    async finishPrologueRift() {
+      const afterMode = this.prologueRiftAfterMode ?? 'dungeon'
+      this.prologueRiftActive = false
+      this.prologueRiftAfterMode = null
+      this.realBossMonster = null
+      this.realBossTheme = null
+      this.realBossInitialMaxHp = 0
+      this.combat = null
+
+      // 최초 영구 시작 보너스 +5pt 지급
+      if (!this.meta.prologueBonusGranted) {
+        this.meta.prologueBonusGranted = true
+        this.meta.permanentStartBonus =
+          (this.meta.realBossClearCount * 60) +
+          Math.floor(60 * (this.meta.currentBossBestDrain ?? 0)) + 5
+        this.persistMeta()
+      }
+      sfx.loophole()
+      await this.alertModal(
+        i18nT(
+          'prologue.outroBody',
+          '시간의 신이 당신을 꿈속으로 되돌려 보냈습니다.\n\n✨ 첫 번째 축복: 영구 시작 스탯 +5pt 획득!\n탑에서 똥템의 허점을 꿰뚫고 골드 30,000G를 모아 저 괴물을 쓰러뜨리세요.'
+        ),
+        i18nT('prologue.outroTitle', '⏳ 시간의 신의 축복')
+      )
+      if (afterMode === 'gameover') {
+        this.finalizeDeathGameOver()
+      } else {
+        this.screen = 'dungeon'
+      }
+    },
+
     // Combat 종료 후 호출 — realboss 결과 처리.
     //
-    // 불변식: permanentStartBonus = (realBossClearCount × 60) + floor(60 × currentBossBestDrain)
-    //   - 완전 클리어 (ratio ≥ 0.9999):
-    //       realBossClearCount += 1 (lock 60pt)
-    //       currentBossBestDrain = 0 (다음 보스 신규 시작)
-    //   - 부분 클리어 (ratio < 0.9999):
-    //       currentBossBestDrain = max(prev, ratio) — 베스트만 갱신, 낮은 결과는 무시
-    //
-    // 이전 v6.1 버그: gain 을 무조건 += 해서 같은 보스 재도전 시마다 누적되었음.
-    // 누적 보너스 풀(totalBonusStats) 은 회귀(=불완전 처치) 시에만 0 리셋.
+    // 불변식: permanentStartBonus = (realBossClearCount × 60) + floor(60 × currentBossBestDrain) + (prologueBonusGranted ? 5 : 0)
     finishRealBossCombat() {
+      if (this.prologueRiftActive) {
+        void this.finishPrologueRift()
+        return
+      }
       const boss = this.realBossMonster
       const initialHp = this.realBossInitialMaxHp
       if (!boss || initialHp <= 0) {
@@ -2211,7 +2356,8 @@ export const useGameStore = defineStore('game', {
       // 불변식대로 permanentStartBonus 재계산 (직접 합산 X)
       this.meta.permanentStartBonus =
         (this.meta.realBossClearCount * 60) +
-        Math.floor(60 * (this.meta.currentBossBestDrain ?? 0))
+        Math.floor(60 * (this.meta.currentBossBestDrain ?? 0)) +
+        (this.meta.prologueBonusGranted ? 5 : 0)
       // 이번 도전으로 얻은 실제 증가분 (≥ 0). 낮은 결과 재도전이면 0.
       this.realBossResultGain = Math.max(0, this.meta.permanentStartBonus - prevPermanentBonus)
 

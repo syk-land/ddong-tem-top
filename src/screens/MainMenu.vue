@@ -16,7 +16,8 @@ import { themeColorClass } from '@/ui/colors'
 import HpMpBar from '@/ui/components/HpMpBar.vue'
 import ComicImage from '@/ui/components/ComicImage.vue'
 import type { TowerRun } from '@/types'
-import { REAL_BOSS_ORDER } from '@/core/realboss'
+import { REAL_BOSS_ORDER, getRealBossProgress } from '@/core/realboss'
+import { QUIRK_INFO } from '@/core/junkSynergy'
 import { CHAPTER_THEMES } from '@/data/chapters'
 import { useI18n } from '@/lib/i18n'
 import { IS_PORTAL_EMBED } from '@/lib/platform'
@@ -36,6 +37,9 @@ const latestRealBossName = computed<string>(() => {
   const raw = def?.hardBoss?.name ?? def?.boss?.name ?? '???'
   return td('monster', raw)
 })
+const riftProgress = computed(() => getRealBossProgress(game.meta))
+const discoveredQuirkCount = computed(() => (game.meta.discoveredQuirks ?? []).length)
+const totalQuirkCount = Object.keys(QUIRK_INFO).length
 
 // 도감 12칸 — 각 슬롯의 자산/잠금 규칙은 여기서 통째로 관리.
 //   카드 1, 2: 항상 공개 (튜토리얼/인트로 컷).
@@ -257,6 +261,26 @@ async function resetMeta() {
         >
           <span class="text-xl leading-none">⚙</span>
         </button>
+      </div>
+
+      <!-- ── 현실 균열 진행도 + 똥템 허점 발견 현황 ── -->
+      <div class="rounded-lg border border-rose-500/35 bg-bg-secondary/75 backdrop-blur-sm px-3 py-2 space-y-1.5">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-rose-300">⏳ {{ t('menu.rift.label', '현실 균열') }}</span>
+          <span class="font-mono text-gray-300 tabular-nums">
+            {{ riftProgress.current.toLocaleString() }} / {{ riftProgress.target.toLocaleString() }}G ({{ riftProgress.pct }}%)
+          </span>
+        </div>
+        <div class="h-1.5 w-full rounded-full bg-slate-900/90 overflow-hidden">
+          <div
+            class="h-full bg-gradient-to-r from-rose-500 via-amber-400 to-cyan-400 transition-all duration-300"
+            :style="{ width: riftProgress.pct + '%' }"
+          />
+        </div>
+        <div class="flex items-center justify-between text-[11px] text-amber-200/80">
+          <span>💡 {{ t('menu.quirk.label', '발견한 똥템 허점') }}</span>
+          <span class="font-mono font-bold tabular-nums">{{ discoveredQuirkCount }} / {{ totalQuirkCount }}</span>
+        </div>
       </div>
 
       <!-- ── 헤더 (제목) ── -->

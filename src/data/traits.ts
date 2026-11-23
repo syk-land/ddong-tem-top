@@ -9,10 +9,10 @@ import type { TraitDef, TraitTier } from '@/types'
 // → 등급 coef(1/2/4/6)와 합쳐져 차등 형성
 // 부가 효과 없는 특성 제거. 상태이상 시리즈는 "원소의" 1종으로 통합.
 export const WEAPON_TRAITS: Record<string, TraitDef> = {
-  // 하급 (3종) — atk -50% + 부가 페널티
-  오래된: { name: '오래된', tier: '하급', price: 12, effects: { 공격력_pct: -0.5, 명중: -5 } },
-  녹슨:   { name: '녹슨',   tier: '하급', price: 10, effects: { 공격력_pct: -0.5, 회피: -5 } },
-  무거운: { name: '무거운', tier: '하급', price: 10, effects: { 공격력_pct: -0.5, 속도_pct: -0.10 } },
+  // 하급 (3종) — atk -50% + 부가 페널티 + 숨은 허점(Loophole) 기믹
+  오래된: { name: '오래된', tier: '하급', price: 12, effects: { 공격력_pct: -0.5, 명중: -5 }, quirk: 'old_weapon' },
+  녹슨:   { name: '녹슨',   tier: '하급', price: 10, effects: { 공격력_pct: -0.5, 회피: -5 }, quirk: 'rust_weapon' },
+  무거운: { name: '무거운', tier: '하급', price: 10, effects: { 공격력_pct: -0.5, 속도_pct: -0.10 }, quirk: 'heavy_weapon' },
 
   // 보통 (3종) — atk 중립
   날카로운: { name: '날카로운', tier: '보통', price: 50, effects: { 공격력_pct: 0, 명중: 5 } },
@@ -45,10 +45,10 @@ export const WEAPON_TRAITS: Record<string, TraitDef> = {
 //   특별 def_pct = +0.5 + 시그니처 효과
 // 부가효과 없는 특성 제거. 상태저항 시리즈 6종 → "원소저항의" 1종 통합 (반사 X, 저항만).
 export const ARMOR_TRAITS: Record<string, TraitDef> = {
-  // 하급 (3종) — def -50% + 추가 페널티
-  녹슨:   { name: '녹슨',   tier: '하급', price: 10, effects: { 방어력_pct: -0.5, 회피: -5 } },
-  무거운: { name: '무거운', tier: '하급', price: 10, effects: { 방어력_pct: -0.5, 속도_pct: -0.05 } },
-  부서진: { name: '부서진', tier: '하급', price: 9,  effects: { 방어력_pct: -0.55 } },  // 추가 방어 -5% (총 -55%)
+  // 하급 (3종) — def -50% + 추가 페널티 + 숨은 허점(Loophole) 기믹
+  녹슨:   { name: '녹슨',   tier: '하급', price: 10, effects: { 방어력_pct: -0.5, 회피: -5 }, quirk: 'rust_armor' },
+  무거운: { name: '무거운', tier: '하급', price: 10, effects: { 방어력_pct: -0.5, 속도_pct: -0.05 }, quirk: 'heavy_armor' },
+  부서진: { name: '부서진', tier: '하급', price: 9,  effects: { 방어력_pct: -0.55 }, quirk: 'broken_armor' },  // 추가 방어 -5% (총 -55%)
 
   // 보통 (4종) — def 중립
   단단한: { name: '단단한', tier: '보통', price: 50, effects: { 방어력_pct: 0.15 } },

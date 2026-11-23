@@ -13,10 +13,11 @@ import { itemImageUrl, skillIconUrl } from '@/ui/images'
 import { computeItemValue, type ValuePart } from '@/core/itemValue'
 import { getDangerTier, getChapterThreshold } from '@/core/scoreThresholds'
 import { canEquipItem } from '@/core/challengeRuntime'
+import { QUIRK_INFO, getItemQuirk } from '@/core/junkSynergy'
 import ItemName from './ItemName.vue'
 import { useI18n } from '@/lib/i18n'
 
-const { t: tI18n, td: tdI18n, tLabel: tLabelI18n } = useI18n()
+const { t: tI18n, td: tdI18n, tLabel: tLabelI18n, lang } = useI18n()
 
 // Combat 의 스킬 카드와 동일한 라벨/색 매핑
 const skillKindLabel: Record<string, () => string> = {
@@ -47,6 +48,11 @@ const traitDef = computed(() =>
   isWeapon.value ? WEAPON_TRAITS[props.item.trait] : ARMOR_TRAITS[props.item.trait]
 )
 const traitBase = computed(() => traitDef.value?.effects ?? {})
+const itemQuirkId = computed(() => getItemQuirk(props.item))
+const quirkInfo = computed(() => (itemQuirkId.value ? QUIRK_INFO[itemQuirkId.value] : null))
+const isQuirkDiscovered = computed(() =>
+  !!itemQuirkId.value && (game.meta.discoveredQuirks ?? []).includes(itemQuirkId.value)
+)
 
 // ── 아이템 벨류 + 현재 장착품 대비 변화량 ──
 const chapterForValue = computed(() => game.currentChapterState?.chapter)
@@ -143,6 +149,21 @@ function openTraitInfo() {
   for (const [k, label] of statusEffects) {
     const v = (e as Record<string, number | undefined>)[k]
     if (v) lines.push({ label, value: fmtPct(v) })
+  }
+  if (quirkInfo.value) {
+    if (isQuirkDiscovered.value) {
+      lines.push({
+        label: lang.value === 'en' ? '💡 Loophole' : '💡 허점 해금',
+        value: lang.value === 'en' ? quirkInfo.value.nameEn : quirkInfo.value.nameKo,
+        note: lang.value === 'en' ? quirkInfo.value.descEn : quirkInfo.value.descKo,
+      })
+    } else {
+      lines.push({
+        label: lang.value === 'en' ? '💡 Hidden Loophole' : '💡 숨은 허점',
+        value: '???',
+        note: lang.value === 'en' ? quirkInfo.value.hintEn : quirkInfo.value.hintKo,
+      })
+    }
   }
   infoModal.value = {
     kind: 'trait',
@@ -594,6 +615,25 @@ const rankLine = computed(() => {
       <span class="text-cyan-200 font-bold text-xs">{{ tdI18n('skill', skill.key) || skill.name }}</span>
       <span v-if="skillProcPct !== null" class="text-stat-util font-mono font-bold text-xs">({{ skillProcPct }}%)</span>
       <span class="ml-auto text-stat-mp font-mono font-bold text-xs">{{ skill.mp }} MP</span>
+    </button>
+
+    <!-- v11: 하급 똥템 숨은 허점 (발견형 힌트 / 해금 배지) -->
+    <button
+      v-if="quirkInfo"
+      type="button"
+      class="mt-1 w-full text-left flex items-center gap-1.5 px-2 py-1 rounded-md border transition active:scale-[0.99]"
+      :class="isQuirkDiscovered
+        ? 'bg-amber-950/45 border-amber-400/60 text-amber-200 hover:bg-amber-950/65'
+        : 'bg-slate-900/60 border-amber-500/30 text-amber-300/80 hover:bg-slate-800/70'"
+      @click.stop="openTraitInfo"
+    >
+      <span class="text-xs shrink-0">💡</span>
+      <span v-if="isQuirkDiscovered" class="text-[11px] font-bold truncate">
+        {{ lang === 'en' ? quirkInfo.nameEn : quirkInfo.nameKo }}
+      </span>
+      <span v-else class="text-[11px] italic truncate">
+        {{ lang === 'en' ? quirkInfo.hintEn : quirkInfo.hintKo }}
+      </span>
     </button>
 
 

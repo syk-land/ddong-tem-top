@@ -20,9 +20,10 @@
     -webkit-tap-highlight-color: transparent;
     user-select: none;
   }
+  /* 고해상도 16-bit 픽셀아트(480~1280px, 파일 자체에 정수배 업스케일 내장)는
+     PC/모바일 비정수배 축소 시 pixelated 가 선 깨짐(shimmering)을 유발하므로 auto 사용 */
   img {
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
+    image-rendering: auto;
   }
   #app {
     @apply h-screen flex flex-col;
