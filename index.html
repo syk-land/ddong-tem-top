@@ -61,9 +61,11 @@
                 .catch(function () {})
             }
           }
-        } else {
+        } else if (/gamemonetize/i.test(host)) {
           s.id = 'gamemonetize-sdk'
           s.src = 'https://api.gamemonetize.com/sdk.js'
+        } else {
+          return
         }
         document.head.appendChild(s)
       })()
