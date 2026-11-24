@@ -15,6 +15,7 @@ import SpeedControl from './ui/components/SpeedControl.vue'
 import TutorialOverlay from './ui/components/TutorialOverlay.vue'
 import { playBgm, pauseBgm, resumeBgm, type BgmKind } from './ui/sound'
 import { showInterstitial, onGameMonetizeLifecycle, isGameMonetizeReady } from './lib/ads'
+import { IS_PORTAL_EMBED } from './lib/platform'
 
 // 초기 진입에 불필요한 화면은 비동기 청크로 분리하여 FCP / 초기 번들 크기 절감
 const CharacterCreation = defineAsyncComponent(() => import('./screens/CharacterCreation.vue'))
@@ -41,8 +42,11 @@ function dismissSplash() {
   // 첫 인터랙션으로 autoplay 잠금 해제 (watcher 가 splash/gemini 어느 쪽이든 재생 보장)
   playBgm(pickBgm())
   showSplash.value = false
-  // 최초 실행이면 인트로 만화 자동 표시 (main → t1 → t2 → menu)
-  game.autoShowIntroIfFirstTime()
+  // 포털 iframe 임베드 환경에서는 첫 5초 훅(Time-to-Fun)을 위해 자동 인트로 만화 블로킹을 생략
+  // (설정 화면의 '인트로 만화 다시보기'로 언제든 감상 가능)
+  if (!IS_PORTAL_EMBED) {
+    game.autoShowIntroIfFirstTime()
+  }
   // GameMonetize 활성화 트래픽 누적용 — 세션당 1회 프리롤 인터스티셜.
   // SDK 미로드/no-fill 이면 조용히 패스. 사용자가 splash 클릭으로 autoplay 권한을
   // 부여한 직후라 SDK 의 광고 자동재생 정책에도 안 걸린다.

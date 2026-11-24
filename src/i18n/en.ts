@@ -1355,4 +1355,10 @@ export const en: Record<string, string> = {
   'log.quirkRustWeapon': '💡 [Loophole] Rusty Weapon corrosion true dmg +{dmg}',
   'log.quirkRustArmor': '💥 [Loophole] Rusty Armor Tetanus counter -{dmg}!',
   'log.quirkHeavyArmor': '💥 [Loophole] Heavy Armor counter -{dmg} & next attack PEN +{pen}%!',
+  'auth.cloudDiff.localLine': 'Local — Clears {clears} · Bonus +{bonus}pt · Round {round}',
+  'auth.cloudDiff.cloudLine': 'Cloud — Clears {clears} · Bonus +{bonus}pt · Round {round}',
+  'auth.cloudDiff.body': 'Saved cloud data was found.\nOverwrite local data with cloud data?\n\n{localLine}\n{cloudLine}',
+  'auth.cloudDiff.title': 'Restore Cloud Save',
+  'auth.cloudDiff.ok': 'Use Cloud Data',
+  'auth.cloudDiff.cancel': 'Keep Local',
 }

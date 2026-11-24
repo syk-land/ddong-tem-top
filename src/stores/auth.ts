@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import type { User } from 'firebase/auth'
 import type { CloudMeta } from '@/lib/cloudSync'
 import type { MetaBonuses } from '@/types'
+import { t } from '@/lib/i18n'
 import { useGameStore } from './game'
 
 // Firebase SDK (auth + firestore) 를 초기 번들에서 분리 — 실제 세션 복원(유휴 시점)이나
@@ -120,11 +121,27 @@ export const useAuthStore = defineStore('auth', {
       const cloud = await loadCloudMeta(user.uid)
       if (cloud && cloudDiffersFromLocal(cloud, game.meta)) {
         if (!interactive) return
-        const localLine = `로컬 — 클리어 ${game.meta.clearCount}회 · 보너스 +${game.meta.totalBonusStats}pt · 라운드 ${game.meta.realBossClearCount ?? 0}`
-        const cloudLine = `클라우드 — 클리어 ${cloud.clearCount}회 · 보너스 +${cloud.totalBonusStats}pt · 라운드 ${cloud.realBossClearCount ?? 0}`
+        const localLine = t(
+          'auth.cloudDiff.localLine',
+          `로컬 — 클리어 ${game.meta.clearCount}회 · 보너스 +${game.meta.totalBonusStats}pt · 라운드 ${game.meta.realBossClearCount ?? 0}`,
+          { clears: game.meta.clearCount, bonus: game.meta.totalBonusStats, round: game.meta.realBossClearCount ?? 0 },
+        )
+        const cloudLine = t(
+          'auth.cloudDiff.cloudLine',
+          `클라우드 — 클리어 ${cloud.clearCount}회 · 보너스 +${cloud.totalBonusStats}pt · 라운드 ${cloud.realBossClearCount ?? 0}`,
+          { clears: cloud.clearCount, bonus: cloud.totalBonusStats, round: cloud.realBossClearCount ?? 0 },
+        )
         const overwrite = await game.confirmModal(
-          `클라우드에 저장된 데이터가 있어요.\n로컬 데이터를 클라우드 데이터로 덮어쓸까요?\n\n${localLine}\n${cloudLine}`,
-          { title: '클라우드 데이터 복원', okLabel: '클라우드로 덮어쓰기', cancelLabel: '로컬 유지' },
+          t(
+            'auth.cloudDiff.body',
+            `클라우드에 저장된 데이터가 있어요.\n로컬 데이터를 클라우드 데이터로 덮어쓸까요?\n\n${localLine}\n${cloudLine}`,
+            { localLine, cloudLine },
+          ),
+          {
+            title: t('auth.cloudDiff.title', '클라우드 데이터 복원'),
+            okLabel: t('auth.cloudDiff.ok', '클라우드로 덮어쓰기'),
+            cancelLabel: t('auth.cloudDiff.cancel', '로컬 유지'),
+          },
         )
         if (overwrite) {
           game.meta.clearCount = cloud.clearCount
