@@ -63,6 +63,7 @@ watch(() => props.src, () => { nextTick(() => requestAnimationFrame(measure)) })
       ref="imgEl"
       :src="src"
       :alt="alt ?? ''"
+      decoding="async"
       class="comic-img"
       draggable="false"
       @load="measure"
@@ -79,7 +80,7 @@ watch(() => props.src, () => { nextTick(() => requestAnimationFrame(measure)) })
       >{{ b.text }}</div>
     </div>
   </div>
-  <img v-else :src="src" :alt="alt ?? ''" class="comic-img-plain" draggable="false" />
+  <img v-else :src="src" :alt="alt ?? ''" decoding="async" class="comic-img-plain" draggable="false" />
 </template>
 
 <style scoped>

@@ -1,8 +1,13 @@
 import { defineStore } from 'pinia'
 import type { User } from 'firebase/auth'
-import { signInWithGoogle, signOut, onAuthChange } from '@/lib/auth'
-import { upsertUserProfile, saveCloudMeta, loadCloudMeta, submitLeaderboard, type CloudMeta } from '@/lib/cloudSync'
+import type { CloudMeta } from '@/lib/cloudSync'
 import type { MetaBonuses } from '@/types'
+import { useGameStore } from './game'
+
+// Firebase SDK (auth + firestore) 를 초기 번들에서 분리 — 실제 세션 복원(유휴 시점)이나
+// 명시적 로그인/클라우드 동기화 시점에만 동적 로드.
+const loadAuthLib = () => import('@/lib/auth')
+const loadCloudSyncLib = () => import('@/lib/cloudSync')
 
 // 클라우드와 로컬 meta 핵심 필드 비교 — 다를 때만 사용자 확인 모달을 띄운다.
 function cloudDiffersFromLocal(cloud: CloudMeta, local: MetaBonuses): boolean {
@@ -14,7 +19,6 @@ function cloudDiffersFromLocal(cloud: CloudMeta, local: MetaBonuses): boolean {
     || cloud.totalGoldEarned !== local.totalGoldEarned
     || cloud.realBossDefeated !== local.realBossDefeated
 }
-import { useGameStore } from './game'
 
 interface AuthState {
   user: User | null
@@ -32,6 +36,7 @@ interface AuthState {
 // 마지막 명시 sync 이후 변경분은 cloud 에 못 들어감. 단 localStorage 에는
 // 항상 있으므로 다음 로그인 시 _onLoggedIn 의 cloud merge 가 로컬을 push.
 let cloudDirty = false
+let authListenerStarted = false
 
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
@@ -52,22 +57,30 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    // App.vue mount 시 1회 호출 — 이미 로그인된 세션 복원
-    initAuthListener() {
-      if (this.initialized) return
-      this.initialized = true
-      onAuthChange((user) => {
-        this.user = user
-        // 세션 복원(페이지 reload/재접속)에서는 덮어쓰기 모달을 띄우지 않는다.
-        // 모달은 사용자가 방금 명시적으로 로그인을 누른 경우에만 의미가 있음.
-        if (user) this._onLoggedIn(user, false).catch((e) => console.warn('post-login sync failed', e))
-      })
+    // App.vue mount 이후 유휴 시점에 1회 호출 — 이미 로그인된 세션 비동기 복원
+    async initAuthListener() {
+      if (authListenerStarted) return
+      authListenerStarted = true
+      try {
+        const { onAuthChange } = await loadAuthLib()
+        this.initialized = true
+        onAuthChange((user) => {
+          this.user = user
+          // 세션 복원(페이지 reload/재접속)에서는 덮어쓰기 모달을 띄우지 않는다.
+          // 모달은 사용자가 방금 명시적으로 로그인을 누른 경우에만 의미가 있음.
+          if (user) this._onLoggedIn(user, false).catch((e) => console.warn('post-login sync failed', e))
+        })
+      } catch (e) {
+        authListenerStarted = false
+        console.warn('initAuthListener failed', e)
+      }
     },
 
     async login() {
       this.loading = true
       this.error = null
       try {
+        const { signInWithGoogle } = await loadAuthLib()
         const user = await signInWithGoogle()
         this.user = user
         await this._onLoggedIn(user, true)
@@ -84,6 +97,7 @@ export const useAuthStore = defineStore('auth', {
       try {
         // 보류된 클라우드 변경이 있으면 로그아웃 전에 마지막으로 푸시.
         await this.flushSyncMetaToCloud()
+        const { signOut } = await loadAuthLib()
         await signOut()
         this.user = null
       } finally {
@@ -100,6 +114,7 @@ export const useAuthStore = defineStore('auth', {
     // 모달은 사용자가 방금 로그인 버튼을 눌렀을 때만 의미가 있음. 세션 복원 경로에서는
     // cloud 가 다르더라도 무시하고, cloud 가 없을 때만 로컬을 한 번 push 한다.
     async _onLoggedIn(user: User, interactive: boolean) {
+      const { upsertUserProfile, loadCloudMeta } = await loadCloudSyncLib()
       await upsertUserProfile(user)
       const game = useGameStore()
       const cloud = await loadCloudMeta(user.uid)
@@ -145,6 +160,7 @@ export const useAuthStore = defineStore('auth', {
       if (!this.user) return
       cloudDirty = false
       const game = useGameStore()
+      const { saveCloudMeta } = await loadCloudSyncLib()
       await saveCloudMeta(this.user.uid, game.meta)
     },
 
@@ -167,6 +183,14 @@ export const useAuthStore = defineStore('auth', {
       cloudDirty = false
     },
 
+    // 데이터 리셋 시 클라우드 사용자 문서 (meta + leaderboard) 삭제
+    async deleteCloudData() {
+      if (!this.user) return
+      this.cancelPendingSync()
+      const { deleteCloudUserData } = await loadCloudSyncLib()
+      await deleteCloudUserData(this.user.uid)
+    },
+
     // 외부에서 호출: 리더보드 제출 (캐릭터 클리어 시점).
     // 리더보드와 meta(cloud) 의 clearCount 가 일관되도록 먼저 flush.
     async submitScore(score: number, rank: string) {
@@ -174,6 +198,7 @@ export const useAuthStore = defineStore('auth', {
       await this.flushSyncMetaToCloud()
       const game = useGameStore()
       const nickname = this.user.displayName ?? '익명'
+      const { submitLeaderboard } = await loadCloudSyncLib()
       await submitLeaderboard(this.user.uid, nickname, { score, rank }, game.meta.clearCount)
     },
   },

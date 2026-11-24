@@ -603,17 +603,25 @@ export function playBgm(kind: BgmKind) {
     return
   }
 
-  // MP3 분기
+  // MP3 분기 — preload='none' 으로 초기화하여 실제 재생 시점 전까지 1.4MB 다운로드를 지연.
   const mp3Url = MP3_BGM_URLS[kind]
   if (mp3Url) {
     bgmCurrent = kind
     try {
-      bgmAudioEl = new Audio(mp3Url)
-      bgmAudioEl.loop = true
-      bgmAudioEl.volume = config.bgmVolume
-      const playPromise = bgmAudioEl.play()
+      const el = new Audio()
+      el.preload = 'none'
+      el.loop = true
+      el.volume = config.bgmVolume
+      el.src = mp3Url
+      bgmAudioEl = el
+      const playPromise = el.play()
       if (playPromise && typeof playPromise.catch === 'function') {
         playPromise.catch(() => {
+          // autoplay 정책으로 차단된 경우 — 네트워크 프리로드를 멈추고 첫 제스처에서 재시도
+          if (bgmAudioEl === el) {
+            try { el.pause(); el.removeAttribute('src'); el.load() } catch {}
+            bgmAudioEl = null
+          }
           pendingBgmKind = kind
           attachUnlockListener()
         })
@@ -733,17 +741,23 @@ export function resumeBgm() {
   if (!pausedBgmKind) return
   const kind = pausedBgmKind
   pausedBgmKind = null
+  if (!config.bgmEnabled) return
   const ctx = getCtx()
   if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {})
   if (bgmAudioEl) {
     try {
       bgmAudioEl.volume = config.bgmVolume
       const p = bgmAudioEl.play()
-      if (p && typeof p.catch === 'function') p.catch(() => {})
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          pendingBgmKind = kind
+          attachUnlockListener()
+        })
+      }
     } catch {}
     return
   }
-  // procedural BGM: bgmCurrent 가 동일 kind라 playBgm dedup 가드 우회
+  // procedural BGM 또는 아직 로드되지 않은 MP3 BGM: playBgm dedup 가드 우회 후 재개
   bgmCurrent = null
   playBgm(kind)
 }

@@ -1,19 +1,11 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useGameStore } from './stores/game'
 import { useAuthStore } from './stores/auth'
 import MainMenu from './screens/MainMenu.vue'
-import CharacterCreation from './screens/CharacterCreation.vue'
 import Dungeon from './screens/Dungeon.vue'
 import Combat from './screens/Combat.vue'
-import Shop from './screens/Shop.vue'
-import GameOver from './screens/GameOver.vue'
-import VictoryScreen from './screens/VictoryScreen.vue'
 import SplashScreen from './screens/SplashScreen.vue'
-import RealBossChallenge from './screens/RealBossChallenge.vue'
-import RealBossResult from './screens/RealBossResult.vue'
-import SettingsScreen from './screens/SettingsScreen.vue'
-import IntroComic from './ui/components/IntroComic.vue'
 import PickupModal from './ui/components/PickupModal.vue'
 import DialogModal from './ui/components/DialogModal.vue'
 import InputModal from './ui/components/InputModal.vue'
@@ -24,9 +16,19 @@ import TutorialOverlay from './ui/components/TutorialOverlay.vue'
 import { playBgm, pauseBgm, resumeBgm, type BgmKind } from './ui/sound'
 import { showInterstitial, onGameMonetizeLifecycle, isGameMonetizeReady } from './lib/ads'
 
+// 초기 진입에 불필요한 화면은 비동기 청크로 분리하여 FCP / 초기 번들 크기 절감
+const CharacterCreation = defineAsyncComponent(() => import('./screens/CharacterCreation.vue'))
+const Shop = defineAsyncComponent(() => import('./screens/Shop.vue'))
+const GameOver = defineAsyncComponent(() => import('./screens/GameOver.vue'))
+const VictoryScreen = defineAsyncComponent(() => import('./screens/VictoryScreen.vue'))
+const RealBossChallenge = defineAsyncComponent(() => import('./screens/RealBossChallenge.vue'))
+const RealBossResult = defineAsyncComponent(() => import('./screens/RealBossResult.vue'))
+const SettingsScreen = defineAsyncComponent(() => import('./screens/SettingsScreen.vue'))
+const IntroComic = defineAsyncComponent(() => import('./ui/components/IntroComic.vue'))
+
 const game = useGameStore()
 const auth = useAuthStore()
-auth.initAuthListener()
+const speedControlRef = ref<InstanceType<typeof SpeedControl> | null>(null)
 
 const currentScreen = computed(() => game.screen)
 
@@ -146,6 +148,80 @@ function onVisibility() {
 // GameMonetize SDK 광고 재생 라이프사이클 unsub. 광고 재생 직전 SDK 가 SDK_GAME_PAUSE 를
 // 던지고, 종료 후 SDK_GAME_START 를 던진다. 자동 틱 + BGM 을 광고에 맞춰 정지/복원한다.
 let unsubAdsLifecycle: (() => void) | null = null
+let authInitTimer: ReturnType<typeof setTimeout> | null = null
+
+// ============================================================
+// 전역 키보드 단축키 (1/2/3/4 배속, Space 일시정지/진행, M 음소거)
+// ============================================================
+function onKeyDown(e: KeyboardEvent) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return
+  const target = e.target as HTMLElement | null
+  if (
+    target &&
+    (target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'SELECT' ||
+      target.isContentEditable)
+  ) {
+    return
+  }
+
+  // 모달이 떠 있을 때는 단축키 무시
+  const hasBlockingModal = !!(
+    game.dialog ||
+    game.inputDialog ||
+    game.listDialog ||
+    game.pendingPickup ||
+    game.itemAnnounceQueue.length > 0
+  )
+  if (hasBlockingModal) return
+
+  const key = e.key
+
+  // Space: 스플래시 닫기 / 인트로 넘기기 / 전투 일시정지·재개 또는 승리 시 다음 층
+  if (key === ' ' || e.code === 'Space') {
+    if (showSplash.value) {
+      e.preventDefault()
+      dismissSplash()
+      return
+    }
+    if (game.introVisible) {
+      e.preventDefault()
+      game.nextIntroPage()
+      return
+    }
+    if (currentScreen.value === 'combat' && !game.tutorialActive && game.combat) {
+      e.preventDefault()
+      if (game.combat.ended && game.combat.victory) {
+        game.closeCombat()
+      } else if (!game.combat.ended) {
+        game.setPaused(!game.paused)
+      }
+    }
+    return
+  }
+
+  if (showSplash.value) return
+
+  // M: 전체 사운드 음소거 토글
+  if (key === 'm' || key === 'M') {
+    e.preventDefault()
+    speedControlRef.value?.toggleAllSound()
+    return
+  }
+
+  // 1 / 2 / 3 (및 4): 전투 속도 프리셋 전환 (튜토리얼 해금 조건 준수)
+  if (key === '1') {
+    e.preventDefault()
+    speedControlRef.value?.setSpeed(1)
+  } else if (key === '2' && game.canUseSpeed2x) {
+    e.preventDefault()
+    speedControlRef.value?.setSpeed(2)
+  } else if ((key === '3' || key === '4') && game.canShowSpeed4x) {
+    e.preventDefault()
+    speedControlRef.value?.setSpeed(4)
+  }
+}
 
 onMounted(() => {
   if (typeof document !== 'undefined') {
@@ -154,7 +230,19 @@ onMounted(() => {
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pagehide', onVisibility)
     window.addEventListener('pageshow', onVisibility)
+    window.addEventListener('keydown', onKeyDown)
   }
+  // Firebase 세션 복원을 첫 페인트 이후 유휴 시점으로 지연 — 초기 FCP 차단 방지
+  authInitTimer = setTimeout(() => {
+    authInitTimer = null
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback
+    if (typeof ric === 'function') {
+      ric(() => { auth.initAuthListener() })
+    } else {
+      auth.initAuthListener()
+    }
+  }, 800)
+
   unsubAdsLifecycle = onGameMonetizeLifecycle({
     onPause: () => {
       game.setPaused(true)
@@ -173,10 +261,15 @@ onMounted(() => {
   })
 })
 onUnmounted(() => {
+  if (authInitTimer) {
+    clearTimeout(authInitTimer)
+    authInitTimer = null
+  }
   if (typeof document !== 'undefined') {
     document.removeEventListener('visibilitychange', onVisibility)
     window.removeEventListener('pagehide', onVisibility)
     window.removeEventListener('pageshow', onVisibility)
+    window.removeEventListener('keydown', onKeyDown)
   }
   unsubAdsLifecycle?.()
   unsubAdsLifecycle = null
@@ -206,7 +299,7 @@ onUnmounted(() => {
     <InputModal />
     <DialogModal />
     <!-- 게임 속도 컨트롤 (전역, 스플래시 동안만 숨김 — combat 화면에도 표시) -->
-    <SpeedControl v-if="!showSplash" />
+    <SpeedControl v-if="!showSplash" ref="speedControlRef" />
     <!-- 인게임 튜토리얼 오버레이 (활성 단계가 있을 때만 표시) -->
     <TutorialOverlay v-if="game.tutorialActive && !showSplash && !game.introVisible" />
     <!-- 최초 실행 스플래시 (클릭 시 닫힘) -->

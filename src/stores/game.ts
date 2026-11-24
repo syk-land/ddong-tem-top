@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { useAuthStore } from './auth'
 import type {
   Screen, TowerRun, MetaBonuses, Stats, StatKey, ItemInstance, MonsterInstance, ChapterTheme, CharacterRecord,
   TutorialStep, TraitQuirkId,
@@ -370,7 +371,6 @@ export const useGameStore = defineStore('game', {
 
   actions: {
     // saveMeta + 클라우드 fire-and-forget 동기화 헬퍼.
-    // 순환 import 방지를 위해 auth store 는 lazy require.
     persistMeta() {
       // 로컬은 즉시 저장 (오프라인 대비). 클라우드 쓰기는 여기서 일으키지 않고
       // dirty 플래그만 세움 (auth.queueSyncMetaToCloud). 실제 Firestore push 는
@@ -378,11 +378,8 @@ export const useGameStore = defineStore('game', {
       // 무료 한도 (20K writes/일) 를 게임 1 세션당 약 1 write 로 절약.
       saveMeta(this.meta)
       try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        import('./auth').then(({ useAuthStore }) => {
-          const a = useAuthStore()
-          if (a.isLoggedIn) a.queueSyncMetaToCloud()
-        }).catch(() => {})
+        const a = useAuthStore()
+        if (a.isLoggedIn) a.queueSyncMetaToCloud()
       } catch {}
     },
 
@@ -1136,10 +1133,10 @@ export const useGameStore = defineStore('game', {
       const rank = this.pendingClear?.rank ?? getClearRank(score).rank
       pushCharacterHistory(this.meta, this.run.character, score, rank, this.runAvatar, lastCh.theme, true)
       // 리더보드 제출 (로그인 시) — fire-and-forget. 실패해도 게임 흐름엔 영향 없음.
-      import('./auth').then(({ useAuthStore }) => {
+      try {
         const a = useAuthStore()
         if (a.isLoggedIn) a.submitScore(score, rank).catch(() => {})
-      }).catch(() => {})
+      } catch {}
       // 런 카운터 증가 (호환용)
       incrementRunCounter(this.meta)
       // v6: 클리어 시점 최종 골드 누적 (인벤 판매 포함, 5만 도달 시 진짜 보스 트리거)

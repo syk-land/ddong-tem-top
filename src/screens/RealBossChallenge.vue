@@ -40,6 +40,7 @@ function start() {
       <img
         :src="realBossImageUrl(theme)"
         :alt="bossName"
+        decoding="async"
         class="block w-full h-auto"
         @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
       />
@@ -61,6 +62,8 @@ function start() {
           <img
             :src="avatarUrl"
             :alt="game.characterName(weak.avatarKey)"
+            loading="lazy"
+            decoding="async"
             class="absolute inset-0 w-full h-full object-cover"
             @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
           />

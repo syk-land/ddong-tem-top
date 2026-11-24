@@ -260,9 +260,9 @@ const summaryIcon = computed(() => {
   return '🔊'
 })
 
-// 접힘 상태에서 스피커 탭 — 전체 사운드(sfx + bgm) 일괄 토글
-function toggleAllSound(e: Event) {
-  e.stopPropagation()  // 부모 expand 버튼 클릭 방지
+// 접힘 상태에서 스피커 탭 또는 키보드 M — 전체 사운드(sfx + bgm) 일괄 토글
+function toggleAllSound(e?: Event) {
+  e?.stopPropagation()  // 부모 expand 버튼 클릭 방지
   const anyOn = sfxOn.value || bgmOn.value
   if (anyOn) {
     // 모두 OFF — 마지막 양수 볼륨 보관 (이미 lastXxxVol 유지 중)
@@ -297,6 +297,11 @@ function toggleAllSound(e: Event) {
   }
   bumpActivity()
 }
+
+defineExpose({
+  setSpeed,
+  toggleAllSound,
+})
 
 // 모달 떠 있을 때는 패널 자체를 더 흐리게 — 가림 최소화
 const dimmed = computed(() =>
@@ -335,7 +340,7 @@ watch(
       <button
         type="button"
         class="px-1.5 py-1 hover:bg-slate-800/60 border-l border-slate-600/40 min-w-7 flex items-center justify-center"
-        :title="(sfxOn || bgmOn) ? t('speed.soundOffTooltip', '전체 사운드 끄기') : t('speed.soundOnTooltip', '전체 사운드 켜기')"
+        :title="((sfxOn || bgmOn) ? t('speed.soundOffTooltip', '전체 사운드 끄기') : t('speed.soundOnTooltip', '전체 사운드 켜기')) + ' (M)'"
         @click="toggleAllSound"
       >
         <span class="text-xs leading-none">{{ summaryIcon }}</span>
@@ -355,12 +360,13 @@ watch(
         </button>
         <span class="text-xs text-gray-300">{{ t('speed.label', '속도') }}</span>
         <button
-          v-for="s in speeds"
+          v-for="(s, idx) in speeds"
           :key="s"
           class="px-2 py-0.5 rounded text-xs transition-all"
           :class="game.combatSpeed === s
             ? 'bg-log-skill text-black font-bold ring-2 ring-cyan-200 shadow-[0_0_8px_rgba(34,211,238,0.7)]'
             : 'bg-slate-800/70 text-gray-200 hover:bg-slate-700'"
+          :title="`${s}x (${idx + 1})`"
           @click="setSpeed(s)"
         >
           {{ s }}x
@@ -426,6 +432,11 @@ watch(
             <span class="text-sm leading-none">⏻</span>
             <span>{{ t('settings.quit.button', '게임 종료') }}</span>
           </button>
+        </div>
+
+        <!-- 데스크탑 키보드 단축키 힌트 -->
+        <div class="hidden sm:block text-[10px] text-center text-slate-400/80 font-mono pt-0.5 border-t border-slate-700/40">
+          {{ t('speed.shortcutsHint', '단축키: 1~3 배속 · Space 정지/진행 · M 음소거') }}
         </div>
 
         <!-- 자동화 모드 — vite dev 서버 + dev 계정 한정. 기본 100배 + 숫자 입력으로

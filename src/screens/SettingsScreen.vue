@@ -2,7 +2,6 @@
 import { ref, onMounted } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useAuthStore } from '@/stores/auth'
-import { deleteCloudUserData } from '@/lib/cloudSync'
 import {
   isSoundEnabled, getSoundVolume, setSoundEnabled, setSoundVolume,
   isBgmEnabled, getBgmVolume, setBgmEnabled, setBgmVolume,
@@ -60,8 +59,7 @@ async function resetAll() {
   )
   if (!ok) return
   if (auth.uid) {
-    auth.cancelPendingSync()
-    await deleteCloudUserData(auth.uid)
+    await auth.deleteCloudData()
   }
   for (const k of STORAGE_KEYS) localStorage.removeItem(k)
   location.reload()
@@ -231,6 +229,8 @@ onMounted(() => {
             v-if="auth.photoURL"
             :src="auth.photoURL"
             alt="avatar"
+            loading="lazy"
+            decoding="async"
             class="w-10 h-10 rounded-full border-2 border-sky-400/40"
           />
           <div class="flex-1 min-w-0">

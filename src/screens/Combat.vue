@@ -36,20 +36,58 @@ const isRealBoss = computed(() => !!game.realBossMonster && !!game.realBossTheme
 const realBossImg = computed(() => game.realBossTheme ? realBossImageUrl(game.realBossTheme) : null)
 
 // ============================================================
-// 피격 이펙트
+// 피격 이펙트 (크리티컬/강타 미세 화면 흔들림 + 임팩트 플래시 + 팝업)
 // ============================================================
 interface DamageEvent {
   id: number
   monsterIdx: number
   amount: number
   isCrit: boolean
+  isHeavy: boolean
+  kind?: 'damage' | 'miss'
 }
 const damageEvents = ref<DamageEvent[]>([])
 const shakingIdx = ref<Set<number>>(new Set())
-const screenShaking = ref(false)
+const screenShakeMode = ref<'none' | 'light' | 'strong'>('none')
 const critFlash = ref(false)
+const heavyFlash = ref(false)
 const previousHp = ref<number[]>([])
 let dmgIdCounter = 0
+
+let screenShakeTimer: ReturnType<typeof setTimeout> | null = null
+let critFlashTimer: ReturnType<typeof setTimeout> | null = null
+let heavyFlashTimer: ReturnType<typeof setTimeout> | null = null
+let playerShakeTimer: ReturnType<typeof setTimeout> | null = null
+let surgeFlashTimer: ReturnType<typeof setTimeout> | null = null
+
+function triggerScreenShake(mode: 'light' | 'strong', durationMs: number) {
+  // strong 흔들림이 진행 중이면 light 로 덮어쓰지 않음
+  if (screenShakeMode.value === 'strong' && mode === 'light') return
+  screenShakeMode.value = mode
+  if (screenShakeTimer) clearTimeout(screenShakeTimer)
+  screenShakeTimer = setTimeout(() => {
+    screenShakeMode.value = 'none'
+    screenShakeTimer = null
+  }, durationMs)
+}
+
+function triggerCritFlash(durationMs = 220) {
+  critFlash.value = true
+  if (critFlashTimer) clearTimeout(critFlashTimer)
+  critFlashTimer = setTimeout(() => {
+    critFlash.value = false
+    critFlashTimer = null
+  }, durationMs)
+}
+
+function triggerHeavyFlash(durationMs = 180) {
+  heavyFlash.value = true
+  if (heavyFlashTimer) clearTimeout(heavyFlashTimer)
+  heavyFlashTimer = setTimeout(() => {
+    heavyFlash.value = false
+    heavyFlashTimer = null
+  }, durationMs)
+}
 
 watch(
   () => monsters.value.length,
@@ -69,13 +107,18 @@ watch(
         const id = ++dmgIdCounter
         const recentLog = log.value[log.value.length - 1]
         const isCrit = !!recentLog && (recentLog.kind === 'critical' || /크리티컬|CRIT/i.test(recentLog.text))
-        damageEvents.value.push({ id, monsterIdx: i, amount: delta, isCrit })
+        const maxHp = monsters.value[i]?.maxHp || 1
+        const isHeavy = !isCrit && delta / maxHp >= 0.22
+        damageEvents.value.push({ id, monsterIdx: i, amount: delta, isCrit, isHeavy, kind: 'damage' })
+        // 고속 배속 시 DOM 과부하 방지 (최대 12개 유지)
+        if (damageEvents.value.length > 12) damageEvents.value.shift()
         shakingIdx.value.add(i)
         if (isCrit) {
-          screenShaking.value = true
-          critFlash.value = true
-          setTimeout(() => { screenShaking.value = false }, 260)
-          setTimeout(() => { critFlash.value = false }, 220)
+          triggerScreenShake('strong', 280)
+          triggerCritFlash(220)
+        } else if (isHeavy) {
+          triggerScreenShake('light', 200)
+          triggerHeavyFlash(160)
         }
         setTimeout(() => {
           damageEvents.value = damageEvents.value.filter((e) => e.id !== id)
@@ -95,11 +138,13 @@ function damageFor(idx: number): DamageEvent[] {
 }
 
 // ============================================================
-// 플레이어 피격 이펙트
+// 플레이어 피격 / 회복 이펙트
 // ============================================================
 interface PlayerDmgEvent {
   id: number
   amount: number
+  kind: 'damage' | 'heal' | 'miss'
+  isHeavy?: boolean
 }
 const playerDamageEvents = ref<PlayerDmgEvent[]>([])
 const playerShaking = ref(false)
@@ -160,17 +205,20 @@ function onTriggerSurge() {
   if (!surgeReady.value) return
   const ok = game.triggerCombatSurge()
   if (!ok) return
-  // 120ms 히트스톱 + 화면 흔들림 + 시안 임팩트 플래시
+  // 120ms 히트스톱 + 강한 화면 흔들림 + 시안 임팩트 플래시
   stopAutoTick()
-  screenShaking.value = true
+  triggerScreenShake('strong', 260)
   surgeFlash.value = true
   setTimeout(() => {
-    screenShaking.value = false
     if (!combat.value?.ended && !game.paused && !game.tutorialActive) {
       startAutoTick()
     }
   }, 120)
-  setTimeout(() => { surgeFlash.value = false }, 280)
+  if (surgeFlashTimer) clearTimeout(surgeFlashTimer)
+  surgeFlashTimer = setTimeout(() => {
+    surgeFlash.value = false
+    surgeFlashTimer = null
+  }, 280)
 }
 
 watch(
@@ -180,14 +228,29 @@ watch(
     const delta = prevPlayerHp.value - hp
     if (delta > 0) {
       const id = ++dmgIdCounter
-      playerDamageEvents.value.push({ id, amount: delta })
+      const maxHp = combat.value?.player.maxHp || 1
+      const isHeavy = delta / maxHp >= 0.2
+      playerDamageEvents.value.push({ id, amount: delta, kind: 'damage', isHeavy })
+      if (playerDamageEvents.value.length > 8) playerDamageEvents.value.shift()
       playerShaking.value = true
+      if (isHeavy) triggerScreenShake('light', 220)
       setTimeout(() => {
         playerDamageEvents.value = playerDamageEvents.value.filter((e) => e.id !== id)
       }, 900)
-      setTimeout(() => {
+      if (playerShakeTimer) clearTimeout(playerShakeTimer)
+      playerShakeTimer = setTimeout(() => {
         playerShaking.value = false
+        playerShakeTimer = null
       }, 320)
+    } else if (delta < 0 && prevPlayerHp.value > 0) {
+      // 전투 중 회복 팝업 (+HP)
+      const healAmount = -delta
+      const id = ++dmgIdCounter
+      playerDamageEvents.value.push({ id, amount: healAmount, kind: 'heal' })
+      if (playerDamageEvents.value.length > 8) playerDamageEvents.value.shift()
+      setTimeout(() => {
+        playerDamageEvents.value = playerDamageEvents.value.filter((e) => e.id !== id)
+      }, 900)
     }
     prevPlayerHp.value = hp
   }
@@ -322,6 +385,11 @@ onUnmounted(() => {
     clearTimeout(autoAdvanceTimer)
     autoAdvanceTimer = null
   }
+  if (screenShakeTimer) clearTimeout(screenShakeTimer)
+  if (critFlashTimer) clearTimeout(critFlashTimer)
+  if (heavyFlashTimer) clearTimeout(heavyFlashTimer)
+  if (playerShakeTimer) clearTimeout(playerShakeTimer)
+  if (surgeFlashTimer) clearTimeout(surgeFlashTimer)
 })
 
 watch(
@@ -352,9 +420,27 @@ watch(
           case 'enemy':
             if (entry.text.includes('피해')) sfx.hit()
             break
-          case 'miss':
+          case 'miss': {
             sfx.miss()
+            // 회피/빗나감 콜아웃 팝업 (고속 자동화 모드에서는 과도한 DOM 생성 생략)
+            if (game.combatSpeed <= 4) {
+              const id = ++dmgIdCounter
+              const isPlayerDodge = /회피|피했|dodg/i.test(entry.text)
+              if (isPlayerDodge) {
+                playerDamageEvents.value.push({ id, amount: 0, kind: 'miss' })
+                setTimeout(() => {
+                  playerDamageEvents.value = playerDamageEvents.value.filter((e) => e.id !== id)
+                }, 800)
+              } else {
+                const targetIdx = Math.max(0, monsters.value.findIndex((m) => m.hp > 0))
+                damageEvents.value.push({ id, monsterIdx: targetIdx, amount: 0, isCrit: false, isHeavy: false, kind: 'miss' })
+                setTimeout(() => {
+                  damageEvents.value = damageEvents.value.filter((e) => e.id !== id)
+                }, 800)
+              }
+            }
             break
+          }
           case 'reward':
             if (entry.text.includes('드랍')) sfx.pickup()
             break
@@ -386,7 +472,7 @@ watch(
     <div
       :class="[
         'relative flex-1 flex flex-col rounded-lg overflow-hidden border border-slate-700 transition-transform',
-        screenShaking ? 'animate-shake' : '',
+        screenShakeMode === 'strong' ? 'animate-shake-strong' : (screenShakeMode === 'light' ? 'animate-shake' : ''),
       ]"
     >
       <!-- 챕터 배경 -->
@@ -401,6 +487,11 @@ watch(
         v-if="critFlash"
         class="absolute inset-0 z-20 pointer-events-none bg-amber-300/15 shadow-[inset_0_0_50px_rgba(251,191,36,0.45)] transition-opacity"
       />
+      <!-- 강타 임팩트 플래시 -->
+      <div
+        v-if="heavyFlash"
+        class="absolute inset-0 z-20 pointer-events-none bg-orange-300/10 shadow-[inset_0_0_38px_rgba(251,146,60,0.35)] transition-opacity"
+      />
       <!-- 시간의 파동 임팩트 플래시 -->
       <div
         v-if="surgeFlash"
@@ -411,6 +502,17 @@ watch(
         v-if="playerShaking"
         class="absolute inset-0 z-20 pointer-events-none shadow-[inset_0_0_55px_rgba(239,68,68,0.55)] transition-opacity"
       />
+      <!-- 일시정지 배너 (Space 키로 토글) -->
+      <button
+        v-if="game.paused && !combat.ended && !game.tutorialActive"
+        type="button"
+        class="absolute top-2 left-1/2 -translate-x-1/2 z-30 px-3 py-1 rounded-full bg-amber-950/90 border border-amber-400/70 text-amber-200 text-xs font-bold shadow-[0_0_16px_rgba(251,191,36,0.45)] flex items-center gap-1.5 hover:bg-amber-900/90 transition"
+        :title="t('combat.pausedHint', 'Space 키 또는 클릭으로 재개')"
+        @click="game.setPaused(false)"
+      >
+        <span>⏸</span>
+        <span>{{ t('combat.pausedBadge', '일시정지') }}</span>
+      </button>
 
       <div class="relative z-10 flex flex-col gap-2 p-2 sm:gap-3 sm:p-3">
         <!-- ====================================================== -->
@@ -445,6 +547,7 @@ watch(
               <img
                 :src="isRealBoss && realBossImg ? realBossImg : monsterImageUrl(m.template.name)"
                 :alt="td('monster', m.template.name)"
+                decoding="async"
                 :class="[
                   'object-contain drop-shadow-2xl',
                   isRealBoss ? 'max-h-[300px] max-w-[100%] w-auto' : 'max-h-[110px] max-w-[110px]',
@@ -455,12 +558,19 @@ watch(
               <div
                 v-for="ev in damageFor(idx)"
                 :key="ev.id"
-                class="absolute left-1/2 top-2 pointer-events-none font-display font-black animate-damage-float whitespace-nowrap"
-                :class="ev.isCrit
-                  ? 'text-3xl text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.95)]'
-                  : 'text-2xl text-status-burn drop-shadow-[0_0_4px_rgba(239,68,68,0.85)]'"
+                class="combat-callout absolute left-1/2 top-2 pointer-events-none font-display font-black animate-damage-float whitespace-nowrap"
+                :class="ev.kind === 'miss'
+                  ? 'text-sm tracking-widest text-slate-300 drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]'
+                  : ev.isCrit
+                    ? 'text-3xl text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.95)]'
+                    : ev.isHeavy
+                      ? 'text-[26px] text-orange-300 drop-shadow-[0_0_6px_rgba(251,146,60,0.9)]'
+                      : 'text-2xl text-status-burn drop-shadow-[0_0_4px_rgba(239,68,68,0.85)]'"
               >
-                <span v-if="ev.isCrit" class="text-xs tracking-wider mr-0.5 text-amber-200">CRIT</span>-{{ ev.amount }}<span v-if="ev.isCrit" class="text-sm ml-0.5">✦</span>
+                <template v-if="ev.kind === 'miss'">{{ t('combat.miss', 'MISS') }}</template>
+                <template v-else>
+                  <span v-if="ev.isCrit" class="text-xs tracking-wider mr-0.5 text-amber-200">CRIT</span>-{{ ev.amount }}<span v-if="ev.isCrit" class="text-sm ml-0.5">✦</span>
+                </template>
               </div>
               <div
                 v-for="b in badgesForMonster(idx)"
@@ -515,6 +625,7 @@ watch(
                 <img
                   :src="playerBustUrl(game.runAvatar)"
                   :alt="t('combat.playerAlt', '플레이어')"
+                  decoding="async"
                   :class="[
                     'w-32 h-32 sm:w-36 sm:h-36 object-cover rounded-lg drop-shadow-2xl border-2 border-cyan-500/40 shadow-[0_0_14px_rgba(34,211,238,0.3)]',
                     playerShaking ? 'animate-shake animate-flash-red' : '',
@@ -524,9 +635,18 @@ watch(
                 <div
                   v-for="ev in playerDamageEvents"
                   :key="ev.id"
-                  class="absolute left-1/2 top-2 pointer-events-none font-bold text-2xl text-status-burn animate-damage-float drop-shadow-[0_0_3px_rgba(239,68,68,0.8)]"
+                  class="combat-callout absolute left-1/2 top-2 pointer-events-none font-bold animate-damage-float whitespace-nowrap"
+                  :class="ev.kind === 'heal'
+                    ? 'text-xl text-emerald-300 drop-shadow-[0_0_6px_rgba(52,211,153,0.9)]'
+                    : ev.kind === 'miss'
+                      ? 'text-sm tracking-widest text-cyan-200 drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]'
+                      : ev.isHeavy
+                        ? 'text-3xl text-rose-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.95)]'
+                        : 'text-2xl text-status-burn drop-shadow-[0_0_3px_rgba(239,68,68,0.8)]'"
                 >
-                  -{{ ev.amount }}
+                  <template v-if="ev.kind === 'heal'">+{{ ev.amount }}</template>
+                  <template v-else-if="ev.kind === 'miss'">{{ t('combat.dodge', 'DODGE') }}</template>
+                  <template v-else>-{{ ev.amount }}</template>
                 </div>
                 <div
                   v-for="b in playerBadges"
@@ -605,6 +725,7 @@ watch(
                 <img
                   :src="skillIconUrl(key)"
                   :alt="td('skill', key) || key"
+                  decoding="async"
                   class="w-4 h-4 object-contain"
                   @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
                 />

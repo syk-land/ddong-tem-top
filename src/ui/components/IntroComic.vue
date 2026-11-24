@@ -78,6 +78,7 @@ function advance() {
       <img
         :src="imgUrl"
         :alt="t('intro.pageAlt', `인트로 페이지 ${game.introPage}`, { page: game.introPage })"
+        decoding="async"
         class="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
         draggable="false"
       />

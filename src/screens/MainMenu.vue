@@ -4,7 +4,6 @@ import { useGameStore } from '@/stores/game'
 import { useAuthStore } from '@/stores/auth'
 import { mainImageUrl, playerImageUrl } from '@/ui/images'
 import { loadRun } from '@/core/meta'
-import { deleteCloudUserData } from '@/lib/cloudSync'
 import {
   detectInAppBrowser,
   inAppBrowserName,
@@ -214,8 +213,7 @@ async function resetMeta() {
   // reload 후 auth listener 가 cloud meta 를 다시 받아와 클라우드 값으로 덮어씀.
   // 보류 중인 sync 타이머는 먼저 취소 (delete 직후 발화하면 cloud 가 다시 살아남).
   if (auth.uid) {
-    auth.cancelPendingSync()
-    await deleteCloudUserData(auth.uid)
+    await auth.deleteCloudData()
   }
   // climetop: 프리픽스 가진 모든 키 일괄 삭제 —
   // 메타/진행/튜토리얼/생성/사운드/속도/자동진입/SpeedControl 펼침 상태 등 전부.
@@ -311,6 +309,8 @@ async function resetMeta() {
             v-if="slot.unlocked"
             :src="slot.thumb"
             :alt="slot.label"
+            loading="lazy"
+            decoding="async"
             class="w-full h-full object-cover"
             @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
           />
@@ -376,6 +376,7 @@ async function resetMeta() {
             v-if="savedAvatarKey"
             :src="playerImageUrl(savedAvatarKey)"
             :alt="game.characterName(savedAvatarKey)"
+            decoding="async"
             class="w-14 h-14 rounded-full object-cover border-2 border-emerald-400/60 shrink-0"
             @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
           />
@@ -414,6 +415,8 @@ async function resetMeta() {
           v-if="auth.photoURL"
           :src="auth.photoURL"
           alt="avatar"
+          loading="lazy"
+          decoding="async"
           class="w-10 h-10 rounded-full border-2 border-slate-300"
         />
         <div class="flex-1 min-w-0">

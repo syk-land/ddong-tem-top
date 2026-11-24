@@ -313,6 +313,8 @@ export const en: Record<string, string> = {
   'combat.procRate': 'Proc',
   'combat.victoryTitle': 'VICTORY',
   'combat.nextFloor': 'Next Floor',
+  'combat.pausedBadge': 'PAUSED',
+  'combat.pausedHint': 'Press Space or click to resume',
 
   // ── Shop ──────────────────────────────────────────────────
   'shop.title': 'Golden Goblin Shop',
@@ -429,6 +431,7 @@ export const en: Record<string, string> = {
   'speed.adAutoBody': 'Watch an ad to enable auto-advance for this climb?',
   'speed.adNotWatchedTitle': 'Activation Failed',
   'speed.adNotWatchedBody': 'Ad was not completed.',
+  'speed.shortcutsHint': 'Keys: 1-3 Speed · Space Pause/Next · M Mute',
 
   // ── Tutorial overlay ──────────────────────────────────────
   'tutorial.skip': 'Skip',

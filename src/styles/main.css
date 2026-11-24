@@ -14,19 +14,31 @@
   body {
     @apply h-full bg-bg-primary text-gray-100 font-sans antialiased;
     overscroll-behavior: none;
+    touch-action: manipulation;
   }
   body {
     @apply min-h-screen;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
   }
+  button,
+  a,
+  input,
+  select,
+  [role='button'] {
+    touch-action: manipulation;
+  }
   /* 고해상도 16-bit 픽셀아트(480~1280px, 파일 자체에 정수배 업스케일 내장)는
      PC/모바일 비정수배 축소 시 pixelated 가 선 깨짐(shimmering)을 유발하므로 auto 사용 */
   img {
     image-rendering: auto;
   }
+  .pixelated {
+    image-rendering: pixelated;
+  }
   #app {
     @apply h-screen flex flex-col;
+    height: 100dvh;
     /* 세로 폰 비율 (9:16) 고정 + 브라우저 세로 높이에 맞춤.
        height = 100vh: 브라우저 창 세로에 꽉 (스크롤 없이 한 화면).
        width  = min(100vw, 100vh * 9/16): 비율 유지.
@@ -35,7 +47,12 @@
          - 폰 가로 회전 (812×375): 100vh*9/16 = 211 → width=211, 좁게 가운데
        양옆 빈 공간은 body 어두운 배경이 자동으로 채운다. */
     width: min(100vw, calc(100vh * 9 / 16));
+    width: min(100vw, calc(100dvh * 9 / 16));
     margin: 0 auto;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
 }
 
@@ -79,5 +96,21 @@
 @keyframes log-fade {
   to {
     opacity: 1;
+  }
+}
+
+/* 전투 데미지 / 상태이상 팝업 성능 최적화 */
+.combat-callout {
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
