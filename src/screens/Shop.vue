@@ -89,7 +89,7 @@ async function temperSlot(slot: 'weapon' | 'armor') {
   if (!target || shop.value.temperUsed || (target.temperLevel ?? 0) >= 3) return
   if (game.challengeContext && shopForbidden(game.challengeContext)) return
   const ok = await game.confirmModal(
-    t('shop.temperConfirmBody', `${itemLabel(target)}\n\n${temperCost.value}G로 부식 연성 (+18% 계수 · 티어 유지)?`, {
+    t('shop.temperConfirmBody', `${itemLabel(target)}\n\n${temperCost.value}G로 부식 연성 (+10% 계수 · 티어 유지)?`, {
       item: itemLabel(target),
       gold: temperCost.value,
     }),

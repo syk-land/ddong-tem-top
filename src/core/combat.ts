@@ -617,7 +617,10 @@ export function monsterAttack(ctx: CombatContext, attacker: MonsterInstance) {
   if (syn.armorQuirk === 'rust_armor' && attacker.hp > 0) {
     const existingStacks = attacker.statuses.reduce((acc, s) => acc + s.stacks, 0)
     if (existingStacks > 0) {
-      const dotCounter = Math.max(1, Math.round(attacker.maxHp * 0.02 * existingStacks * syn.loopholeMult))
+      const rawCounter = attacker.isBoss
+        ? Math.min(attacker.maxHp * 0.005 * existingStacks * syn.loopholeMult, eff.공격력 * 2.5 * syn.loopholeMult)
+        : attacker.maxHp * 0.02 * existingStacks * syn.loopholeMult
+      const dotCounter = Math.max(1, Math.round(rawCounter))
       attacker.hp = Math.max(0, attacker.hp - dotCounter)
       pushBadge(ctx, 'monster', `파상풍 -${dotCounter}`, 'gold', attackerIdx)
       pushLog(ctx, i18nT('log.quirkRustArmor', `💥 [허점 공략] 녹슨 갑옷 파상풍 반격 -${dotCounter}!`, { dmg: dotCounter }), 'status')

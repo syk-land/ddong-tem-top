@@ -103,11 +103,15 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
     // === 마법 스킬: 통합 공격력 사용. 물리 대비 +30~50% 데미지 ===
     //   광역/분산 타겟팅 적용 (단계 2 — 다수 몬스터 의미 부여)
     case '빙결의화살': {
-      // 관통: 살아있는 적 앞에서 최대 3마리 일렬 적중
-      const alive = aliveMonsters(ctx).slice(0, 3)
-      if (alive.length === 0) break
-      magicAttackMulti(ctx, alive, 3.4, '둔화', 1.0)
-      if (alive.length > 1) pushLog(ctx, `빙결의 화살: ${alive.length}마리 관통`, 'skill')
+      // 메인 고배율 + 주변 최대 2체 관통 + 100% 둔화
+      const main = currentTarget(ctx)
+      if (!main) break
+      magicAttackOnTarget(ctx, main, 4.9, '둔화', 1.0)
+      const sub = aliveMonsters(ctx).filter((m) => m !== main).slice(0, 2)
+      if (sub.length > 0) {
+        magicAttackMulti(ctx, sub, 2.8, '둔화', 1.0)
+        pushLog(ctx, `빙결의 화살: 주변 ${sub.length}마리 관통`, 'skill')
+      }
       break
     }
     case '화염구': {
@@ -123,12 +127,16 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       break
     }
     case '폭풍칼날': {
-      // 3히트 분산: 살아있는 적 <=3 -> 1마리씩 / >=4 -> 무작위 3마리
-      const alive = aliveMonsters(ctx)
-      if (alive.length === 0) break
-      const picks = alive.length <= 3 ? alive : shuffled(alive).slice(0, 3)
-      magicAttackMulti(ctx, picks, 1.8, undefined, 0, { accBonus: 50 })
-      if (picks.length > 1) pushLog(ctx, `폭풍 칼날: ${picks.length}마리 동시 가격`, 'skill')
+      // 3연타 무작위 분산 (단일 보스 상대로도 3회 모두 적중)
+      let hitCount = 0
+      for (let i = 0; i < 3; i++) {
+        const alive = aliveMonsters(ctx)
+        if (alive.length === 0) break
+        const pick = alive[Math.floor(Math.random() * alive.length)]
+        magicAttackOnTarget(ctx, pick, 1.85, undefined, 0, { accBonus: 50, silent: i > 0 })
+        hitCount++
+      }
+      if (hitCount > 1) pushLog(ctx, `폭풍 칼날: ${hitCount}연속 가격`, 'skill')
       break
     }
     case '바위충격': {
@@ -164,25 +172,34 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       break
     }
     case '그림자일격':
-      magicAttack(ctx, 4.6, '암흑', 1.0, { penBoost: 1.5 })
+      magicAttack(ctx, 5.2, '암흑', 1.0, { penBoost: 1.8 })
       break
     case '정화의광선': {
       const main = currentTarget(ctx)
       if (main) {
         const isUndeadOrDark = main.template.element === '암흑'
           || /언데드|해골|좀비|구울|리치|강령|망령|뱀파이어|흡혈|어둠|암흑|공허/.test(main.template.name)
-        const mult = isUndeadOrDark ? 6.0 : 4.0
+        const mult = isUndeadOrDark ? 6.8 : 4.8
         magicAttackOnTarget(ctx, main, mult, undefined, 0)
       }
       const purged = purgeDebuffs(ctx.player)
       if (purged.length > 0) pushLog(ctx, `디버프 ${purged.length}개 정화`, 'heal')
+      const heal = applyHealing(ctx, Math.max(1, Math.round(ctx.player.maxHp * 0.08)))
+      if (heal > 0) {
+        ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal)
+        pushLog(ctx, `정화의 빛: HP +${heal}`, 'heal')
+      } else if (heal < 0) {
+        ctx.player.hp = Math.max(0, ctx.player.hp + heal)
+      }
       break
     }
 
-    case '배리어':
-      ctx.buffs.set('barrier', { duration: 10, effect: { mdefBonus: eff.공격력 } })
-      pushLog(ctx, `배리어 (방어 +${Math.round(eff.공격력)})`, 'skill')
+    case '배리어': {
+      const shieldVal = Math.max(eff.공격력, eff.마법공격력)
+      ctx.buffs.set('barrier', { duration: 10, effect: { mdefBonus: shieldVal } })
+      pushLog(ctx, `배리어 (방어 +${Math.round(shieldVal)})`, 'skill')
       break
+    }
     case '마력충전': {
       const restore = Math.round((eff.행운 + eff.공격력) * 0.3)
       ctx.player.mp = Math.min(ctx.player.maxMp, ctx.player.mp + restore)
@@ -448,16 +465,19 @@ export function pickAutoAction(ctx: CombatContext, options: {
     return mpCost
   }
 
-  // 1) 갑옷 비전 각인 방어 스킬 (HP <= 65% 또는 상태이상 보유 & 버프 미중첩 시 35% 확률)
+  // 1) 갑옷 비전 각인 방어 스킬 (HP <= 55% 또는 상태이상 보유 & 마법 무기의 공격 MP를 남길 때 25% 확률)
   const armorImprint = getArmorImprintSkillKey(player)
+  const wKey = getWeaponSkillKey(player)
+  const wSkill = wKey ? SKILLS[wKey] : undefined
+  const reserveMp = eff.isMagicWeapon && wSkill ? calcMpCost(wSkill) : 0
   if (armorImprint && !options.forbidActiveSkills && !options.forceActiveSkills) {
     const skill = SKILLS[armorImprint]
     const bKey = armorBuffKey(armorImprint)
-    const hpLow = player.hp / Math.max(1, player.maxHp) <= 0.65
+    const hpLow = player.hp / Math.max(1, player.maxHp) <= 0.55
     const hasStatus = player.statuses.length > 0
     if (skill && !ctx.buffs.has(bKey) && (hpLow || hasStatus)) {
       const mpCost = calcMpCost(skill)
-      if (player.mp >= mpCost && Math.random() < 0.35) {
+      if (player.mp >= mpCost + reserveMp && Math.random() < 0.25) {
         return { kind: 'skill', key: armorImprint }
       }
     }

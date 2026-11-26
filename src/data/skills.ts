@@ -46,7 +46,7 @@ export const SKILLS: Record<string, SkillDef> = {
   // === 마법 공격 7종 (v9: MP 대폭 강화 — 마법 빌드(마력高+로브) 외엔 사용 어려움) ===
   빙결의화살: {
     key: '빙결의화살', name: '빙결의 화살', mp: 40, kind: 'magic_atk', element: '물',
-    description: '공격력 × 3.4 (최대 3체 관통), 100% 둔화',
+    description: '공격력 × 4.9 (주변 2체 × 2.8 관통), 100% 둔화',
   },
   화염구: {
     key: '화염구', name: '화염구', mp: 50, kind: 'magic_atk', element: '불',
@@ -54,7 +54,7 @@ export const SKILLS: Record<string, SkillDef> = {
   },
   폭풍칼날: {
     key: '폭풍칼날', name: '폭풍 칼날', mp: 45, kind: 'magic_atk', element: '바람',
-    description: '공격력 × 1.8 × 3히트, 명중 +50',
+    description: '공격력 × 1.85 × 3연타, 명중 +50',
   },
   바위충격: {
     key: '바위충격', name: '바위 충격', mp: 55, kind: 'magic_atk', element: '대지',
@@ -65,12 +65,12 @@ export const SKILLS: Record<string, SkillDef> = {
     description: '공격력 × 5.5, 15% 감전 + 적 게이지 -10',
   },
   그림자일격: {
-    key: '그림자일격', name: '그림자 일격', mp: 50, kind: 'magic_atk', element: '암흑',
-    description: '공격력 × 4.6, 관통 ×1.5, 적 암흑 부여',
+    key: '그림자일격', name: '그림자 일격', mp: 45, kind: 'magic_atk', element: '암흑',
+    description: '공격력 × 5.2, 관통 ×1.8, 적 암흑 부여',
   },
   정화의광선: {
-    key: '정화의광선', name: '정화의 광선', mp: 55, kind: 'magic_atk', element: '빛',
-    description: '공격력 × 4.0, 디버프 정화, 언데드/암흑 ×1.5',
+    key: '정화의광선', name: '정화의 광선', mp: 45, kind: 'magic_atk', element: '빛',
+    description: '공격력 × 4.8 (언데드/암흑 ×6.8), 정화 + HP 8% 회복',
   },
 
   // === 마법 방어 3종 ===

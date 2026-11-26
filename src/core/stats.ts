@@ -109,16 +109,16 @@ export function computeEffectiveStats(c: Character): EffectiveStats {
 
   // v12 공명·유물 보정: 부식 장인 / 거지의 밥그릇
   if (syn.hasCursedArtisan) {
-    finalAtk *= 1.20
-    finalMagicAtk *= 1.20
-    defEffPct *= 1.20
+    finalAtk *= 1.12
+    finalMagicAtk *= 1.12
+    defEffPct *= 1.12
   }
   if (hasRelic(c, 'beggar_bowl')) {
     const tierSum = (weapon?.tier ?? 1) + (armor?.tier ?? 1)
     if (tierSum <= 10) {
-      finalAtk *= 1.25
-      finalMagicAtk *= 1.25
-      defEffPct *= 1.20
+      finalAtk *= 1.15
+      finalMagicAtk *= 1.15
+      defEffPct *= 1.12
     }
   }
 

@@ -1775,7 +1775,7 @@ export const useGameStore = defineStore('game', {
             { slot: slotLabel, item: targetName, tier: target.tier, temper: target.temperLevel ?? 0 }),
           buttons: [
             { label: i18nT('evt.smith.modeUpgrade', '정련 강화 (등급 +1)'), value: 'upgrade', primary: true },
-            { label: i18nT('evt.smith.modeTemper', '부식 연성 (티어 유지 +18%)'), value: 'temper' },
+            { label: i18nT('evt.smith.modeTemper', '부식 연성 (티어 유지 +10%)'), value: 'temper' },
             { label: i18nT('common.cancel', '취소'), value: null },
           ],
         })

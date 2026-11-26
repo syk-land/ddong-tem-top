@@ -18,10 +18,11 @@ import { computeEffectiveStats } from '../stats'
 import { useSkill, pickAutoAction } from '../skills'
 import { rollItem } from '../items'
 import { computeItemValue } from '../itemValue'
+import { makeRealBoss, computeParadoxBlessing } from '../realboss'
 import { CHAPTER_THEMES } from '@/data/chapters'
 import { WEAPON_KEYS } from '@/data/weapons'
 import { ARMOR_KEYS } from '@/data/armor'
-import type { Character, ChapterTheme, Grade, Stats, TraitTier } from '@/types'
+import type { Character, ChapterTheme, Grade, Stats, TraitTier, CharacterRecord } from '@/types'
 import { computeMaxHp, computeMaxMp } from '../character'
 
 // v9: 총 60pt 스탯 분배 다양화 (한쪽 극단 X — 각 stat 8~20 범위)
@@ -771,8 +772,159 @@ export function runCliCustomEquip() {
   console.log('\n=== Equip 완료 ===\n')
 }
 
+export function runCliV12Verify() {
+  const RUNS = 120
+  console.log(`\n=== Climetop v12 Verification Sim (${RUNS} runs/case) ===\n`)
+
+  // 1) Representative weapon/armor special & legend check with new skill imprints
+  const cases: Array<{ w: string; a: string; stats: Stats; label: string }> = [
+    { w: '단검', a: '가죽갑', stats: { 힘: 16, 민첩: 16, 체력: 12, 마력: 8, 행운: 8 }, label: '단검+가죽(민첩힘)' },
+    { w: '검', a: '중갑', stats: { 힘: 18, 민첩: 10, 체력: 15, 마력: 9, 행운: 8 }, label: '검+중갑(힘탱)' },
+    { w: '대검', a: '판금', stats: { 힘: 18, 민첩: 10, 체력: 15, 마력: 9, 행운: 8 }, label: '대검+판금(힘탱)' },
+    { w: '롱보우', a: '가죽갑', stats: { 힘: 14, 민첩: 16, 체력: 14, 마력: 8, 행운: 8 }, label: '롱보우+가죽(원거리)' },
+    { w: '완드', a: '로브', stats: { 힘: 8, 민첩: 12, 체력: 12, 마력: 18, 행운: 10 }, label: '완드+로브(마법형)' },
+    { w: '스태프', a: '로브', stats: { 힘: 8, 민첩: 12, 체력: 12, 마력: 18, 행운: 10 }, label: '스태프+로브(마법형)' },
+    { w: '마도서', a: '로브', stats: { 힘: 8, 민첩: 12, 체력: 12, 마력: 18, 행운: 10 }, label: '마도서+로브(마법형)' },
+  ]
+  for (const grade of ['스페셜', '레전드'] as Grade[]) {
+    console.log(`## ${grade} 클리어률`)
+    for (const c of cases) {
+      let wins = 0
+      for (let i = 0; i < RUNS; i++) {
+        const ch = makeCharacterWithStats(c.w, c.a, grade, c.stats)
+        if (simRunClear2(ch)) wins++
+      }
+      console.log(`  ${c.label.padEnd(20)}: ${formatPct(wins / RUNS)}`)
+    }
+  }
+
+  // 2) Newly unlocked 4 magic skills check on 스태프 + 로브 레전드
+  console.log(`\n## 해금 마법 스킬 4종 (스태프+로브 레전드, ${RUNS}런)`)
+  const magicStats: Stats = { 힘: 8, 민첩: 12, 체력: 12, 마력: 18, 행운: 10 }
+  for (const sk of ['빙결의화살', '폭풍칼날', '그림자일격', '정화의광선']) {
+    let wins = 0
+    for (let i = 0; i < RUNS; i++) {
+      const w = rollItem({ kind: 'weapon', forceBaseKey: '스태프', forceGrade: '레전드', forceTraitTier: '보통', forceSkillKey: sk })
+      const a = rollItem({ kind: 'armor', forceBaseKey: '로브', forceGrade: '레전드', forceTraitTier: '보통', forceSkillKey: '저항의결계' })
+      const ch: Character = {
+        stats: { ...magicStats },
+        hp: computeMaxHp(magicStats.체력),
+        maxHp: computeMaxHp(magicStats.체력),
+        mp: computeMaxMp(magicStats.마력),
+        maxMp: computeMaxMp(magicStats.마력),
+        weapon: w,
+        armor: a,
+        gold: 100,
+        statuses: [],
+        actionGauge: 0,
+      }
+      if (simRunClear2(ch)) wins++
+    }
+    console.log(`  ${sk.padEnd(10)}: ${formatPct(wins / RUNS)}`)
+  }
+
+  // 3) Junk Gear + Corrosion Tempering +3 + Relics vs 100층 (60pt 기준) & Real Boss R0/R1
+  console.log(`\n## 똥템 빌드 (녹슨 노말 + 부식연성 +3 + 유물 2종, 60pt 기준) 검증`)
+  const junkStats: Stats = { 힘: 16, 민첩: 12, 체력: 14, 마력: 8, 행운: 10 }
+  let junkTowerWins = 0
+  let totalDrainR0 = 0
+  let totalDrainR1 = 0
+  for (let i = 0; i < RUNS; i++) {
+    const w = rollItem({ kind: 'weapon', forceBaseKey: '단검', forceGrade: '노말', forceTraitTier: '하급', forceTraitName: '녹슨' })
+    w.temperLevel = 3
+    const a = rollItem({ kind: 'armor', forceBaseKey: '가죽갑', forceGrade: '노말', forceTraitTier: '하급', forceTraitName: '녹슨', forceSkillKey: '불굴의의지' })
+    a.temperLevel = 3
+    const ch: Character = {
+      stats: { ...junkStats },
+      hp: computeMaxHp(junkStats.체력),
+      maxHp: computeMaxHp(junkStats.체력),
+      mp: computeMaxMp(junkStats.마력),
+      maxMp: computeMaxMp(junkStats.마력),
+      weapon: w,
+      armor: a,
+      relics: ['beggar_bowl', 'cursed_anvil_shard'],
+      gold: 500,
+      statuses: [],
+      actionGauge: 0,
+    }
+    if (simRunClear2(ch)) junkTowerWins++
+
+    // RealBoss Round 0 (고블린) & Round 1 (기계) with Paradox Blessing
+    const rec: CharacterRecord = {
+      stats: { ...junkStats },
+      score: w.tier + a.tier,
+      rank: 'EX',
+      cleared: true,
+      avatarKey: '01',
+      weapon: w,
+      armor: a,
+      relics: ['beggar_bowl', 'cursed_anvil_shard'],
+      gold: 500,
+      hp: ch.maxHp,
+      maxHp: ch.maxHp,
+      mp: ch.maxMp,
+      maxMp: ch.maxMp,
+      lastChapterTheme: '고블린',
+      recordedAt: 0,
+    }
+    const blessing = computeParadoxBlessing(rec)
+    const scaled: Stats = {
+      힘: Math.round(junkStats.힘 * blessing.statMult),
+      민첩: Math.round(junkStats.민첩 * blessing.statMult),
+      체력: Math.round(junkStats.체력 * blessing.statMult),
+      마력: Math.round(junkStats.마력 * blessing.statMult),
+      행운: Math.round(junkStats.행운 * blessing.statMult),
+    }
+    const runRb = (theme: ChapterTheme, round: number) => {
+      const rbHero: Character = {
+        stats: scaled,
+        hp: computeMaxHp(scaled.체력),
+        maxHp: computeMaxHp(scaled.체력),
+        mp: computeMaxMp(scaled.마력),
+        maxMp: computeMaxMp(scaled.마력),
+        weapon: w,
+        armor: a,
+        relics: ['beggar_bowl', 'cursed_anvil_shard'],
+        gold: 500,
+        statuses: [],
+        actionGauge: 0,
+      }
+      const boss = makeRealBoss(theme, round)
+      const ctx = createCombatContext(rbHero, [boss], round, { paradoxPenBonus: blessing.bonusPen })
+      while (!ctx.ended && ctx.tick < 800) {
+        advanceTick(ctx)
+        const pe = computeEffectiveStats(ctx.player)
+        const ready = checkActionReady(ctx, pe.무기ticks)
+        for (const m of ready.readyMonsters) {
+          if (ctx.ended) break
+          monsterAttack(ctx, m)
+          consumeAction(m, m.ticks)
+        }
+        if (!ctx.ended && ctx.player.actionGauge >= pe.무기ticks) {
+          const act = pickAutoAction(ctx, {})
+          if (act.kind === 'skill') {
+            if (!useSkill(ctx, act.key)) playerBasicAttack(ctx)
+          } else {
+            playerBasicAttack(ctx)
+          }
+          consumeAction(ctx.player, pe.무기ticks)
+        }
+      }
+      return Math.max(0, Math.min(1, (boss.maxHp - Math.max(0, boss.hp)) / boss.maxHp))
+    }
+    totalDrainR0 += runRb('고블린', 0)
+    totalDrainR1 += runRb('기계', 1)
+  }
+  console.log(`  100층 클리어률: ${formatPct(junkTowerWins / RUNS)}`)
+  console.log(`  진짜보스 R0(고블린) 평균 깎은 비율: ${formatPct(totalDrainR0 / RUNS)}`)
+  console.log(`  진짜보스 R1(기계) 평균 깎은 비율: ${formatPct(totalDrainR1 / RUNS)}`)
+  console.log('\n=== v12 검증 완료 ===\n')
+}
+
 if (typeof process !== 'undefined' && process.argv?.[1]?.includes('runChapter')) {
-  if (process.env.SIM_MODE === 'custom_dummy') {
+  if (process.env.SIM_MODE === 'v12_verify') {
+    runCliV12Verify()
+  } else if (process.env.SIM_MODE === 'custom_dummy') {
     runCliCustomDummy()
   } else if (process.env.SIM_MODE === 'custom_equip') {
     runCliCustomEquip()

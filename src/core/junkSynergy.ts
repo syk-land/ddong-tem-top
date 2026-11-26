@@ -103,8 +103,8 @@ export const RESONANCE_INFO: Record<JunkResonanceId, ResonanceInfo> = {
     id: 'cursed_artisan',
     nameKo: '부식 장인',
     nameEn: 'Corrosion Artisan',
-    descKo: '착용 무기·갑옷 부식 연성 합 >= 3: 공격력·방어력 +20%',
-    descEn: 'Total Temper >= 3 on equipped gear: +20% ATK & DEF',
+    descKo: '착용 무기·갑옷 부식 연성 합 >= 3: 공격력·방어력 +12%',
+    descEn: 'Total Temper >= 3 on equipped gear: +12% ATK & DEF',
   },
   scrap_collector: {
     id: 'scrap_collector',
@@ -129,7 +129,7 @@ export function hasRelic(player: Character, id: RelicId): boolean {
 export function getTemperMult(item: ItemInstance | null | undefined, hasAnvilRelic: boolean = false): number {
   const lv = Math.max(0, Math.min(3, item?.temperLevel ?? 0))
   if (lv <= 0) return 1
-  return 1 + lv * 0.18 * (hasAnvilRelic ? 1.5 : 1.0)
+  return 1 + lv * 0.10 * (hasAnvilRelic ? 1.3 : 1.0)
 }
 
 export function getItemQuirk(item: ItemInstance | null | undefined): TraitQuirkId | null {
@@ -187,11 +187,14 @@ export function getPlayerSynergy(player: Character, masteryLoopholeBonus: number
   const hasLoopholeMaster = resonances.includes('loophole_master')
   const hasScrapCollector = resonances.includes('scrap_collector')
   const totalTemper = (player.weapon?.temperLevel ?? 0) + (player.armor?.temperLevel ?? 0)
-  const mult = 1.0
-    + (hasLoopholeMaster ? 0.30 : 0)
-    + totalTemper * 0.12
-    + (hasScrapCollector ? 0.20 : 0)
-    + masteryLoopholeBonus
+  const mult = Math.min(
+    1.75,
+    1.0
+      + (hasLoopholeMaster ? 0.30 : 0)
+      + totalTemper * 0.05
+      + (hasScrapCollector ? 0.20 : 0)
+      + masteryLoopholeBonus,
+  )
   return {
     weaponQuirk: getItemQuirk(player.weapon),
     armorQuirk: getItemQuirk(player.armor),

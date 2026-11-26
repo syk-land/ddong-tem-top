@@ -24,8 +24,8 @@ export function computeParadoxBlessing(rec: CharacterRecord): {
   const diff = Math.max(0, 18 - tierSum)
   return {
     tierSum,
-    statMult: Math.round((1 + diff * 0.045) * 100) / 100,
-    bonusPen: Math.round(diff * 2),
+    statMult: Math.round((1 + diff * 0.022) * 100) / 100,
+    bonusPen: Math.round(diff * 1.5),
   }
 }
 

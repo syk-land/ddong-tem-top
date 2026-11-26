@@ -35,3 +35,7 @@ bananaimages/_png_backup/
 bananaimages/_v1_backup/
 bananaimages/_watermarked_backup/
 
+# Firebase CLI 로컬 캐시
+.firebase/
+
+
