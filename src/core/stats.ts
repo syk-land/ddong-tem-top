@@ -2,6 +2,7 @@ import type { Character, TraitEffect, ArmorType } from '@/types'
 import { getWeaponBase, getArmorBase } from './items'
 import { WEAPON_TRAITS, ARMOR_TRAITS } from '@/data/traits'
 import { clamp } from './rng'
+import { getPlayerSynergy, getTemperMult, hasRelic } from './junkSynergy'
 
 // v9 곱셈 모델 + 명중/회피 %p + 방어 % + 게이지 시스템
 //   공격 게이지: 매 틱 += 1 × (1 + 민첩/100) × armorSpeedMult, 임계값 = 무기 ticks
@@ -89,20 +90,37 @@ export function computeEffectiveStats(c: Character): EffectiveStats {
   //   활(ranged) 무기: 물리 atk 의 스탯 항을 (힘 + 민첩 × 0.3) 로 적용 — 민첩 빌드 활용
   const ATK_K_PHYS = 3.0
   const ATK_K_MAGIC = 1.5
+  const hasAnvil = hasRelic(c, 'cursed_anvil_shard')
+  const syn = getPlayerSynergy(c)
   const baseAtk = wbase?.baseAtk ?? 0
-  const weaponCoef = weapon?.coef ?? 0
+  const weaponCoef = (weapon?.coef ?? 0) * getTemperMult(weapon, hasAnvil)
   const atkMultBase = baseAtk * weaponCoef * (1 + atkPct)
   const magicSynergy = (abase?.key === '로브' && wbase?.isMagic) ? 1.5 : 1.0
   const physStat = wbase?.category === 'ranged' ? s.힘 + s.민첩 * 0.3 : s.힘
-  const finalAtk = physStat * atkMultBase * ATK_K_PHYS
-  const finalMagicAtk = wbase?.isMagic ? s.마력 * atkMultBase * ATK_K_MAGIC * magicSynergy : 0
+  let finalAtk = physStat * atkMultBase * ATK_K_PHYS
+  let finalMagicAtk = wbase?.isMagic ? s.마력 * atkMultBase * ATK_K_MAGIC * magicSynergy : 0
 
   // ── 방어% (곱셈 모델): baseDef × coef × (1 + def_pct) + 체력 × 0.3 × coef ──
   // v9.x: 체력 방어 기여에도 갑옷 coef 곱 적용 (좋은 갑옷일수록 같은 체력이 더 큰 방어로)
   const armorBaseDef = abase?.baseDef ?? 0
-  const armorCoefVal = armor?.coef ?? 0
+  const armorCoefVal = (armor?.coef ?? 0) * getTemperMult(armor, hasAnvil)
   const armorDefPct = armorBaseDef * armorCoefVal * (1 + defPct)
-  const defEffPct = armorDefPct + s.체력 * 0.3 * armorCoefVal
+  let defEffPct = armorDefPct + s.체력 * 0.3 * armorCoefVal
+
+  // v12 공명·유물 보정: 부식 장인 / 거지의 밥그릇
+  if (syn.hasCursedArtisan) {
+    finalAtk *= 1.20
+    finalMagicAtk *= 1.20
+    defEffPct *= 1.20
+  }
+  if (hasRelic(c, 'beggar_bowl')) {
+    const tierSum = (weapon?.tier ?? 1) + (armor?.tier ?? 1)
+    if (tierSum <= 10) {
+      finalAtk *= 1.25
+      finalMagicAtk *= 1.25
+      defEffPct *= 1.20
+    }
+  }
 
   // ── 게이지 가속 & 갑옷 속도 ──
   let armorSpeedMult = abase?.speedMult ?? 1.0
@@ -125,23 +143,26 @@ export function computeEffectiveStats(c: Character): EffectiveStats {
     + (weffects.회피 ?? 0)
     + (aeffects.회피 ?? 0)
     + (abase?.evasion ?? 0)
+    + (hasRelic(c, 'tattered_cloak') ? 10 : 0)
     + s.민첩 * 0.5
     + s.행운 * 0.1
 
-  // 관통 (%p) — 무기 penBonus + magicPenBonus + 트레잇
+  // 관통 (%p) — 무기 penBonus + magicPenBonus + 트레잇 + 유물/공명
   const pen = (weffects.관통 ?? 0)
     + (wbase?.penBonus ?? 0)
     + (wbase?.magicPenBonus ?? 0)
+    + (hasAnvil ? 12 : 0)
+    + (syn.hasArcaneJunk ? 20 : 0)
 
   // 상태저항 — 체력/마력/행운 + 특성
   const stRes = s.체력 * 0.5 + s.마력 * 0.5 + s.행운 * 0.3
     + (weffects.상태저항 ?? 0)
     + (aeffects.상태저항 ?? 0)
 
-  // 마력/행운 가산 (특성)
+  // 마력/행운 가산 (특성 + 납 주사위)
   const mpBonus = (aeffects.마력 ?? 0) + (weffects.마력 ?? 0) + (abase?.mpBonus ?? 0)
   const totalMagicStat = s.마력 + mpBonus
-  const luck = s.행운 + (weffects.행운 ?? 0) + (aeffects.행운 ?? 0)
+  const luck = s.행운 + (weffects.행운 ?? 0) + (aeffects.행운 ?? 0) + (hasRelic(c, 'lead_dice') ? 8 : 0)
 
   // 크리
   const critChance = clamp(s.민첩 * 0.003, 0, 1.0)

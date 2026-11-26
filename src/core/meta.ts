@@ -224,6 +224,7 @@ export function pushCharacterHistory(
     maxHp: character.maxHp,
     mp: character.mp,
     maxMp: character.maxMp,
+    relics: character.relics ? [...character.relics] : [],
     lastChapterTheme,
     recordedAt: Date.now(),
   }

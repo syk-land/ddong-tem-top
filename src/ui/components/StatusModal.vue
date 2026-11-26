@@ -10,13 +10,14 @@ import { CHALLENGES_MAP } from '@/data/challenges'
 import { WEAPONS } from '@/data/weapons'
 import { ARMORS } from '@/data/armor'
 import { WEAPON_TRAITS, ARMOR_TRAITS } from '@/data/traits'
+import { RELICS } from '@/data/relics'
 import { useI18n } from '@/lib/i18n'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 const game = useGameStore()
-const { t, td, tLabel } = useI18n()
+const { t, td, tLabel, lang } = useI18n()
 
 // 상태창이 처음 열리면 first_status 튜토리얼 트리거
 watch(() => props.open, (v) => {
@@ -499,6 +500,21 @@ function showSkillDetail(key: string) {
           </div>
         </div>
         <div v-else class="text-xs text-gray-600">{{ t('status.armorEmpty', '없음') }}</div>
+      </div>
+
+      <!-- 잡동사니 유물 -->
+      <div v-if="c.relics && c.relics.length > 0" class="bg-bg-tertiary rounded p-2 space-y-1.5">
+        <div class="text-xs text-gray-400">{{ t('status.relicsHeader', '잡동사니 유물') }}</div>
+        <div class="space-y-1">
+          <div
+            v-for="rid in c.relics"
+            :key="rid"
+            class="rounded bg-emerald-950/30 border border-emerald-500/30 px-2 py-1.5 text-xs"
+          >
+            <div class="font-bold text-emerald-200">{{ lang === 'en' ? RELICS[rid].nameEn : RELICS[rid].nameKo }}</div>
+            <div class="text-[11px] text-gray-300">{{ lang === 'en' ? RELICS[rid].descEn : RELICS[rid].descKo }}</div>
+          </div>
+        </div>
       </div>
 
       <!-- 자동 발동 스킬 -->

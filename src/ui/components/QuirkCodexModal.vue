@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useI18n } from '@/lib/i18n'
 import { QUIRK_INFO, RESONANCE_INFO } from '@/core/junkSynergy'
+import { RELICS } from '@/data/relics'
 import type { TraitQuirkId } from '@/types'
 
 const props = defineProps<{ open: boolean }>()
@@ -12,11 +13,12 @@ const game = useGameStore()
 const { t, lang } = useI18n()
 
 const dialogEl = ref<HTMLDialogElement | null>(null)
-const activeTab = ref<'quirks' | 'resonances'>('quirks')
+const activeTab = ref<'quirks' | 'resonances' | 'relics'>('quirks')
 
 const discoveredSet = computed(() => new Set(game.meta.discoveredQuirks ?? []))
 const quirkList = computed(() => Object.values(QUIRK_INFO))
 const resonanceList = computed(() => Object.values(RESONANCE_INFO))
+const relicList = computed(() => Object.values(RELICS))
 
 const QUIRK_SOURCE_MAP: Record<TraitQuirkId, { ko: string; en: string }> = {
   old_weapon: { ko: '오래된 무기 (하급)', en: 'Aged Weapon (Low)' },
@@ -131,7 +133,16 @@ onUnmounted(() => {
           class="mwg-tab px-3 py-2.5 text-xs font-bold transition-colors"
           :class="activeTab === 'resonances' ? 'text-cyan-300' : 'text-gray-400 hover:text-gray-200'"
           @click="activeTab = 'resonances'"
-        >{{ t('codex.tab.resonances', '똥템 공명') }}</button>
+        >{{ t('codex.tab.resonances', '똥템 공명 (6)') }}</button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-relics"
+          :aria-selected="activeTab === 'relics'"
+          class="mwg-tab px-3 py-2.5 text-xs font-bold transition-colors"
+          :class="activeTab === 'relics' ? 'text-emerald-300' : 'text-gray-400 hover:text-gray-200'"
+          @click="activeTab = 'relics'"
+        >{{ t('codex.tab.relics', '잡동사니 유물 (8)') }}</button>
       </div>
 
       <div class="overflow-y-auto flex-1">
@@ -177,6 +188,26 @@ onUnmounted(() => {
               <p class="text-xs text-gray-200 leading-relaxed">
                 {{ lang === 'en' ? r.descEn : r.descKo }}
               </p>
+            </div>
+          </div>
+        </div>
+
+        <div role="tabpanel" aria-labelledby="tab-relics" :hidden="activeTab !== 'relics'" :tabindex="activeTab === 'relics' ? 0 : undefined">
+          <div class="p-3 space-y-2">
+            <div
+              v-for="rel in relicList"
+              :key="rel.id"
+              class="rounded-lg border border-emerald-500/40 bg-emerald-950/20 p-3 flex items-start gap-2.5"
+            >
+              <img :src="rel.iconPath" :alt="lang === 'en' ? rel.nameEn : rel.nameKo" class="w-8 h-8 object-contain shrink-0 rounded bg-slate-900/70 p-0.5 border border-emerald-500/30" />
+              <div class="space-y-0.5 min-w-0">
+                <div class="text-xs font-bold text-emerald-200">
+                  {{ lang === 'en' ? rel.nameEn : rel.nameKo }}
+                </div>
+                <p class="text-xs text-gray-200 leading-relaxed">
+                  {{ lang === 'en' ? rel.descEn : rel.descKo }}
+                </p>
+              </div>
             </div>
           </div>
         </div>

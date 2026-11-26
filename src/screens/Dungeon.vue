@@ -11,11 +11,12 @@ import StatusModal from '@/ui/components/StatusModal.vue'
 import InventoryModal from '@/ui/components/InventoryModal.vue'
 import ItemDetail from '@/ui/components/ItemDetail.vue'
 import { themeBgUrl, floorContentImage, playerImageUrl } from '@/ui/images'
-import type { ItemInstance } from '@/types'
+import { RELICS } from '@/data/relics'
+import type { ItemInstance, FloorChoiceOption } from '@/types'
 import { useI18n } from '@/lib/i18n'
 
 const game = useGameStore()
-const { t, td } = useI18n()
+const { t, td, lang } = useI18n()
 const c = computed(() => game.run!.character)
 const ch = computed(() => game.currentChapterState!)
 const floor = computed(() => game.currentFloorEvent)
@@ -28,6 +29,38 @@ const equipDetail = ref<ItemInstance | null>(null)
 
 function enter() {
   game.enterCurrentFloor()
+}
+function chooseRoute(useAlt: boolean) {
+  game.chooseFloorRoute(useAlt)
+}
+
+function choiceLabel(opt: FloorChoiceOption | { type: string; isElite?: boolean }): string {
+  if (opt.type === 'monster' && opt.isElite) {
+    return t('dungeon.floor.elite', '정예 몬스터')
+  }
+  const labels: Record<string, { key: string; fallback: string }> = {
+    monster: { key: 'dungeon.floor.normalMonster', fallback: '일반 몬스터' },
+    boss: { key: 'dungeon.floor.boss', fallback: '보스' },
+    shop: { key: 'dungeon.floor.shop', fallback: '상점' },
+    treasure: { key: 'dungeon.floor.treasure', fallback: '보물상자' },
+    healing_spring: { key: 'dungeon.floor.healing', fallback: '회복샘' },
+    special_event: { key: 'dungeon.floor.special', fallback: '특별 이벤트' },
+  }
+  const lab = labels[opt.type]
+  return lab ? t(lab.key, lab.fallback) : opt.type
+}
+
+function choiceSub(opt: FloorChoiceOption | { type: string; isElite?: boolean }): string {
+  if (opt.type === 'monster' && opt.isElite) {
+    return t('dungeon.route.eliteSub', '골드 1.6배 · 파동 +20 · 35% 상위 드랍')
+  }
+  if (opt.type === 'special_event') {
+    return t('dungeon.route.eventSub', 'NPC 인카운터 (대장간·제단·암시장 등)')
+  }
+  if (opt.type === 'healing_spring') {
+    return t('dungeon.route.healSub', 'HP +30% 안전 회복')
+  }
+  return t('dungeon.route.normalSub', '표준 진행')
 }
 
 // 활성 챌린지 한 줄 (이름 + 짧은 보상/조건). 여러 개면 쉼표.
@@ -66,7 +99,9 @@ function tryAutoEnter() {
   // 로 직접 트리거되지만, Dungeon mount 시 (다른 screen 에서 돌아온 경우) onMounted
   // 의 tryAutoEnter 도 즉시 호출되도록 안전망.
   if (game.isAutoMode) {
-    game.enterCurrentFloor()
+    const useAlt = !!f.altChoice && game.autoRoutePref === 'risk'
+    if (f.altChoice) game.chooseFloorRoute(useAlt)
+    else game.enterCurrentFloor()
     return
   }
   // 짧은 지연으로 UI 보여주고 자동 진입 — 속도에 따라 단축
@@ -76,7 +111,12 @@ function tryAutoEnter() {
     // 한번 더 가드 (타이머 도중 사용자 상호작용으로 상태 변경 가능)
     if (game.autoEnter && game.screen === 'dungeon'
         && !game.dialog && !game.inputDialog && !game.listDialog && !game.pendingPickup) {
-      game.enterCurrentFloor()
+      const curF = game.currentFloorEvent
+      if (curF?.altChoice) {
+        game.chooseFloorRoute(game.autoRoutePref === 'risk')
+      } else {
+        game.enterCurrentFloor()
+      }
     }
   }, delay)
 }
@@ -229,12 +269,45 @@ const floorAccent = computed(() => {
       </div>
 
       <!-- 하단 진입 박스 -->
-      <div class="relative z-10 w-full mt-auto bg-black/65 backdrop-blur-sm py-3 px-3 flex flex-col items-center gap-2 border-t border-white/10">
+      <div class="relative z-10 w-full mt-auto bg-black/70 backdrop-blur-sm py-3 px-3 flex flex-col items-center gap-2 border-t border-white/10">
         <div class="flex items-baseline gap-2">
           <span class="text-2xl font-bold drop-shadow-lg" :class="themeClass">{{ ch.currentFloor + 1 }}F</span>
           <span class="text-base text-white/95 font-bold drop-shadow-md">{{ floorLabel }}</span>
+          <button
+            v-if="game.autoEnter"
+            type="button"
+            class="ml-2 px-2 py-0.5 rounded text-[11px] font-bold border transition"
+            :class="game.autoRoutePref === 'risk'
+              ? 'border-rose-400/70 bg-rose-950/60 text-rose-200'
+              : 'border-emerald-400/70 bg-emerald-950/60 text-emerald-200'"
+            @click="game.setAutoRoutePref(game.autoRoutePref === 'risk' ? 'safe' : 'risk')"
+          >{{ t('dungeon.autoRouteLabel', '자동경로') }}: {{ game.autoRoutePref === 'risk' ? t('dungeon.autoRouteRisk', '위험') : t('dungeon.autoRouteSafe', '안전') }}</button>
         </div>
+
+        <!-- 2갈래 분기 선택 (altChoice 존재 시) -->
+        <div v-if="floor?.altChoice && !game.isTutorialBlockingExit" class="w-full max-w-md grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            class="rounded-lg border border-cyan-400/60 bg-cyan-950/50 hover:bg-cyan-900/60 px-2.5 py-2 text-left transition active:scale-[0.98]"
+            @click="chooseRoute(false)"
+          >
+            <div class="text-[10px] font-bold text-cyan-300 uppercase">{{ t('dungeon.routeA', '경로 A') }}</div>
+            <div class="text-sm font-bold text-white truncate">{{ choiceLabel(floor) }}</div>
+            <div class="text-[11px] text-gray-300 truncate">{{ choiceSub(floor) }}</div>
+          </button>
+          <button
+            type="button"
+            class="rounded-lg border border-amber-400/70 bg-amber-950/55 hover:bg-amber-900/65 px-2.5 py-2 text-left transition active:scale-[0.98]"
+            @click="chooseRoute(true)"
+          >
+            <div class="text-[10px] font-bold text-amber-300 uppercase">{{ t('dungeon.routeB', '경로 B') }}</div>
+            <div class="text-sm font-bold text-amber-100 truncate">{{ choiceLabel(floor.altChoice) }}</div>
+            <div class="text-[11px] text-amber-200/80 truncate">{{ choiceSub(floor.altChoice) }}</div>
+          </button>
+        </div>
+
         <button
+          v-else
           data-tutorial-target="enter-floor-btn"
           class="btn-primary px-6 w-full max-w-xs min-h-12 text-base font-bold disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="game.isTutorialBlockingExit"
@@ -309,6 +382,16 @@ const floorAccent = computed(() => {
             <div v-if="challengeOneLine" class="text-xs text-trait-special truncate flex items-center gap-1">
               <span class="shrink-0">🎯</span>
               <span class="truncate">{{ challengeOneLine }}</span>
+            </div>
+
+            <!-- 잡동사니 유물 (있을 때만) -->
+            <div v-if="c.relics && c.relics.length > 0" class="flex flex-wrap gap-1 pt-0.5">
+              <span
+                v-for="rid in c.relics"
+                :key="rid"
+                class="px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-[10px] font-bold"
+                :title="lang === 'en' ? RELICS[rid].descEn : RELICS[rid].descKo"
+              >{{ lang === 'en' ? RELICS[rid].nameEn : RELICS[rid].nameKo }}</span>
             </div>
 
             <StatusBadges v-if="c.statuses.length" :statuses="c.statuses" />

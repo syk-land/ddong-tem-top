@@ -26,10 +26,12 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
   }
 
   const eff = computeEffectiveStats(ctx.player)
+  const syn = getPlayerSynergy(ctx.player, ctx.masteryLoopholeBonus ?? 0)
   let mpCost = skill.mp
-  // 마법 무기는 MP 보정 적용
+  // 마법 무기는 MP 보정 적용 + 누더기 대마도사 공명 30% 할인
   if (skill.kind === 'magic_atk' || skill.kind === 'magic_def') {
     mpCost = Math.max(0, mpCost + eff.weaponMpBonus)
+    if (syn.hasArcaneJunk) mpCost = Math.round(mpCost * 0.7)
   }
 
   if (ctx.player.mp < mpCost) {
@@ -208,7 +210,7 @@ function attackSkill(
   const target = currentTarget(ctx)
   if (!target) return
   const eff = computeEffectiveStats(ctx.player)
-  const syn = getPlayerSynergy(ctx.player)
+  const syn = getPlayerSynergy(ctx.player, ctx.masteryLoopholeBonus ?? 0)
   const surgeGuaranteedHit = !!(ctx.surgeNextAttackMult && ctx.surgeNextAttackMult > 1)
   if (!surgeGuaranteedHit && !rollHit(eff.명중률 + (opts.accBonus ?? 0), target.eva)) {
     pushLog(ctx, i18nT('log.miss', '공격이 빗나갔다.'), 'miss')
@@ -229,6 +231,9 @@ function attackSkill(
   if (ctx.heavyArmorPenBonus && ctx.heavyArmorPenBonus > 0) {
     flatPenBonus += ctx.heavyArmorPenBonus
     ctx.heavyArmorPenBonus = 0
+  }
+  if (ctx.paradoxPenBonus && ctx.paradoxPenBonus > 0) {
+    flatPenBonus += ctx.paradoxPenBonus
   }
   if (ctx.surgeNextAttackMult && ctx.surgeNextAttackMult > 1) {
     finalMult *= ctx.surgeNextAttackMult
@@ -295,7 +300,7 @@ function magicAttackOnTarget(
 ) {
   if (target.hp <= 0) return
   const eff = computeEffectiveStats(ctx.player)
-  const syn = getPlayerSynergy(ctx.player)
+  const syn = getPlayerSynergy(ctx.player, ctx.masteryLoopholeBonus ?? 0)
   const surgeGuaranteedHit = !!(ctx.surgeNextAttackMult && ctx.surgeNextAttackMult > 1)
   if (!surgeGuaranteedHit && !rollHit(eff.명중률 + (opts.accBonus ?? 0), target.eva)) {
     if (!opts.silent) pushLog(ctx, i18nT('log.magicMiss', '마법이 빗나갔다.'), 'miss')
@@ -316,6 +321,9 @@ function magicAttackOnTarget(
   if (ctx.heavyArmorPenBonus && ctx.heavyArmorPenBonus > 0) {
     flatPenBonus += ctx.heavyArmorPenBonus
     ctx.heavyArmorPenBonus = 0
+  }
+  if (ctx.paradoxPenBonus && ctx.paradoxPenBonus > 0) {
+    flatPenBonus += ctx.paradoxPenBonus
   }
   if (ctx.surgeNextAttackMult && ctx.surgeNextAttackMult > 1) {
     finalMult *= ctx.surgeNextAttackMult
@@ -428,7 +436,17 @@ export function pickAutoAction(ctx: CombatContext, options: {
   forceActiveSkills?: boolean       // 챌린지: 평타 X (스킬만)
 } = {}): AutoAction {
   const eff = computeEffectiveStats(ctx.player)
+  const syn = getPlayerSynergy(ctx.player, ctx.masteryLoopholeBonus ?? 0)
   const player = ctx.player
+
+  const calcMpCost = (skill: { mp: number; kind: string }) => {
+    let mpCost = skill.mp
+    if (skill.kind === 'magic_atk' || skill.kind === 'magic_def') {
+      mpCost = Math.max(0, mpCost + eff.weaponMpBonus)
+      if (syn.hasArcaneJunk) mpCost = Math.round(mpCost * 0.7)
+    }
+    return mpCost
+  }
 
   // 1) 갑옷 비전 각인 방어 스킬 (HP <= 65% 또는 상태이상 보유 & 버프 미중첩 시 35% 확률)
   const armorImprint = getArmorImprintSkillKey(player)
@@ -438,10 +456,7 @@ export function pickAutoAction(ctx: CombatContext, options: {
     const hpLow = player.hp / Math.max(1, player.maxHp) <= 0.65
     const hasStatus = player.statuses.length > 0
     if (skill && !ctx.buffs.has(bKey) && (hpLow || hasStatus)) {
-      let mpCost = skill.mp
-      if (skill.kind === 'magic_atk' || skill.kind === 'magic_def') {
-        mpCost = Math.max(0, mpCost + eff.weaponMpBonus)
-      }
+      const mpCost = calcMpCost(skill)
       if (player.mp >= mpCost && Math.random() < 0.35) {
         return { kind: 'skill', key: armorImprint }
       }
@@ -453,10 +468,7 @@ export function pickAutoAction(ctx: CombatContext, options: {
   if (weaponKey && !options.forbidActiveSkills) {
     const skill = SKILLS[weaponKey]
     if (skill) {
-      let mpCost = skill.mp
-      if (skill.kind === 'magic_atk' || skill.kind === 'magic_def') {
-        mpCost = Math.max(0, mpCost + eff.weaponMpBonus)
-      }
+      const mpCost = calcMpCost(skill)
       if (player.mp >= mpCost) {
         const chance = computeWeaponSkillProc(player, eff.행운)
         if (Math.random() < chance) {
@@ -470,10 +482,7 @@ export function pickAutoAction(ctx: CombatContext, options: {
   if (options.forceActiveSkills && weaponKey) {
     const skill = SKILLS[weaponKey]
     if (skill) {
-      let mpCost = skill.mp
-      if (skill.kind === 'magic_atk' || skill.kind === 'magic_def') {
-        mpCost = Math.max(0, mpCost + eff.weaponMpBonus)
-      }
+      const mpCost = calcMpCost(skill)
       if (player.mp >= mpCost) return { kind: 'skill', key: weaponKey }
       // MP 부족 → 마력충전 fallback
       return { kind: 'skill', key: '마력충전' }

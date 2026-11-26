@@ -1,5 +1,6 @@
-import type { Character, ItemInstance, JunkResonanceId, TraitQuirkId } from '@/types'
+import type { Character, ItemInstance, JunkResonanceId, RelicId, TraitQuirkId } from '@/types'
 import { WEAPON_TRAITS, ARMOR_TRAITS } from '@/data/traits'
+import { WEAPONS } from '@/data/weapons'
 
 export interface QuirkInfo {
   id: TraitQuirkId
@@ -98,6 +99,37 @@ export const RESONANCE_INFO: Record<JunkResonanceId, ResonanceInfo> = {
     descKo: '녹슨 무기 + 녹슨 갑옷: 적 독/출혈 DoT 피해 +50%, 적 회복량 -50%',
     descEn: 'Rusty Weapon + Rusty Armor: +50% Poison/Bleed DoT damage & -50% enemy healing',
   },
+  cursed_artisan: {
+    id: 'cursed_artisan',
+    nameKo: '부식 장인',
+    nameEn: 'Corrosion Artisan',
+    descKo: '착용 무기·갑옷 부식 연성 합 >= 3: 공격력·방어력 +20%',
+    descEn: 'Total Temper >= 3 on equipped gear: +20% ATK & DEF',
+  },
+  scrap_collector: {
+    id: 'scrap_collector',
+    nameKo: '고물상 완전체',
+    nameEn: 'Master Scrapper',
+    descKo: '잡동사니 유물 2개 & 장비 티어 합 <= 12: 허점 배율 +20% & 매 10틱 HP/MP 4% 회복',
+    descEn: '2 Relics & Gear Tier sum <= 12: +20% Loophole power & +4% HP/MP every 10 ticks',
+  },
+  arcane_junk: {
+    id: 'arcane_junk',
+    nameKo: '누더기 대마도사',
+    nameEn: 'Tattered Archmage',
+    descKo: '노말 등급 또는 하급 특성 마법무기 + 로브: 마법 스킬 MP -30% & 관통 +20%p',
+    descEn: 'Normal/Low-trait Magic Weapon + Robe: -30% Magic Skill MP & +20%p PEN',
+  },
+}
+
+export function hasRelic(player: Character, id: RelicId): boolean {
+  return !!player.relics?.includes(id)
+}
+
+export function getTemperMult(item: ItemInstance | null | undefined, hasAnvilRelic: boolean = false): number {
+  const lv = Math.max(0, Math.min(3, item?.temperLevel ?? 0))
+  if (lv <= 0) return 1
+  return 1 + lv * 0.18 * (hasAnvilRelic ? 1.5 : 1.0)
 }
 
 export function getItemQuirk(item: ItemInstance | null | undefined): TraitQuirkId | null {
@@ -110,19 +142,28 @@ export function getActiveResonances(player: Character): JunkResonanceId[] {
   const res: JunkResonanceId[] = []
   const w = player.weapon
   const a = player.armor
-  if (!w || !a) return res
-
-  const wDef = WEAPON_TRAITS[w.trait]
-  const aDef = ARMOR_TRAITS[a.trait]
+  const wDef = w ? WEAPON_TRAITS[w.trait] : undefined
+  const aDef = a ? ARMOR_TRAITS[a.trait] : undefined
 
   if (wDef?.tier === '하급' && aDef?.tier === '하급') {
     res.push('loophole_master')
   }
-  if (w.grade === '노말' && a.grade === '노말') {
+  if (w?.grade === '노말' && a?.grade === '노말') {
     res.push('david_stone')
   }
-  if (w.trait === '녹슨' && a.trait === '녹슨') {
+  if (w?.trait === '녹슨' && a?.trait === '녹슨') {
     res.push('tetanus_set')
+  }
+  const temperSum = (w?.temperLevel ?? 0) + (a?.temperLevel ?? 0)
+  if (temperSum >= 3) {
+    res.push('cursed_artisan')
+  }
+  const tierSum = (w?.tier ?? 1) + (a?.tier ?? 1)
+  if ((player.relics?.length ?? 0) >= 2 && tierSum <= 12) {
+    res.push('scrap_collector')
+  }
+  if (w && a?.baseKey === '로브' && WEAPONS[w.baseKey]?.isMagic && (w.grade === '노말' || wDef?.tier === '하급')) {
+    res.push('arcane_junk')
   }
   return res
 }
@@ -134,13 +175,23 @@ export interface PlayerSynergyState {
   hasLoopholeMaster: boolean
   hasDavidStone: boolean
   hasTetanusSet: boolean
-  /** 허점의 달인 공명 배수 (1.0 또는 1.3) */
+  hasCursedArtisan: boolean
+  hasScrapCollector: boolean
+  hasArcaneJunk: boolean
+  /** 허점 공명 배수 (기본 1.0 + 허점의달인 0.3 + 연성 + 고물상 + 마스터리) */
   loopholeMult: number
 }
 
-export function getPlayerSynergy(player: Character): PlayerSynergyState {
+export function getPlayerSynergy(player: Character, masteryLoopholeBonus: number = 0): PlayerSynergyState {
   const resonances = getActiveResonances(player)
   const hasLoopholeMaster = resonances.includes('loophole_master')
+  const hasScrapCollector = resonances.includes('scrap_collector')
+  const totalTemper = (player.weapon?.temperLevel ?? 0) + (player.armor?.temperLevel ?? 0)
+  const mult = 1.0
+    + (hasLoopholeMaster ? 0.30 : 0)
+    + totalTemper * 0.12
+    + (hasScrapCollector ? 0.20 : 0)
+    + masteryLoopholeBonus
   return {
     weaponQuirk: getItemQuirk(player.weapon),
     armorQuirk: getItemQuirk(player.armor),
@@ -148,7 +199,10 @@ export function getPlayerSynergy(player: Character): PlayerSynergyState {
     hasLoopholeMaster,
     hasDavidStone: resonances.includes('david_stone'),
     hasTetanusSet: resonances.includes('tetanus_set'),
-    loopholeMult: hasLoopholeMaster ? 1.3 : 1.0,
+    hasCursedArtisan: resonances.includes('cursed_artisan'),
+    hasScrapCollector,
+    hasArcaneJunk: resonances.includes('arcane_junk'),
+    loopholeMult: Math.round(mult * 100) / 100,
   }
 }
 

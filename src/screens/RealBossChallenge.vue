@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { realBossImageUrl, defaultBgUrl, playerImageUrl, allUserAvatarKeys, isValidAvatarKey } from '@/ui/images'
+import { computeParadoxBlessing } from '@/core/realboss'
 import HpMpBar from '@/ui/components/HpMpBar.vue'
 import ItemName from '@/ui/components/ItemName.vue'
 import { useI18n } from '@/lib/i18n'
@@ -15,6 +16,23 @@ const theme = computed(() => game.realBossTheme)
 const boss = computed(() => game.realBossMonster)
 const weak = computed(() => game.realBossWeakRecord)
 const bestDrainPct = computed(() => Math.round((game.meta.currentBossBestDrain ?? 0) * 100))
+
+const clearedRoster = computed(() =>
+  (game.meta.characterHistory ?? []).filter((r) => r.cleared !== false)
+)
+const currentRosterIdx = computed(() => {
+  if (!weak.value) return 0
+  const idx = clearedRoster.value.findIndex((r) => r.recordedAt === weak.value!.recordedAt)
+  return idx >= 0 ? idx : 0
+})
+const paradox = computed(() => (weak.value ? computeParadoxBlessing(weak.value) : { tierSum: 32, statMult: 1, bonusPen: 0 }))
+
+function switchChallenger(delta: number) {
+  const list = clearedRoster.value
+  if (list.length <= 1) return
+  const nextIdx = (currentRosterIdx.value + delta + list.length) % list.length
+  game.selectRealBossChallenger(list[nextIdx])
+}
 
 // 옛 기록은 avatarKey 가 누락/무효일 수 있음 → 첫 캐릭터로 폴백
 // (playerImageUrl 의 기본 폴백 /images/user.webp 는 그룹샷이라 1인 표시에 부적합).
@@ -75,11 +93,33 @@ function start() {
           <div class="px-3 py-2 flex items-center gap-2 border-b border-cyan-500/20 bg-cyan-950/20">
             <div class="text-sm font-bold text-cyan-100 truncate flex-1">
               {{ game.characterName(weak.avatarKey) }}
+              <span class="text-xs font-mono text-amber-300 ml-1">[{{ weak.rank }} · T{{ paradox.tierSum }}]</span>
+            </div>
+            <div v-if="clearedRoster.length > 1" class="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                class="w-7 h-7 rounded bg-slate-800 hover:bg-slate-700 text-xs font-bold text-cyan-200 border border-cyan-500/30"
+                @click="switchChallenger(-1)"
+                :aria-label="t('realboss.prevHero', '이전 캐릭터')"
+              >&lt;</button>
+              <span class="text-[11px] font-mono text-gray-300 px-1">{{ currentRosterIdx + 1 }}/{{ clearedRoster.length }}</span>
+              <button
+                type="button"
+                class="w-7 h-7 rounded bg-slate-800 hover:bg-slate-700 text-xs font-bold text-cyan-200 border border-cyan-500/30"
+                @click="switchChallenger(1)"
+                :aria-label="t('realboss.nextHero', '다음 캐릭터')"
+              >&gt;</button>
             </div>
             <div class="px-2 py-1 rounded-md bg-amber-950/60 border border-amber-400/40 text-stat-luck text-xs font-bold font-mono shrink-0 flex items-center gap-1">
               <span class="text-amber-400">⬢</span>
               <span class="tabular-nums">{{ weak.gold }}G</span>
             </div>
+          </div>
+          <div
+            v-if="paradox.statMult > 1"
+            class="mx-3 mt-2 rounded-md border border-amber-400/50 bg-amber-950/35 px-2.5 py-1.5 text-[11px] text-amber-200 font-bold"
+          >
+            [PARADOX] {{ t('realboss.paradoxActive', `역설의 가호 활성: 전스탯 ×${paradox.statMult.toFixed(2)} · 관통 +${paradox.bonusPen}%`, { mult: paradox.statMult.toFixed(2), pen: paradox.bonusPen }) }}
           </div>
           <div class="px-3 py-2 space-y-1.5 flex-1 flex flex-col">
             <!-- 도전 시 풀 회복되므로 미리보기도 max 기준 표시 -->

@@ -60,6 +60,10 @@ const partClass = computed(() => props.clickable ? 'cursor-pointer hover:underli
         :class="[fmt.baseClass, partClass]"
         @click.stop="clickable && emit('clickBase')"
       >{{ displayed.base }}</span>
+      <span
+        v-if="item.temperLevel && item.temperLevel > 0"
+        class="ml-1 px-1 rounded bg-amber-950/70 border border-amber-400/50 text-amber-300 text-[10px] font-bold"
+      >+{{ item.temperLevel }}</span>
       <span v-if="!compact" class="text-gray-500 text-xs ml-1">[T{{ item.tier }}]</span>
     </template>
     <span v-else class="text-gray-500 italic">{{ t('item.notEquipped', '미 착용') }}</span>

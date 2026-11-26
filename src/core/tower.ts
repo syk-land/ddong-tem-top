@@ -105,7 +105,31 @@ export function generateChapterFloors(
   // 10층은 보스
   shuffled.push('boss')
 
-  return shuffled.map((type) => ({ type, cleared: false }))
+  const floors: FloorEvent[] = shuffled.map((type) => ({ type, cleared: false }))
+
+  // v12: 2갈래 분기 선택지 부여 (튜토리얼 강제 구간 제외, 챕터당 최대 4곳)
+  const minAltIdx = opts.tutorialForceCh1Layout && chapterIdx === 0
+    ? 4
+    : (opts.tutorialForceCh2FirstFloor && chapterIdx === 1 ? 1 : 0)
+  let altCount = 0
+  let extraEventPlaced = false
+  for (let i = minAltIdx; i < floors.length - 1 && altCount < 4; i++) {
+    const f = floors[i]
+    if (f.type === 'monster') {
+      if (!extraEventPlaced && Math.random() < 0.30) {
+        f.altChoice = { type: 'special_event' }
+        extraEventPlaced = true
+      } else {
+        f.altChoice = { type: 'monster', isElite: true }
+      }
+      altCount++
+    } else if (f.type === 'healing_spring' && Math.random() < 0.65) {
+      f.altChoice = { type: 'monster', isElite: true }
+      altCount++
+    }
+  }
+
+  return floors
 }
 
 export type TowerTutorialOpts = {

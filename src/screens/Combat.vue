@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { SKILLS } from '@/data/skills'
+import { RELICS } from '@/data/relics'
 import { getActiveResonances, RESONANCE_INFO } from '@/core/junkSynergy'
 import HpMpBar from '@/ui/components/HpMpBar.vue'
 import ItemName from '@/ui/components/ItemName.vue'
@@ -12,7 +13,7 @@ import { sfx } from '@/ui/sound'
 import { useI18n } from '@/lib/i18n'
 
 const game = useGameStore()
-const { t, td } = useI18n()
+const { t, td, lang } = useI18n()
 const combat = computed(() => game.combat!)
 const player = computed(() => combat.value.player)
 const monsters = computed(() => combat.value.monsters)
@@ -677,14 +678,20 @@ watch(
               </div>
             </div>
 
-            <!-- 활성화된 똥템 공명 배지 -->
-            <div v-if="activeResonances.length > 0" class="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <!-- 활성화된 똥템 공명 & 유물 배지 -->
+            <div v-if="activeResonances.length > 0 || (player.relics && player.relics.length > 0)" class="flex flex-wrap items-center gap-1.5 pt-0.5">
               <span
                 v-for="r in activeResonances"
                 :key="r.id"
                 class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-950/70 text-amber-200 border border-amber-400/60 shadow-[0_0_8px_rgba(251,191,36,0.25)]"
-                :title="r.descKo"
-              >💡 {{ r.nameKo }}</span>
+                :title="lang === 'en' ? r.descEn : r.descKo"
+              >[RES] {{ lang === 'en' ? r.nameEn : r.nameKo }}</span>
+              <span
+                v-for="rid in (player.relics ?? [])"
+                :key="rid"
+                class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950/70 text-emerald-200 border border-emerald-400/50"
+                :title="lang === 'en' ? RELICS[rid].descEn : RELICS[rid].descKo"
+              >[RELIC] {{ lang === 'en' ? RELICS[rid].nameEn : RELICS[rid].nameKo }}</span>
             </div>
 
             <!-- v11: 시간의 파동 (전투 1버튼 능동 개입) -->

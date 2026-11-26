@@ -112,6 +112,19 @@ export type JunkResonanceId =
   | 'loophole_master'
   | 'david_stone'
   | 'tetanus_set'
+  | 'cursed_artisan'
+  | 'scrap_collector'
+  | 'arcane_junk'
+
+export type RelicId =
+  | 'cracked_watch'
+  | 'rusty_nail_jar'
+  | 'lead_dice'
+  | 'broken_compass'
+  | 'tattered_cloak'
+  | 'overloaded_coil'
+  | 'beggar_bowl'
+  | 'cursed_anvil_shard'
 
 export interface TraitDef {
   name: string
@@ -163,6 +176,7 @@ export interface ItemInstance {
   buyback: number
   effects: TraitEffect         // 스케일링된 효과 (계수 적용)
   skillKey?: string            // 인스턴스 고유 각인 스킬 (무기 변주 / 갑옷 비전 각인)
+  temperLevel?: number         // 부식 연성 단계 (0~3, 티어/등급 유지 강화)
 }
 
 // ====== 스킬 ======
@@ -265,17 +279,28 @@ export interface Character {
   actionGauge: number
   // 침묵 효과 (silence_chance trait 등) — 이 틱까지 스킬 사용 봉인
   silencedUntilTick?: number
+  // v12: 잡동사니 유물 (런당 최대 2개)
+  relics?: RelicId[]
 }
 
 // ====== 게임 진행 ======
 export type FloorEventType =
   | 'monster' | 'boss' | 'shop' | 'treasure' | 'healing_spring' | 'special_event'
 
+export interface FloorChoiceOption {
+  type: FloorEventType
+  isElite?: boolean
+  specialEventKey?: string
+}
+
 export interface FloorEvent {
   type: FloorEventType
   cleared: boolean
+  isElite?: boolean
   // 특별 이벤트 식별
   specialEventKey?: string
+  // v12: 2갈래 분기 선택지
+  altChoice?: FloorChoiceOption
 }
 
 export interface ChapterState {
@@ -316,6 +341,7 @@ export interface ShopRefreshState {
 export interface ShopState {
   inventory: ItemInstance[]
   slotCount: number
+  temperUsed?: boolean
 }
 
 // ====== 메타 (영구 누적 보너스) ======
@@ -398,6 +424,7 @@ export interface CharacterRecord {
   maxHp: number
   mp: number
   maxMp: number
+  relics?: RelicId[]
   lastChapterTheme: ChapterTheme
   recordedAt: number
 }

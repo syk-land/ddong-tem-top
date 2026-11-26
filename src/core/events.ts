@@ -117,6 +117,31 @@ export function applySmithUpgrade(
   }
 }
 
+// v12: 부식 연성 — 등급/티어(1~16)를 그대로 유지한 채 장비 배율과 허점 위력을 강화 (최대 +3)
+export function applySmithTemper(
+  character: Character,
+  bet: number,
+  slot: 'weapon' | 'armor' = 'weapon',
+): { success: boolean; newItem?: ItemInstance } {
+  const cur = slot === 'weapon' ? character.weapon : character.armor
+  if (!cur) return { success: false }
+  const curLv = cur.temperLevel ?? 0
+  if (curLv >= 3) return { success: false }
+  if (character.gold < bet) return { success: false }
+  character.gold -= bet
+
+  const chance = smithSuccessChance(bet, cur.sellPrice * (1 + curLv * 0.5))
+  if (Math.random() >= chance) return { success: false }
+
+  const tempered: ItemInstance = {
+    ...JSON.parse(JSON.stringify(cur)),
+    temperLevel: curLv + 1,
+  }
+  if (slot === 'weapon') character.weapon = tempered
+  else character.armor = tempered
+  return { success: true, newItem: tempered }
+}
+
 // 9.14.4: 도박사 룰렛
 export interface RouletteResult {
   outcome: '대성공' | '성공' | '무효' | '실패' | '대실패'

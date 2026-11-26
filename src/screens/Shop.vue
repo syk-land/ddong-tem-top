@@ -4,7 +4,8 @@ import { useGameStore } from '@/stores/game'
 import ItemDetail from '@/ui/components/ItemDetail.vue'
 import type { ItemInstance } from '@/types'
 import { themeBgUrl, shopIconUrl } from '@/ui/images'
-import { canEquipItem } from '@/core/challengeRuntime'
+import { canEquipItem, shopForbidden } from '@/core/challengeRuntime'
+import { getItemBuyPrice, getShopTemperCost } from '@/core/shop'
 import { CHALLENGES_MAP } from '@/data/challenges'
 import { useI18n } from '@/lib/i18n'
 
@@ -38,18 +39,40 @@ const bgUrl = computed(() => {
   const ch = game.currentChapterState
   return ch ? themeBgUrl(ch.theme) : ''
 })
+const currentChapterNum = computed(() => game.currentChapterState?.chapter ?? 1)
+const temperCost = computed(() => getShopTemperCost(currentChapterNum.value, player.value))
 const shopListingRef = ref<HTMLElement | null>(null)
+
+function priceOf(item: ItemInstance): number {
+  return getItemBuyPrice(item, player.value)
+}
 
 async function buy(itemId: string) {
   const item = shop.value.inventory.find((i: ItemInstance) => i.id === itemId)
   if (!item) return
-  if (player.value.gold < item.buyPrice) return
+  const price = priceOf(item)
+  if (player.value.gold < price) return
   const ok = await game.confirmModal(
-    t('shop.buyConfirmBody', `${itemLabel(item)}\n\n${item.buyPrice}G에 구매?`, { item: itemLabel(item), gold: item.buyPrice }),
+    t('shop.buyConfirmBody', `${itemLabel(item)}\n\n${price}G에 구매?`, { item: itemLabel(item), gold: price }),
     { title: t('shop.buyConfirmTitle', '장비 구매'), okLabel: t('shop.buyBtn', '구매') }
   )
   if (!ok) return
   await game.buyItemAndEquip(item)
+}
+
+async function temperSlot(slot: 'weapon' | 'armor') {
+  const target = player.value[slot]
+  if (!target || shop.value.temperUsed || (target.temperLevel ?? 0) >= 3) return
+  if (game.challengeContext && shopForbidden(game.challengeContext)) return
+  const ok = await game.confirmModal(
+    t('shop.temperConfirmBody', `${itemLabel(target)}\n\n${temperCost.value}G로 부식 연성 (+18% 계수 · 티어 유지)?`, {
+      item: itemLabel(target),
+      gold: temperCost.value,
+    }),
+    { title: t('shop.temperTitle', '모루: 부식 연성'), okLabel: t('shop.temperBtn', '연성') },
+  )
+  if (!ok) return
+  await game.temperItemInShop(slot)
 }
 function refreshShop() {
   game.refreshShopAction()
@@ -289,17 +312,57 @@ void bgUrl  // 추후 배경 활용 여지
           <button
             v-else
             class="shrink-0 w-16 rounded-md font-bold transition active:scale-[0.98] border-2 flex flex-col items-center justify-center gap-0.5 px-1"
-            :class="player.gold < item.buyPrice
+            :class="player.gold < priceOf(item)
               ? 'bg-slate-800/60 text-gray-500 border-slate-700/60 cursor-not-allowed'
               : 'bg-cyan-500/20 text-cyan-100 hover:bg-cyan-500/35 border-cyan-400/60'"
-            :disabled="player.gold < item.buyPrice"
+            :disabled="player.gold < priceOf(item)"
             @click="buy(item.id)"
-            :title="t('shop.buyTooltip', `${item.buyPrice}G 구매`, { gold: item.buyPrice })"
+            :title="t('shop.buyTooltip', `${priceOf(item)}G 구매`, { gold: priceOf(item) })"
           >
             <span class="text-xs uppercase tracking-wide opacity-80">{{ t('shop.buyBtn', '구매') }}</span>
-            <span class="font-mono tabular-nums text-sm leading-tight">{{ item.buyPrice }}G</span>
+            <span class="font-mono tabular-nums text-sm leading-tight">{{ priceOf(item) }}G</span>
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- ====================================================== -->
+    <!-- 모루: 부식 연성 (티어 유지 강화, 상점당 1회)                -->
+    <!-- ====================================================== -->
+    <div class="rounded-lg border border-orange-400/40 bg-bg-secondary/60 backdrop-blur-sm overflow-hidden">
+      <div class="px-3 py-1.5 bg-orange-950/40 border-b border-orange-400/20 flex items-center justify-between gap-2">
+        <span class="text-xs font-bold text-orange-200">[ANVIL] {{ t('shop.temperHeader', '모루: 부식 연성 (티어 유지)') }}</span>
+        <span class="text-xs font-mono text-orange-200/80">{{ shop.temperUsed ? t('shop.temperDone', '이번 상점 완료') : `${temperCost}G` }}</span>
+      </div>
+      <div class="p-2 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          class="rounded-md border px-2.5 py-2 text-left transition active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+          :class="!shop.temperUsed && player.weapon && (player.weapon.temperLevel ?? 0) < 3 && player.gold >= temperCost
+            ? 'border-orange-400/60 bg-orange-950/30 hover:bg-orange-900/40 text-orange-100'
+            : 'border-slate-700/60 bg-slate-800/50 text-gray-400'"
+          :disabled="!!shop.temperUsed || !player.weapon || (player.weapon.temperLevel ?? 0) >= 3 || player.gold < temperCost"
+          @click="temperSlot('weapon')"
+        >
+          <div class="text-xs font-bold">{{ t('shop.temperWeapon', '무기 연성') }}</div>
+          <div class="text-[11px] font-mono">
+            {{ player.weapon ? `+${player.weapon.temperLevel ?? 0} -> +${Math.min(3, (player.weapon.temperLevel ?? 0) + 1)}` : t('shop.empty.weapon', '미 착용') }}
+          </div>
+        </button>
+        <button
+          type="button"
+          class="rounded-md border px-2.5 py-2 text-left transition active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+          :class="!shop.temperUsed && player.armor && (player.armor.temperLevel ?? 0) < 3 && player.gold >= temperCost
+            ? 'border-orange-400/60 bg-orange-950/30 hover:bg-orange-900/40 text-orange-100'
+            : 'border-slate-700/60 bg-slate-800/50 text-gray-400'"
+          :disabled="!!shop.temperUsed || !player.armor || (player.armor.temperLevel ?? 0) >= 3 || player.gold < temperCost"
+          @click="temperSlot('armor')"
+        >
+          <div class="text-xs font-bold">{{ t('shop.temperArmor', '갑옷 연성') }}</div>
+          <div class="text-[11px] font-mono">
+            {{ player.armor ? `+${player.armor.temperLevel ?? 0} -> +${Math.min(3, (player.armor.temperLevel ?? 0) + 1)}` : t('shop.empty.armor', '없음') }}
+          </div>
+        </button>
       </div>
     </div>
 

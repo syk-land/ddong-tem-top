@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { useAuthStore } from './auth'
 import type {
   Screen, TowerRun, MetaBonuses, Stats, StatKey, ItemInstance, MonsterInstance, ChapterTheme, CharacterRecord,
-  TutorialStep, TraitQuirkId,
+  TutorialStep, TraitQuirkId, RelicId,
 } from '@/types'
 import { createCharacter, generateRandomStats, uniformStartingStats, computeMaxMp, computeMaxHp } from '@/core/character'
 import { makeTowerRun, currentChapter, currentFloor, advanceFloor } from '@/core/tower'
@@ -13,21 +13,22 @@ import {
 } from '@/core/meta'
 import {
   isChallengeDue, pickChallengeRecord, makeRealBoss, makePrologueRiftBoss,
-  pickNextRealBossTheme, startStatScale,
+  pickNextRealBossTheme, startStatScale, computeParadoxBlessing,
 } from '@/core/realboss'
 import { createCombatContext, type CombatContext, advanceTick, checkActionReady, consumeAction, playerBasicAttack, monsterAttack, makeMonster, pushLog, triggerTimeSurge } from '@/core/combat'
 import { useSkill, getAvailableSkills, pickAutoAction } from '@/core/skills'
-import { createShop, refreshShop } from '@/core/shop'
+import { createShop, refreshShop, getItemBuyPrice, getShopTemperCost } from '@/core/shop'
 import type { ShopState } from '@/types'
 import { rollItem } from '@/core/items'
 import { CHAPTER_THEMES } from '@/data/chapters'
-import { pickOne, weightedChoice } from '@/core/rng'
+import { pickOne, pickN, weightedChoice } from '@/core/rng'
 import { computeClearScore, getClearRank } from '@/core/character'
 import {
   SPECIAL_EVENTS, SPECIAL_EVENT_INFO, type SpecialEventKey,
-  resolveCrisisAdventurer, applySmithUpgrade, pickSmithSlot, spinRoulette, applyRouletteResult,
+  resolveCrisisAdventurer, applySmithUpgrade, applySmithTemper, pickSmithSlot, spinRoulette, applyRouletteResult,
   exchangeStat, blackMarketPrice, buyStatPoint, greedyCollectorTake,
 } from '@/core/events'
+import { RELICS, ALL_RELIC_IDS } from '@/data/relics'
 import { applyRefreshBoost } from '@/core/shop'
 import { pickThreeRandomChallenges, type ChallengeDef } from '@/data/challenges'
 import {
@@ -153,6 +154,10 @@ interface GameState {
   autoEnter: boolean
   // v11: 시간의 파동 자동 발동 토글 (기본 OFF — 수동 발동 시 ×1.5, 자동 ×1.2)
   autoSurge: boolean
+  // v12: 자동 진입 시 분기 선택 선호 ('safe' | 'risk')
+  autoRoutePref: 'safe' | 'risk'
+  // v12: 보스 유물 드래프트 대기 플래그
+  pendingRelicDraft: boolean
   // v11: 전투 간 이월되는 시간의 파동 게이지 (최대 50)
   carriedSurgeGauge: number
   // v11: 프롤로그 균열 조우전 상태
@@ -267,6 +272,10 @@ export const useGameStore = defineStore('game', {
     autoSurge: (() => {
       try { return localStorage.getItem('climetop:autoSurge:v1') === '1' } catch { return false }
     })(),
+    autoRoutePref: (() => {
+      try { return localStorage.getItem('climetop:autoRoute:v1') === 'risk' ? 'risk' : 'safe' } catch { return 'safe' }
+    })(),
+    pendingRelicDraft: false,
     carriedSurgeGauge: 0,
     prologueRiftActive: false,
     prologueRiftAfterMode: null,
@@ -550,8 +559,10 @@ export const useGameStore = defineStore('game', {
       const customStats = this.rolledStats ?? uniformStartingStats()
       // 영구 누적 시작 스탯 보너스 (진짜 보스 도전 누적). 1회성 pending은 deprecated.
       this.carriedSurgeGauge = 0
+      this.pendingRelicDraft = false
       const startBonus = (this.meta.permanentStartBonus ?? 0) + (this.meta.pendingStartBonus ?? 0)
       const character = createCharacter(bonusAllocation, customStats, startBonus)
+      character.relics = []
       // 메타 풀에서 분배한 만큼 차감
       consumeBonusFromPool(this.meta, bonusAllocation)
       // pending 보너스는 1회성이라 소진 (영구는 그대로 유지)
@@ -600,6 +611,7 @@ export const useGameStore = defineStore('game', {
       if (!Array.isArray(loaded.inventory)) loaded.inventory = []
       if (typeof loaded.inventoryCap !== 'number') loaded.inventoryCap = 4
       if (!Array.isArray(loaded.challengeKeys)) loaded.challengeKeys = []
+      if (!Array.isArray(loaded.character.relics)) loaded.character.relics = []
       this.run = loaded
       // 옛 키(F_r*_c* / M_r*_c*) 마이그레이션
       const rawKey = (loaded as any).avatarKey as string | undefined
@@ -616,6 +628,25 @@ export const useGameStore = defineStore('game', {
       this.savedRunExists = true
       this.screen = 'dungeon'
       return true
+    },
+
+    setAutoRoutePref(pref: 'safe' | 'risk') {
+      this.autoRoutePref = pref
+      try { localStorage.setItem('climetop:autoRoute:v1', pref) } catch {}
+    },
+
+    chooseFloorRoute(useAlt: boolean) {
+      if (!this.run) return
+      const floor = currentFloor(this.run)
+      if (!floor) return
+      if (useAlt && floor.altChoice) {
+        floor.type = floor.altChoice.type
+        floor.isElite = !!floor.altChoice.isElite
+        floor.specialEventKey = floor.altChoice.specialEventKey
+      }
+      floor.altChoice = undefined
+      saveRun(this.run)
+      this.enterCurrentFloor()
     },
 
     // 현재 층 이벤트 실행
@@ -703,13 +734,22 @@ export const useGameStore = defineStore('game', {
       } else if (kind === 'mimic') {
         monsters = [makeMonster(themeDef.boss, chapterNum, kind, rbcc)]
       } else {
+        const floor = currentFloor(this.run)
+        const isElite = !!floor?.isElite
         const min = themeDef.encounterMin ?? 1
         const max = themeDef.encounterMax ?? 1
-        const count = min + Math.floor(Math.random() * (max - min + 1))
+        const count = isElite ? Math.min(2, Math.max(1, max)) : (min + Math.floor(Math.random() * (max - min + 1)))
         monsters = []
         for (let i = 0; i < count; i++) {
           const template = pickOne(themeDef.normalMonsters)
-          monsters.push(makeMonster(template, chapterNum, 'normal', rbcc))
+          const m = makeMonster(template, chapterNum, 'normal', rbcc)
+          if (isElite) {
+            m.maxHp = Math.round(m.maxHp * 1.28)
+            m.hp = m.maxHp
+            m.atk = Math.round(m.atk * 1.18)
+            m.template = { ...m.template, name: `[정예] ${m.template.name}` }
+          }
+          monsters.push(m)
         }
       }
 
@@ -833,10 +873,14 @@ export const useGameStore = defineStore('game', {
     },
 
     // ItemAnnounceModal 의 "확인" 콜백 — 큐 전체 비움 (한 모달에 카드 N장 한꺼번에 보여줌).
-    clearItemAnnounce() {
+    async clearItemAnnounce() {
       this.itemAnnounceQueue = []
+      if (this.pendingRelicDraft) {
+        this.pendingRelicDraft = false
+        await this.offerRelicDraft()
+      }
       // 1) 사용자가 "확인" 을 누른 시점에 다음 층 자동 진입 (autoEnter 여부와 무관).
-      //    - combat 이 종료(승리) 상태로 남아 있으면 closeCombat 호출 → combat=null +
+      //    - combat 이 종료(승리) 상태로 남아 있으면 closeCombat 호출 -> combat=null +
       //      advance(). closeCombat 안의 itemAnnounceQueue 가드도 이제 통과 (큐 비움).
       //    - combat 없는 던전 도착 상태 (보물/일반 드롭 알림 닫은 후) 면 직접 advance.
       if (this.combat?.ended && this.combat?.victory) {
@@ -852,6 +896,41 @@ export const useGameStore = defineStore('game', {
       if (this.pendingTreasureTutorial) {
         this.pendingTreasureTutorial = false
         this.triggerTutorial('first_treasure')
+      }
+    },
+
+    async offerRelicDraft() {
+      if (!this.run) return
+      const owned = new Set(this.run.character.relics ?? [])
+      if (owned.size >= 2) return
+      const pool = ALL_RELIC_IDS.filter((id) => !owned.has(id))
+      if (pool.length === 0) return
+      const choices = pickN(pool, Math.min(3, pool.length))
+      let picked: RelicId | null = null
+      if (this.isAutoMode) {
+        picked = pickOne(choices)
+      } else {
+        const isEn = i18nT('common.ok', '확인') === 'OK'
+        picked = await this.showListDialog<RelicId>({
+          title: i18nT('relic.draftTitle', '잡동사니 유물 발견'),
+          message: i18nT('relic.draftBody', '탑의 틈새에서 기묘한 잡동사니를 발견했습니다. 하나를 선택하세요 (런당 최대 2개).'),
+          options: choices.map((id) => {
+            const def = RELICS[id]
+            return {
+              label: isEn ? def.nameEn : def.nameKo,
+              value: id,
+              sub: isEn ? def.descEn : def.descKo,
+              class: 'border border-emerald-500/40',
+            }
+          }),
+          cancelLabel: i18nT('relic.draftSkip', '넘기기'),
+        })
+      }
+      if (picked && !owned.has(picked)) {
+        if (!this.run.character.relics) this.run.character.relics = []
+        this.run.character.relics.push(picked)
+        this.recomputeDerivedStats()
+        saveRun(this.run)
       }
     },
 
@@ -1589,6 +1668,22 @@ export const useGameStore = defineStore('game', {
       const target = slot === 'weapon' ? c.weapon! : c.armor!
       const slotLabel = slot === 'weapon' ? i18nT('common.weapon', '무기') : i18nT('common.armor', '방어구')
       const targetName = `${i18nTd('tier', target.trait)} ${i18nTd('grade', target.grade)} ${i18nTd(slot === 'weapon' ? 'weapon' : 'armor', target.baseKey)}`
+      let mode: 'upgrade' | 'temper' = 'upgrade'
+      if ((target.temperLevel ?? 0) < 3) {
+        const pickedMode = await this.showDialog({
+          title: i18nT('evt.smith.modeTitle', '대장간 작업 선택'),
+          message: i18nT('evt.smith.modeBody',
+            `${slotLabel}: ${targetName} (T${target.tier}, 연성 +${target.temperLevel ?? 0}/3)\n\n정련 강화는 등급·티어를 올리고, 부식 연성은 티어를 유지해 EX 등급과 허점 공명을 강화합니다.`,
+            { slot: slotLabel, item: targetName, tier: target.tier, temper: target.temperLevel ?? 0 }),
+          buttons: [
+            { label: i18nT('evt.smith.modeUpgrade', '정련 강화 (등급 +1)'), value: 'upgrade', primary: true },
+            { label: i18nT('evt.smith.modeTemper', '부식 연성 (티어 유지 +18%)'), value: 'temper' },
+            { label: i18nT('common.cancel', '취소'), value: null },
+          ],
+        })
+        if (pickedMode === null) return
+        mode = pickedMode as 'upgrade' | 'temper'
+      }
       const maxBet = Math.min(c.gold, target.sellPrice * 2)
       const choice = await this.showDialog({
         title: i18nT('evt.smith.dlgTitle', '🔨 떠돌이 대장장이'),
@@ -1620,16 +1715,26 @@ export const useGameStore = defineStore('game', {
         await this.alertModal(i18nT('evt.smith.betZero', '베팅이 0이라 대장장이가 떠났다.'), i18nT('common.cancel', '취소'))
         return
       }
-      const result = applySmithUpgrade(c, bet, slot)
+      const result = mode === 'temper'
+        ? applySmithTemper(c, bet, slot)
+        : applySmithUpgrade(c, bet, slot)
       if (this.challengeContext) {
         onSmithBet(this.challengeContext, bet, c.gold + bet, result.success)
       }
       if (result.success && result.newItem) {
-        await this.alertModal(
-          `${i18nTd('tier', result.newItem.trait)} ${i18nTd('grade', result.newItem.grade)} ${i18nTd(slot === 'weapon' ? 'weapon' : 'armor', result.newItem.baseKey)}`,
-          i18nT('evt.smith.success', `🔥 ${slotLabel} 강화 성공!`, { slot: slotLabel }),
-        )
-        if (this.challengeContext) onEquipItem(this.challengeContext, result.newItem, target)
+        if (mode === 'temper') {
+          this.recomputeDerivedStats()
+          await this.alertModal(
+            `${targetName} [연성 +${result.newItem.temperLevel}]`,
+            i18nT('evt.smith.temperSuccess', `${slotLabel} 부식 연성 성공!`, { slot: slotLabel }),
+          )
+        } else {
+          await this.alertModal(
+            `${i18nTd('tier', result.newItem.trait)} ${i18nTd('grade', result.newItem.grade)} ${i18nTd(slot === 'weapon' ? 'weapon' : 'armor', result.newItem.baseKey)}`,
+            i18nT('evt.smith.success', `🔥 ${slotLabel} 강화 성공!`, { slot: slotLabel }),
+          )
+          if (this.challengeContext) onEquipItem(this.challengeContext, result.newItem, target)
+        }
       } else {
         await this.alertModal(i18nT('evt.smith.fail', `베팅 ${bet}G 소실`, { g: bet }), i18nT('evt.smith.failTitle', '💔 강화 실패'))
       }
@@ -1869,6 +1974,8 @@ export const useGameStore = defineStore('game', {
 
       // 승리 → 골드 보상 (마리당 분할 — 일반 다수 적 처치 보상 누적)
       const chapterNum = currentChapter(this.run).chapter
+      const curFloor = currentFloor(this.run)
+      const isEliteFight = !isBossFight && !isMimicFight && !!curFloor?.isElite
       const target_N = computeChapterGoldTarget(chapterNum)
       let reward = 0
       if (isBossFight) {
@@ -1878,16 +1985,20 @@ export const useGameStore = defineStore('game', {
       } else {
         // 일반: 마리당 (target_N / 7) × 0.85, 다수일수록 누적
         reward = Math.round((target_N / 7) * 0.85 * monsters.length * 0.85)
+        if (isEliteFight) reward = Math.round(reward * 1.6)
       }
       // ±20% 변동
       const variance = 0.8 + Math.random() * 0.4
       reward = Math.round(reward * variance)
+      if (isEliteFight) {
+        this.carriedSurgeGauge = Math.min(50, this.carriedSurgeGauge + 20)
+      }
 
       this.run.character.gold += reward
       if (this.challengeContext) onGoldGain(this.challengeContext, reward)
       pushLog(this.combat, `${i18nT('log.gold', '골드')} +${reward}`, 'gold')
 
-      // 보스/미믹 처치 시 드랍 아이템 (다수 전투는 드랍 X — 골드만)
+      // 보스/미믹/정예 처치 시 드랍 아이템
       // item_block trait 가진 적이 전투에 포함되어 있으면 드랍 차단 (그리폰 등)
       const blockedByItemBlock = this.combat.monsters.some(
         (m) => m.template.trait === 'item_block',
@@ -1904,6 +2015,19 @@ export const useGameStore = defineStore('game', {
         const drop = rollItem({ kind: Math.random() < 0.5 ? 'weapon' : 'armor', chapter: chapterNum, source: 'treasure' })
         this.receiveItem(drop)
         pushLog(this.combat, `${i18nT('log.mimicDrop', '미믹 드랍')}: ${i18nTd('tier', drop.trait)} ${i18nTd('grade', drop.grade)} ${i18nTd(drop.kind === 'weapon' ? 'weapon' : 'armor', drop.baseKey)}`, 'reward')
+      } else if (isEliteFight && Math.random() < 0.35) {
+        const drop = rollItem({ kind: Math.random() < 0.5 ? 'weapon' : 'armor', chapter: Math.min(10, chapterNum + 1), source: 'monster' })
+        this.receiveItem(drop)
+        pushLog(this.combat, `${i18nT('log.eliteDrop', '정예 드랍')}: ${i18nTd('tier', drop.trait)} ${i18nTd('grade', drop.grade)} ${i18nTd(drop.kind === 'weapon' ? 'weapon' : 'armor', drop.baseKey)}`, 'reward')
+      }
+
+      // v12: 챕터 2·6 보스 처치 시 잡동사니 유물 선택지
+      if (isBossFight && (chapterNum === 2 || chapterNum === 6) && (this.run.character.relics?.length ?? 0) < 2) {
+        if (this.itemAnnounceQueue.length > 0 && !this.isAutoMode) {
+          this.pendingRelicDraft = true
+        } else {
+          await this.offerRelicDraft()
+        }
       }
 
       saveRun(this.run)
@@ -1938,11 +2062,12 @@ export const useGameStore = defineStore('game', {
     // 상점 액션 (기본) — 인벤토리로 들어감
     buyItem(item: ItemInstance) {
       if (!this.run) return false
-      if (this.run.character.gold < item.buyPrice) return false
-      this.run.character.gold -= item.buyPrice
+      const price = getItemBuyPrice(item, this.run.character)
+      if (this.run.character.gold < price) return false
+      this.run.character.gold -= price
       // 챌린지 훅: 구매
       if (this.challengeContext) {
-        onShopBuy(this.challengeContext, item, item.buyPrice)
+        onShopBuy(this.challengeContext, item, price)
       }
       this.receiveItem(item)
       // 상점 인벤토리에서 제거
@@ -1959,7 +2084,8 @@ export const useGameStore = defineStore('game', {
     // - 인벤토리도 가득이면 모달로 폐기 동의 받음
     async buyItemAndEquip(item: ItemInstance): Promise<boolean> {
       if (!this.run) return false
-      if (this.run.character.gold < item.buyPrice) {
+      const price = getItemBuyPrice(item, this.run.character)
+      if (this.run.character.gold < price) {
         await this.alertModal(i18nT('shop.noGold', '골드가 부족합니다.'), i18nT('shop.cantBuy', '💸 구매 불가'))
         return false
       }
@@ -2003,8 +2129,8 @@ export const useGameStore = defineStore('game', {
       }
 
       // 결제
-      this.run.character.gold -= item.buyPrice
-      if (this.challengeContext) onShopBuy(this.challengeContext, item, item.buyPrice)
+      this.run.character.gold -= price
+      if (this.challengeContext) onShopBuy(this.challengeContext, item, price)
 
       // 장착
       c[slotKey] = item
@@ -2063,6 +2189,28 @@ export const useGameStore = defineStore('game', {
       return ok
     },
 
+    async temperItemInShop(slot: 'weapon' | 'armor'): Promise<boolean> {
+      if (!this.run || !this.shop) return false
+      if (this.shop.temperUsed) return false
+      if (this.challengeContext && shopForbidden(this.challengeContext)) return false
+      const c = this.run.character
+      const item = c[slot]
+      if (!item || (item.temperLevel ?? 0) >= 3) return false
+      const chapter = currentChapter(this.run).chapter
+      const cost = getShopTemperCost(chapter, c)
+      if (c.gold < cost) {
+        await this.alertModal(i18nT('shop.noGold', '골드가 부족합니다.'), i18nT('shop.cantBuy', '구매 불가'))
+        return false
+      }
+      c.gold -= cost
+      item.temperLevel = (item.temperLevel ?? 0) + 1
+      this.shop.temperUsed = true
+      this.recomputeDerivedStats()
+      saveRun(this.run)
+      sfx.loophole()
+      return true
+    },
+
     leaveShop() {
       this.shop = null
       this.advance()
@@ -2113,7 +2261,7 @@ export const useGameStore = defineStore('game', {
           for (const it of this.shop.inventory) {
             const v = valOf(it)
             const better = it.kind === 'weapon' ? v > curW : v > curA
-            const budget = c.gold >= it.buyPrice
+            const budget = c.gold >= getItemBuyPrice(it, c)
             if (better && budget) cands.push({ it, v })
           }
           if (cands.length === 0) break
@@ -2194,6 +2342,10 @@ export const useGameStore = defineStore('game', {
       this.screen = 'realboss'
     },
 
+    selectRealBossChallenger(rec: CharacterRecord) {
+      this.realBossWeakRecord = rec
+    },
+
     // 도전 전투 시작 — 캐릭터 스냅샷을 임시 Character로 부활시켜 Combat 생성.
     // 무기/갑옷도 그대로 복원해 공격력/방어력이 정상 작동하게 한다.
     enterRealBossCombat() {
@@ -2203,20 +2355,32 @@ export const useGameStore = defineStore('game', {
       // ItemInstance 깊은 복사 (참조 공유 방지)
       const weapon = rec.weapon ? JSON.parse(JSON.stringify(rec.weapon)) : null
       const armor = rec.armor ? JSON.parse(JSON.stringify(rec.armor)) : null
+      const blessing = computeParadoxBlessing(rec)
+      const scaledStats: Stats = {
+        힘: Math.round(rec.stats.힘 * blessing.statMult),
+        민첩: Math.round(rec.stats.민첩 * blessing.statMult),
+        체력: Math.round(rec.stats.체력 * blessing.statMult),
+        마력: Math.round(rec.stats.마력 * blessing.statMult),
+        행운: Math.round(rec.stats.행운 * blessing.statMult),
+      }
+      const maxHp = computeMaxHp(scaledStats.체력)
+      const maxMp = computeMaxMp(scaledStats.마력)
       const character = {
-        stats: { ...rec.stats },
-        hp: rec.maxHp,    // 부활 → 풀 HP
-        maxHp: rec.maxHp,
-        mp: rec.maxMp,
-        maxMp: rec.maxMp,
+        stats: scaledStats,
+        hp: maxHp,
+        maxHp,
+        mp: maxMp,
+        maxMp,
         weapon,
         armor,
+        relics: rec.relics ? [...rec.relics] : [],
         gold: rec.gold,
         statuses: [],
         actionGauge: 0,
       }
       this.combat = createCombatContext(character, [boss], this.meta.realBossClearCount ?? 0, {
         onQuirkTriggered: (q) => this.recordDiscoveredQuirk(q),
+        paradoxPenBonus: blessing.bonusPen,
       })
       pushLog(this.combat, i18nT('log.realBossChallenge', `진짜 보스 [${boss.template.name}]와의 도전!`, { name: i18nTd('monster', boss.template.name) }), 'info')
       this.screen = 'combat'

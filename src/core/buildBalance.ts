@@ -2,6 +2,7 @@ import type { Character, Grade, TraitTier } from '@/types'
 import { WEAPONS } from '@/data/weapons'
 import { WEAPON_TRAITS } from '@/data/traits'
 import { clamp } from './rng'
+import { hasRelic } from './junkSynergy'
 
 // ============================================================
 // 빌드별 스킬 자동 발동 확률 (밸런스 튜닝)
@@ -109,8 +110,9 @@ export function computeWeaponSkillProc(c: Character, luck: number): number {
 
   // 보스/엘리트 가산 (긴 전투 = 스킬 가치 ↑)
   const luckBonus = 1 + luck * 0.005
+  const relicBonus = hasRelic(c, 'overloaded_coil') ? 0.12 : 0
 
-  const raw = (base + gradeMod + traitMod) * luckBonus
+  const raw = (base + gradeMod + traitMod) * luckBonus + relicBonus
   return clamp(raw, 0.05, 0.85)
 }
 

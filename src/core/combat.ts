@@ -16,7 +16,7 @@ import {
   dispatchOnDeath,
 } from './monsterTraits'
 import { playMonsterHit, playMonsterDeath } from './monsterSfx'
-import { getPlayerSynergy, isBrokenArmorActive } from './junkSynergy'
+import { getPlayerSynergy, hasRelic, isBrokenArmorActive } from './junkSynergy'
 import { t as i18nT, td as i18nTd, tLabel as i18nTLabel } from '@/lib/i18n'
 
 export interface LogEntry {
@@ -60,6 +60,9 @@ export interface CombatContext {
   badges: CombatBadgeEvent[]
   _badgeSeq?: number
   onQuirkTriggered?: (quirk: TraitQuirkId) => void
+  // ── v12: 역설의 가호 관통 보너스 & 챌린지 마스터리 허점 보너스 ──
+  paradoxPenBonus?: number
+  masteryLoopholeBonus?: number
 }
 
 // 현재 타겟 (첫 살아있는 몬스터). 모두 죽었으면 null
@@ -116,9 +119,16 @@ export function createCombatContext(
   player: Character,
   monsters: MonsterInstance | MonsterInstance[],
   realBossClearCount: number = 0,
-  opts?: { initialSurgeGauge?: number; isPrologueRift?: boolean; onQuirkTriggered?: (quirk: TraitQuirkId) => void }
+  opts?: {
+    initialSurgeGauge?: number
+    isPrologueRift?: boolean
+    onQuirkTriggered?: (quirk: TraitQuirkId) => void
+    paradoxPenBonus?: number
+    masteryLoopholeBonus?: number
+  }
 ): CombatContext {
   const arr = Array.isArray(monsters) ? monsters : [monsters]
+  const watchBonus = hasRelic(player, 'cracked_watch') ? 35 : 0
   const ctx: CombatContext = {
     player,
     monsters: arr,
@@ -128,11 +138,13 @@ export function createCombatContext(
     ended: false,
     victory: false,
     realBossClearCount,
-    surgeGauge: clamp(opts?.initialSurgeGauge ?? 0, 0, 100),
+    surgeGauge: clamp((opts?.initialSurgeGauge ?? 0) + watchBonus, 0, 100),
     isPrologueRift: opts?.isPrologueRift,
     badges: [],
     _badgeSeq: 0,
     onQuirkTriggered: opts?.onQuirkTriggered,
+    paradoxPenBonus: opts?.paradoxPenBonus ?? 0,
+    masteryLoopholeBonus: opts?.masteryLoopholeBonus ?? 0,
   }
   // trait onSpawn 발화 (HP/스탯 보정 등)
   for (const m of arr) dispatchOnSpawn(ctx, m)
@@ -153,13 +165,13 @@ export function pushBadge(
 
 export function chargeSurge(ctx: CombatContext, baseAmount: number) {
   if (ctx.ended || baseAmount <= 0) return
-  const syn = getPlayerSynergy(ctx.player)
+  const syn = getPlayerSynergy(ctx.player, ctx.masteryLoopholeBonus ?? 0)
   const mult = syn.hasLoopholeMaster ? 1.3 : 1.0
   ctx.surgeGauge = clamp(ctx.surgeGauge + Math.round(baseAmount * mult), 0, 100)
 }
 
 // 시간의 파동 (1버튼 능동 개입) 발동
-//   manual=true  : 적 게이지 -40%, 플레이어 즉시 행동, 다음 공격 확정 크리 ×1.5, 5틱 피해 -50%
+//   manual=true  : 적 게이지 -40%, 플레이어 즉시 행동, 다음 공격 확정 크리 ×1.5 (시계 +0.25), 5틱 피해 -50%
 //   manual=false : 적 게이지 -20%, 플레이어 즉시 행동, 다음 공격 확정 크리 ×1.2, 5틱 피해 -50%
 export function triggerTimeSurge(ctx: CombatContext, manual: boolean = true): boolean {
   if (ctx.ended || ctx.surgeGauge < 100) return false
@@ -172,7 +184,8 @@ export function triggerTimeSurge(ctx: CombatContext, manual: boolean = true): bo
   }
   const eff = computeEffectiveStats(ctx.player)
   ctx.player.actionGauge = Math.max(ctx.player.actionGauge, eff.무기ticks)
-  ctx.surgeNextAttackMult = manual ? 1.5 : 1.2
+  const watchMult = hasRelic(ctx.player, 'cracked_watch') ? 0.25 : 0
+  ctx.surgeNextAttackMult = manual ? 1.5 + watchMult : 1.2
   ctx.surgeDefTicks = 5
   pushBadge(ctx, 'player', manual ? '⚡ TIME SURGE!' : '⚡ AUTO SURGE', 'cyan')
   pushLog(
@@ -319,7 +332,7 @@ export function playerBasicAttack(ctx: CombatContext) {
   const eff = computeEffectiveStats(ctx.player)
   const buff = activeBuff(ctx)
   const blindMod = getAccuracyModifier(ctx.player)
-  const syn = getPlayerSynergy(ctx.player)
+  const syn = getPlayerSynergy(ctx.player, ctx.masteryLoopholeBonus ?? 0)
   const brokenActive = isBrokenArmorActive(ctx.player, syn.hasLoopholeMaster)
 
   // 명중 굴림 (시간의 파동 활성화 시 확정 명중)
@@ -327,6 +340,13 @@ export function playerBasicAttack(ctx: CombatContext) {
   if (!surgeGuaranteedHit && !rollHit(eff.명중률 + (buff.accBonus ?? 0), target.eva, blindMod)) {
     pushLog(ctx, i18nT('log.miss', '공격이 빗나갔다.'), 'miss')
     chargeSurge(ctx, 10)
+    // 유물: 부서진 나침반 — 빗나감 시 MP 10% 회복 & 시간의 파동 +10 추가 충전
+    if (hasRelic(ctx.player, 'broken_compass')) {
+      const mpGain = Math.max(1, Math.round(ctx.player.maxMp * 0.10))
+      ctx.player.mp = Math.min(ctx.player.maxMp, ctx.player.mp + mpGain)
+      chargeSurge(ctx, 10)
+      pushBadge(ctx, 'player', `MP +${mpGain}`, 'cyan')
+    }
     // 허점 기믹 ①: 오래된 무기 — 빗나갈 때마다 집념 스택 누적 (최대 5)
     if (syn.weaponQuirk === 'old_weapon') {
       ctx.oldWeaponMissStacks = Math.min(5, (ctx.oldWeaponMissStacks ?? 0) + 1)
@@ -357,6 +377,9 @@ export function playerBasicAttack(ctx: CombatContext) {
   if (ctx.heavyArmorPenBonus && ctx.heavyArmorPenBonus > 0) {
     flatPenBonus += ctx.heavyArmorPenBonus
     ctx.heavyArmorPenBonus = 0
+  }
+  if (ctx.paradoxPenBonus && ctx.paradoxPenBonus > 0) {
+    flatPenBonus += ctx.paradoxPenBonus
   }
 
   // 공명: 다윗의 돌멩이 (노말 풀세트 vs 보스)
@@ -449,6 +472,11 @@ export function playerBasicAttack(ctx: CombatContext) {
 
   // 특성 기반 상태이상 발동 (무기) — 현재 타겟에 적용
   rollStatusProcs(ctx, eff, target)
+  // 유물: 녹슨 못 단지 — 독·출혈 +15%p 추가 발동
+  if (target.hp > 0 && hasRelic(ctx.player, 'rusty_nail_jar')) {
+    if (Math.random() < 0.15) applyStatus(target, '독', eff.공격력, ctx.tick, 0)
+    if (Math.random() < 0.15) applyStatus(target, '출혈', eff.공격력, ctx.tick, 0)
+  }
 
   // trait: 피격 후 훅 (반사 등) + 페이즈 임계값 체크
   dispatchOnAfterAttacked(ctx, target, finalDmg, { isMagic: false, isPhysical: true })
@@ -494,7 +522,7 @@ export function monsterAttack(ctx: CombatContext, attacker: MonsterInstance) {
   const eff = computeEffectiveStats(ctx.player)
   const buff = activeBuff(ctx)
   const blindMod = getAccuracyModifier(attacker)
-  const syn = getPlayerSynergy(ctx.player)
+  const syn = getPlayerSynergy(ctx.player, ctx.masteryLoopholeBonus ?? 0)
   const brokenActive = isBrokenArmorActive(ctx.player, syn.hasLoopholeMaster)
   const attackerIdx = ctx.monsters.indexOf(attacker)
 
@@ -504,6 +532,10 @@ export function monsterAttack(ctx: CombatContext, attacker: MonsterInstance) {
     pushLog(ctx, i18nT('log.dodge', `${_an}의 공격을 회피했다.`, { name: _an }), 'miss')
     pushBadge(ctx, 'player', brokenActive ? '허점: 회피!' : 'DODGE!', brokenActive ? 'gold' : 'cyan')
     if (brokenActive) ctx.onQuirkTriggered?.('broken_armor')
+    if (hasRelic(ctx.player, 'tattered_cloak')) {
+      const dodgeHeal = applyHealing(ctx, Math.max(1, Math.round(ctx.player.maxHp * 0.04)))
+      if (dodgeHeal > 0) ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + dodgeHeal)
+    }
     chargeSurge(ctx, 10)
     attacker._attacksMade = (attacker._attacksMade ?? 0) + 1
     return
@@ -685,7 +717,7 @@ export function advanceTick(ctx: CombatContext) {
   }
 
   // 각 몬스터 상태이상 + trait 매 틱 효과
-  const syn = getPlayerSynergy(ctx.player)
+  const syn = getPlayerSynergy(ctx.player, ctx.masteryLoopholeBonus ?? 0)
   for (const m of ctx.monsters) {
     if (m.hp <= 0) continue
     const mTick = tickStatuses(m, ctx.tick)
@@ -705,6 +737,14 @@ export function advanceTick(ctx: CombatContext) {
     }
     // trait: 환경 오라/차징 등 매 틱 효과
     dispatchOnTickStart(ctx, m)
+  }
+
+  // 공명: 고물상 완전체 — 매 10틱 HP/MP 4% 회복
+  if (syn.hasScrapCollector && ctx.tick % 10 === 0 && ctx.player.hp > 0) {
+    const hpHeal = applyHealing(ctx, Math.max(1, Math.round(ctx.player.maxHp * 0.04)))
+    if (hpHeal > 0) ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + hpHeal)
+    const mpHeal = Math.max(1, Math.round(ctx.player.maxMp * 0.04))
+    ctx.player.mp = Math.min(ctx.player.maxMp, ctx.player.mp + mpHeal)
   }
 
   // 자해 (저주의 특성)

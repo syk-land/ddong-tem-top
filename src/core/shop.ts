@@ -1,5 +1,21 @@
-import type { ShopState, ShopRefreshState, ItemInstance } from '@/types'
+import type { ShopState, ShopRefreshState, ItemInstance, Character } from '@/types'
 import { rollItem } from './items'
+import { hasRelic } from './junkSynergy'
+
+export function getItemBuyPrice(item: ItemInstance, character?: Character | null): number {
+  if (character && hasRelic(character, 'lead_dice')) {
+    return Math.max(1, Math.round(item.buyPrice * 0.85))
+  }
+  return item.buyPrice
+}
+
+export function getShopTemperCost(chapter: number, character?: Character | null): number {
+  const base = 60 + chapter * 35
+  if (character && hasRelic(character, 'lead_dice')) {
+    return Math.max(1, Math.round(base * 0.85))
+  }
+  return base
+}
 
 // 8.1 슬롯 수: 3 + (챕터-1) // 3
 export function shopSlotCount(chapter: number): number {
@@ -28,6 +44,7 @@ export function createShop(chapter: number, opts: { tutorialForceAcc?: boolean }
   return {
     inventory: generateShopInventory(chapter, opts),
     slotCount: shopSlotCount(chapter),
+    temperUsed: false,
   }
 }
 

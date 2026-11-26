@@ -29,6 +29,7 @@ import { WEAPONS } from '@/data/weapons'
 import { ARMORS } from '@/data/armor'
 import { WEAPON_TRAITS, ARMOR_TRAITS } from '@/data/traits'
 import { SKILLS } from '@/data/skills'
+import { getTemperMult, hasRelic } from './junkSynergy'
 
 const DEFAULT_STATS = { 힘: 12, 민첩: 12, 체력: 12, 마력: 12, 행운: 12 }
 const DEFAULT_CHAPTER = 5
@@ -110,9 +111,11 @@ function computeWeaponValue(
     ? (5 + chapter * 1) + 5
     : 5 + chapter * 1            // ch1=6, ch5=10, ch10=15
 
-  // ── 공격력 (v9.x 곱셈) ──
+  // ── 공격력 (v9.x 곱셈 + 부식 연성) ──
+  const hasAnvil = character ? hasRelic(character, 'cursed_anvil_shard') : false
+  const temperMult = getTemperMult(w, hasAnvil)
   const atkPct = (td.effects.공격력_pct ?? 0) + (td.effects.전스탯_pct ?? 0)
-  const atkMultBase = base.baseAtk * w.coef * (1 + atkPct)
+  const atkMultBase = base.baseAtk * w.coef * temperMult * (1 + atkPct)
   const isLobe = character?.armor?.baseKey === '로브'
   const magicSynergy = isLobe && base.isMagic ? 1.5 : 1.0
   const physStat = base.category === 'ranged' ? stats.힘 + stats.민첩 * 0.3 : stats.힘
@@ -283,10 +286,13 @@ function computeArmorValue(
     ? (30 + 3 * chapter) + 10
     : 30 + 3 * chapter
 
-  // ── 방어% 계산 ──
+  // ── 방어% 계산 (부식 연성 포함) ──
+  const hasAnvil = character ? hasRelic(character, 'cursed_anvil_shard') : false
+  const temperMult = getTemperMult(a, hasAnvil)
+  const effectiveCoef = a.coef * temperMult
   const defPctTrait = (td.effects.방어력_pct ?? 0) + (td.effects.전스탯_pct ?? 0)
-  const armorDef = base.baseDef * a.coef * (1 + defPctTrait)
-  const hpDef = stats.체력 * 0.3 * a.coef
+  const armorDef = base.baseDef * effectiveCoef * (1 + defPctTrait)
+  const hpDef = stats.체력 * 0.3 * effectiveCoef
   const totalDefPct = clamp(armorDef + hpDef, 0, 99) / 100
 
   // 회피로 인한 적 명중률 감소 (per-tick 감소량 계산용)
@@ -436,8 +442,9 @@ function estimateCharDps(character?: Character | null): number {
   const base = WEAPONS[w.baseKey]
   const td = WEAPON_TRAITS[w.trait]
   if (!base || !td) return 30
+  const hasAnvil = hasRelic(character, 'cursed_anvil_shard')
   const atkPct = (td.effects.공격력_pct ?? 0) + (td.effects.전스탯_pct ?? 0)
-  const atkMultBase = base.baseAtk * w.coef * (1 + atkPct)
+  const atkMultBase = base.baseAtk * w.coef * getTemperMult(w, hasAnvil) * (1 + atkPct)
   const physStat = base.category === 'ranged'
     ? character.stats.힘 + character.stats.민첩 * 0.3
     : character.stats.힘

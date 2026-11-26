@@ -13,6 +13,22 @@ import { computeItemValue } from './itemValue'
 
 export const START_STAT_BASE = 60
 
+// v12: 역설의 가호 — 낮은 티어(EX~S, tierSum <= 16) 클리어 챔피언이 진짜 보스전 출전 시 스탯/관통 보정
+export function computeParadoxBlessing(rec: CharacterRecord): {
+  tierSum: number
+  statMult: number
+  bonusPen: number
+} {
+  const tierSum = (rec.weapon?.tier ?? 1) + (rec.armor?.tier ?? 1)
+  if (tierSum > 16) return { tierSum, statMult: 1, bonusPen: 0 }
+  const diff = Math.max(0, 18 - tierSum)
+  return {
+    tierSum,
+    statMult: Math.round((1 + diff * 0.045) * 100) / 100,
+    bonusPen: Math.round(diff * 2),
+  }
+}
+
 // 진짜 보스 누적 보상에 따른 스탯 임계값 보정 배수.
 // 캐릭터 시작 스탯이 (60 + permanentStartBonus) 이므로,
 // 시작 임계값 60 대비 비율만큼 챌린지의 최소/최대 스탯 임계값도 비례 조정.
@@ -35,10 +51,25 @@ export function isChallengeDue(meta: MetaBonuses): boolean {
 //   - 보스 def/eva 가 높음 → 관통/명중 가치 ↑
 //   - 보스 atk/속도 강 → 방어/회피 가치 ↑
 export function computeChallengeScore(rec: CharacterRecord): number {
-  const ch = { stats: rec.stats, weapon: rec.weapon, armor: rec.armor } as Character
+  const blessing = computeParadoxBlessing(rec)
+  const scaledStats = blessing.statMult > 1
+    ? {
+        힘: Math.round(rec.stats.힘 * blessing.statMult),
+        민첩: Math.round(rec.stats.민첩 * blessing.statMult),
+        체력: Math.round(rec.stats.체력 * blessing.statMult),
+        마력: Math.round(rec.stats.마력 * blessing.statMult),
+        행운: Math.round(rec.stats.행운 * blessing.statMult),
+      }
+    : rec.stats
+  const ch = {
+    stats: scaledStats,
+    weapon: rec.weapon,
+    armor: rec.armor,
+    relics: rec.relics,
+  } as Character
   const wv = computeItemValue(rec.weapon, ch, { chapter: 10, vsBoss: true })
   const av = computeItemValue(rec.armor, ch, { chapter: 10, vsBoss: true })
-  return wv.atkValue + av.defValue
+  return wv.atkValue + av.defValue + blessing.bonusPen * 2
 }
 
 // 진짜 보스 도전 후보 — 100층 클리어 기록 중 (공격+방어 밸류) 합이 최대인 캐릭터.

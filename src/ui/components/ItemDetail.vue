@@ -182,6 +182,7 @@ function openGradeInfo() {
     subtitle: `등급계수 ${coef.toFixed(2)}`,
     lines: [
       { label: '등급계수', value: coef.toFixed(2), note: '무기 공격력·갑옷 방어력에 곱셈 적용 (특성 효과에도 적용)' },
+      ...(props.item.temperLevel ? [{ label: '부식 연성', value: `+${props.item.temperLevel}`, note: `티어 유지 · 장비 계수 ×${(1 + props.item.temperLevel * 0.18).toFixed(2)}` }] : []),
       { label: '현재 티어', value: `T${props.item.tier}` },
       { label: '판매가', value: `${props.item.sellPrice}G`, note: '인벤토리 / 장착 중 판매 시' },
       { label: '구매가 (상점)', value: `${props.item.buyPrice}G` },
