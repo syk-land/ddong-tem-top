@@ -23,6 +23,7 @@ function cloudDiffersFromLocal(cloud: CloudMeta, local: MetaBonuses): boolean {
 
 interface AuthState {
   user: User | null
+  nickname: string | null
   loading: boolean
   error: string | null
   initialized: boolean
@@ -42,6 +43,7 @@ let authListenerStarted = false
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     user: null,
+    nickname: null,
     loading: false,
     error: null,
     initialized: false,
@@ -51,6 +53,7 @@ export const useAuthStore = defineStore('auth', {
     isLoggedIn: (s) => !!s.user,
     uid: (s) => s.user?.uid ?? null,
     displayName: (s) => s.user?.displayName ?? null,
+    effectiveNickname: (s) => s.nickname || s.user?.displayName || '익명',
     photoURL: (s) => s.user?.photoURL ?? null,
     email: (s) => s.user?.email ?? null,
     // 테스트 권한 계정 (개발자 본인) — 100배 가속 등 디버그 옵션 노출용
@@ -101,9 +104,20 @@ export const useAuthStore = defineStore('auth', {
         const { signOut } = await loadAuthLib()
         await signOut()
         this.user = null
+        this.nickname = null
       } finally {
         this.loading = false
       }
+    },
+
+    async updateNickname(raw: string): Promise<string> {
+      if (!this.user) return ''
+      const trimmed = (raw ?? '').trim().slice(0, 12)
+      const nextName = trimmed || this.user.displayName || '익명'
+      const { updateUserNickname } = await loadCloudSyncLib()
+      await updateUserNickname(this.user, nextName)
+      this.nickname = nextName
+      return nextName
     },
 
     // 로그인 직후: 프로필 upsert + 클라우드 meta 발견 시 사용자에게 덮어쓰기 확인.
@@ -115,8 +129,14 @@ export const useAuthStore = defineStore('auth', {
     // 모달은 사용자가 방금 로그인 버튼을 눌렀을 때만 의미가 있음. 세션 복원 경로에서는
     // cloud 가 다르더라도 무시하고, cloud 가 없을 때만 로컬을 한 번 push 한다.
     async _onLoggedIn(user: User, interactive: boolean) {
-      const { upsertUserProfile, loadCloudMeta } = await loadCloudSyncLib()
+      const { upsertUserProfile, getUserProfile, loadCloudMeta } = await loadCloudSyncLib()
       await upsertUserProfile(user)
+      try {
+        const prof = await getUserProfile(user.uid)
+        this.nickname = prof?.nickname ?? user.displayName ?? null
+      } catch {
+        this.nickname = user.displayName ?? null
+      }
       const game = useGameStore()
       const cloud = await loadCloudMeta(user.uid)
       if (cloud && cloudDiffersFromLocal(cloud, game.meta)) {
@@ -214,7 +234,7 @@ export const useAuthStore = defineStore('auth', {
       if (!this.user) return
       await this.flushSyncMetaToCloud()
       const game = useGameStore()
-      const nickname = this.user.displayName ?? '익명'
+      const nickname = this.effectiveNickname
       const { submitLeaderboard } = await loadCloudSyncLib()
       await submitLeaderboard(this.user.uid, nickname, { score, rank }, game.meta.clearCount)
     },

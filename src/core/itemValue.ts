@@ -45,13 +45,13 @@ const SKILL_ATK_MULT: Record<string, { mult: number; magic: boolean; note?: stri
   연속공격: { mult: 1.4, magic: false, note: '0.7 × 2히트 평균' },
   정밀타격: { mult: 1.5, magic: false, note: '1.2 × 크리 +' },
   급습: { mult: 1.65, magic: false },
-  빙결의화살: { mult: 2.2, magic: true },
+  빙결의화살: { mult: 3.4, magic: true, note: '최대 3체 관통' },
   화염구: { mult: 6.5, magic: true },
-  폭풍칼날: { mult: 3.15, magic: true },
+  폭풍칼날: { mult: 5.4, magic: true, note: '1.8 × 3히트' },
   바위충격: { mult: 4.8, magic: true },
   번개창: { mult: 5.5, magic: true },
-  그림자일격: { mult: 2.2, magic: true },
-  정화의광선: { mult: 1.8, magic: true },
+  그림자일격: { mult: 4.6, magic: true, note: '관통 ×1.5' },
+  정화의광선: { mult: 4.3, magic: true, note: '정화 + 언데드/암흑 ×1.5' },
 }
 
 export interface ValuePart {
@@ -133,7 +133,7 @@ function computeWeaponValue(
   const basicHit = Math.max(1, totalAtk * (1 - effDefPct)) * hitRate
 
   // ── 스킬 hit + 발동률 ──
-  const skillKey = base.autoSkill
+  const skillKey = w.skillKey ?? base.autoSkill
   const skillInfo = skillKey ? SKILL_ATK_MULT[skillKey] : undefined
   // 발동률: 무기별 베이스 (대강) + 행운 보정
   // buildBalance.ts 의 단순 모델
@@ -372,6 +372,15 @@ function computeArmorValue(
       label: '철벽 카운터 (피격 시)',
       value: charDps * 0.5 * procChance / enemyTicks,
       note: `발동 ${(procChance * 100).toFixed(0)}% → 평타×0.5 반격`,
+    })
+  }
+
+  // 갑옷 비전 각인 방어 스킬 기여
+  if (a.skillKey) {
+    defParts.push({
+      label: `방어 각인 (${a.skillKey})`,
+      value: enemyDmgPerTick * 0.12 * DEF_SCALE,
+      note: 'HP 65% 이하 또는 상태이상 시 35% 자동 발동',
     })
   }
 

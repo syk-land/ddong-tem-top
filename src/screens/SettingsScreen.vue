@@ -19,6 +19,25 @@ const sfxVol = ref(Math.round(getSoundVolume() * 100))
 const bgmOn = ref(isBgmEnabled())
 const bgmVol = ref(Math.round(getBgmVolume() * 100))
 
+// ── 클라우드 닉네임 ──
+const cloudNickInput = ref(auth.effectiveNickname)
+const cloudNickSaving = ref(false)
+const cloudNickStatus = ref<string | null>(null)
+async function saveCloudNickname() {
+  if (!auth.isLoggedIn || cloudNickSaving.value) return
+  cloudNickSaving.value = true
+  cloudNickStatus.value = null
+  try {
+    const saved = await auth.updateNickname(cloudNickInput.value)
+    cloudNickInput.value = saved
+    cloudNickStatus.value = t('leaderboard.nickSaved', '저장됨')
+  } catch (e: unknown) {
+    cloudNickStatus.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    cloudNickSaving.value = false
+  }
+}
+
 function toggleSfx() {
   sfxOn.value = !sfxOn.value
   setSoundEnabled(sfxOn.value)
@@ -223,7 +242,7 @@ onMounted(() => {
       <div class="px-3 py-1.5 bg-sky-950/30 border-b border-sky-500/20 flex items-center">
         <span class="text-xs font-bold text-sky-200">☁ {{ t('settings.cloud', '클라우드 저장') }}</span>
       </div>
-      <div class="p-3">
+      <div class="p-3 space-y-2.5">
         <div v-if="auth.isLoggedIn" class="flex items-center gap-2.5">
           <img
             v-if="auth.photoURL"
@@ -235,7 +254,7 @@ onMounted(() => {
           />
           <div class="flex-1 min-w-0">
             <div class="text-xs text-sky-300/80 font-bold">{{ t('settings.cloud.active', '활성') }}</div>
-            <div class="text-sm font-bold truncate">{{ auth.displayName ?? t('settings.cloud.signedIn', '로그인됨') }}</div>
+            <div class="text-sm font-bold truncate">{{ auth.effectiveNickname }}</div>
           </div>
           <button
             class="text-xs px-3 min-h-9 rounded-md bg-slate-700 hover:bg-slate-600 font-bold"
@@ -243,7 +262,24 @@ onMounted(() => {
             @click="auth.logout"
           >{{ t('settings.cloud.logout', '로그아웃') }}</button>
         </div>
-        <div v-else class="text-sm">
+        <form v-if="auth.isLoggedIn" class="flex items-center gap-2 pt-2 border-t border-slate-700/50" @submit.prevent="saveCloudNickname">
+          <label for="settings-nick-input" class="sr-only">{{ t('leaderboard.nickLabel', '닉네임') }}</label>
+          <input
+            id="settings-nick-input"
+            v-model="cloudNickInput"
+            type="text"
+            maxlength="12"
+            :placeholder="t('leaderboard.nickPlaceholder', '닉네임 (최대 12자)')"
+            class="flex-1 min-w-0 rounded-md bg-bg-tertiary border border-slate-600 px-2.5 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-sky-400"
+          />
+          <button
+            type="submit"
+            :disabled="cloudNickSaving"
+            class="px-3 py-1.5 rounded-md bg-sky-600/30 hover:bg-sky-600/50 border border-sky-400/50 text-sky-200 text-xs font-bold shrink-0"
+          >{{ cloudNickSaving ? '...' : t('leaderboard.nickSave', '닉네임 변경') }}</button>
+        </form>
+        <div v-if="auth.isLoggedIn && cloudNickStatus" class="text-[11px] text-emerald-300">{{ cloudNickStatus }}</div>
+        <div v-else-if="!auth.isLoggedIn" class="text-sm">
           {{ t('settings.cloud.notSignedIn', '로그인하지 않음. 메인 메뉴의') }}
           <span class="text-sky-300 font-bold">{{ t('settings.cloud.loginButton', 'Google 로 로그인') }}</span>{{ t('settings.cloud.notSignedInTail', '으로 활성화하면 클리어 횟수가 클라우드와 동기화됩니다.') }}
         </div>

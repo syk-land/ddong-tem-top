@@ -162,6 +162,7 @@ export interface ItemInstance {
   buyPrice: number
   buyback: number
   effects: TraitEffect         // 스케일링된 효과 (계수 적용)
+  skillKey?: string            // 인스턴스 고유 각인 스킬 (무기 변주 / 갑옷 비전 각인)
 }
 
 // ====== 스킬 ======

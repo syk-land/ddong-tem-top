@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useAuthStore } from '@/stores/auth'
 import { mainImageUrl, playerImageUrl } from '@/ui/images'
@@ -14,6 +14,8 @@ import {
 import { themeColorClass } from '@/ui/colors'
 import HpMpBar from '@/ui/components/HpMpBar.vue'
 import ComicImage from '@/ui/components/ComicImage.vue'
+const LeaderboardModal = defineAsyncComponent(() => import('@/ui/components/LeaderboardModal.vue'))
+const QuirkCodexModal = defineAsyncComponent(() => import('@/ui/components/QuirkCodexModal.vue'))
 import type { TowerRun } from '@/types'
 import { REAL_BOSS_ORDER, getRealBossProgress } from '@/core/realboss'
 import { QUIRK_INFO } from '@/core/junkSynergy'
@@ -85,6 +87,10 @@ const codexSlots = computed<CodexSlot[]>(() => {
   }
   return slots
 })
+
+// ── 랭킹 / 똥템 도감 모달 ──
+const leaderboardOpen = ref(false)
+const quirkCodexOpen = ref(false)
 
 // ── 도감 모달 (썸네일 클릭 시) ──
 const codexModalOpen = ref(false)
@@ -253,6 +259,13 @@ async function resetMeta() {
           </div>
         </div>
         <button
+          v-if="!IS_PORTAL_EMBED"
+          type="button"
+          class="shrink-0 px-2.5 rounded-lg border border-amber-400/50 bg-amber-950/40 hover:bg-amber-900/50 backdrop-blur-sm flex items-center justify-center text-xs font-bold text-amber-200 transition active:scale-95"
+          :title="t('menu.rank.tooltip', '랭킹')"
+          @click="leaderboardOpen = true"
+        >[RANK]</button>
+        <button
           class="shrink-0 w-12 rounded-lg border border-slate-600/60 bg-bg-secondary/70 hover:bg-bg-hover backdrop-blur-sm flex items-center justify-center transition active:scale-95"
           :title="t('menu.settings.tooltip', '설정')"
           @click="game.setScreen('settings')"
@@ -261,10 +274,10 @@ async function resetMeta() {
         </button>
       </div>
 
-      <!-- ── 현실 균열 진행도 + 똥템 허점 발견 현황 ── -->
+      <!-- ── 현실 균열 진행도 + 똥템 허점 발견 현황 (클릭 시 도감 열림) ── -->
       <div class="rounded-lg border border-rose-500/35 bg-bg-secondary/75 backdrop-blur-sm px-3 py-2 space-y-1.5">
         <div class="flex items-center justify-between text-xs">
-          <span class="font-bold text-rose-300">⏳ {{ t('menu.rift.label', '현실 균열') }}</span>
+          <span class="font-bold text-rose-300">[RIFT] {{ t('menu.rift.label', '현실 균열') }}</span>
           <span class="font-mono text-gray-300 tabular-nums">
             {{ riftProgress.current.toLocaleString() }} / {{ riftProgress.target.toLocaleString() }}G ({{ riftProgress.pct }}%)
           </span>
@@ -275,10 +288,15 @@ async function resetMeta() {
             :style="{ width: riftProgress.pct + '%' }"
           />
         </div>
-        <div class="flex items-center justify-between text-[11px] text-amber-200/80">
-          <span>💡 {{ t('menu.quirk.label', '발견한 똥템 허점') }}</span>
-          <span class="font-mono font-bold tabular-nums">{{ discoveredQuirkCount }} / {{ totalQuirkCount }}</span>
-        </div>
+        <button
+          type="button"
+          data-testid="open-quirk-codex-btn"
+          class="w-full flex items-center justify-between text-[11px] text-amber-200/90 hover:text-amber-100 rounded px-1 py-0.5 hover:bg-amber-950/40 transition"
+          @click="quirkCodexOpen = true"
+        >
+          <span>[CODEX] {{ t('menu.quirk.label', '발견한 똥템 허점') }}</span>
+          <span class="font-mono font-bold tabular-nums">{{ discoveredQuirkCount }} / {{ totalQuirkCount }} · {{ t('menu.codex.open', '도감 열기') }}</span>
+        </button>
       </div>
 
       <!-- ── 헤더 (제목) ── -->
@@ -463,5 +481,15 @@ async function resetMeta() {
         >{{ t('menu.dataReset', '데이터 리셋') }}</button>
       </div>
     </div>
+
+    <LeaderboardModal
+      :open="leaderboardOpen"
+      @close="leaderboardOpen = false"
+      @request-login="loginGoogle"
+    />
+    <QuirkCodexModal
+      :open="quirkCodexOpen"
+      @close="quirkCodexOpen = false"
+    />
   </section>
 </template>

@@ -119,6 +119,38 @@ export async function deleteCloudUserData(uid: string): Promise<void> {
 }
 
 // ── 리더보드 ──────────────────────────────────────────────
+// 점수 역전 방지 인코딩: tierSum (2..32, 낮을수록 고등급 EX) -> 높을수록 1위
+export function encodeLeaderboardScore(tierSum: number, clearCount: number): number {
+  const clamped = Math.max(2, Math.min(32, Math.round(tierSum)))
+  return (34 - clamped) * 100 + Math.min(99, Math.max(0, Math.round(clearCount)))
+}
+
+export function decodeLeaderboardScore(bestScore: number): { tierSum: number; isLegacy: boolean } {
+  if (!Number.isFinite(bestScore) || bestScore < 100) {
+    return {
+      tierSum: Math.max(2, Math.min(32, Math.round(bestScore || 32))),
+      isLegacy: true,
+    }
+  }
+  const tierPart = Math.floor(bestScore / 100)
+  return {
+    tierSum: Math.max(2, Math.min(32, 34 - tierPart)),
+    isLegacy: false,
+  }
+}
+
+export async function updateUserNickname(user: User, nickname: string): Promise<void> {
+  await upsertUserProfile(user, nickname)
+  const lbRef = doc(firestore, 'leaderboard', user.uid)
+  const lbSnap = await getDoc(lbRef)
+  if (lbSnap.exists()) {
+    await setDoc(lbRef, {
+      nickname,
+      updatedAt: serverTimestamp(),
+    }, { merge: true })
+  }
+}
+
 export async function submitLeaderboard(
   uid: string,
   nickname: string,
@@ -128,8 +160,9 @@ export async function submitLeaderboard(
   const ref = doc(firestore, 'leaderboard', uid)
   const existing = await getDoc(ref)
   const prevBest = existing.exists() ? (existing.data() as LeaderboardEntry).bestScore ?? 0 : 0
-  // 본인 최고 점수만 갱신 (낮은 점수로 덮어쓰지 않음)
-  if (record.score <= prevBest && existing.exists()) {
+  const encoded = record.score < 100 ? encodeLeaderboardScore(record.score, clearCount) : record.score
+  const shouldOverwrite = !existing.exists() || prevBest < 100 || encoded > prevBest
+  if (!shouldOverwrite) {
     // clearCount/nickname 같은 메타데이터만 갱신
     await setDoc(ref, {
       nickname, clearCount, updatedAt: serverTimestamp(),
@@ -139,7 +172,7 @@ export async function submitLeaderboard(
   await setDoc(ref, {
     uid,
     nickname,
-    bestScore: record.score,
+    bestScore: encoded,
     bestRank: record.rank,
     clearCount,
     updatedAt: serverTimestamp(),

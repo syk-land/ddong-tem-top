@@ -202,7 +202,8 @@ function openBaseInfo() {
     if (w.penBonus) lines.push({ label: '관통', value: fmtFlat(w.penBonus) })
     if (w.magicPenBonus) lines.push({ label: '마법 관통', value: fmtFlat(w.magicPenBonus) })
     if (w.mpBonus) lines.push({ label: 'MP 보정', value: fmtFlat(w.mpBonus) })
-    if (w.autoSkill) lines.push({ label: '자동 스킬', value: w.autoSkill })
+    const wSkill = props.item.skillKey ?? w.autoSkill
+    if (wSkill) lines.push({ label: '각인 스킬', value: wSkill })
     if (w.isMagic) lines.push({ label: '마법무기', value: '예', note: '마력 스탯 사용, 로브와 시너지 ×1.5' })
   } else if (armorBase.value) {
     const a = armorBase.value
@@ -211,6 +212,7 @@ function openBaseInfo() {
     if (a.evasion) lines.push({ label: '회피', value: fmtFlat(a.evasion) })
     if (a.mpBonus) lines.push({ label: 'MP 보정', value: fmtFlat(a.mpBonus) })
     if (a.autoSkill) lines.push({ label: '자동 발동', value: a.autoSkill, note: '피격 시 자동 발동' })
+    if (props.item.skillKey) lines.push({ label: '비전 각인', value: props.item.skillKey, note: '위기 시 자동 발동' })
   }
   infoModal.value = {
     kind: 'base',
@@ -293,11 +295,13 @@ const baseSpecLines = computed(() => {
   return lines
 })
 
-// 자동 스킬 — 무기 스킬만 표시 (갑옷의 자동 발동 효과는 표시값 계산에 반영되어 있어 별도 카드 X)
-const skillKey = computed(() => weaponBase.value?.autoSkill ?? null)
+// 자동/각인 스킬 — 무기 변주 스킬 및 갑옷 비전 각인 모두 표시
+const skillKey = computed(() => props.item.skillKey ?? weaponBase.value?.autoSkill ?? null)
 const skill = computed(() => skillKey.value ? SKILLS[skillKey.value] : null)
 const skillProcPct = computed(() => {
-  if (!isWeapon.value || !props.character) return null
+  if (!skill.value) return null
+  if (!isWeapon.value) return 35
+  if (!props.character) return null
   const virtualChar = { ...props.character, weapon: props.item }
   return Math.round(
     computeWeaponSkillProc(virtualChar as Character, props.character.stats.행운) * 100

@@ -177,6 +177,44 @@
   will-change: transform, opacity;
 }
 
+/* 네이티브 <dialog> 모달 & 백드롭 스크롤 전파 차단 */
+dialog:modal {
+  overscroll-behavior: contain;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  max-width: min(94vw, 32rem);
+  max-height: 90dvh;
+  margin: auto;
+}
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background-color: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(3px);
+}
+
+/* 접근성 탭 하단 인디케이터 (색상 단독 구분 방지) */
+.mwg-tablist {
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.mwg-tablist::-webkit-scrollbar {
+  display: none;
+}
+.mwg-tab {
+  position: relative;
+  flex: none;
+}
+.mwg-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  border-block-end: 3px solid currentColor;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -113,6 +113,48 @@ export interface RollOptions {
   forceGrade?: Grade
   forceBaseKey?: string  // 특정 무기/갑옷 강제
   forceTraitName?: string
+  forceSkillKey?: string // 특정 스킬 각인 강제
+}
+
+const MAGIC_SKILL_POOL = [
+  '화염구', '번개창', '바위충격', '빙결의화살', '폭풍칼날', '그림자일격', '정화의광선',
+] as const
+
+const PHYSICAL_SKILL_POOL = [
+  '스매쉬', '피어스', '연속공격', '정밀타격', '급습',
+] as const
+
+const ARMOR_IMPRINT_POOL = [
+  '패링', '불굴의의지', '배리어', '저항의결계',
+] as const
+
+const ARMOR_IMPRINT_CHANCE: Record<TraitTier, number> = {
+  하급: 0.40,
+  보통: 0.25,
+  희귀: 0.40,
+  특별: 0.60,
+}
+
+function rollItemSkillKey(
+  kind: 'weapon' | 'armor',
+  baseKey: string,
+  traitTier: TraitTier,
+  forceSkillKey?: string,
+): string | undefined {
+  if (forceSkillKey) return forceSkillKey
+  if (kind === 'weapon') {
+    const wbase = WEAPONS[baseKey]
+    if (!wbase) return undefined
+    // 55% 무기 고유 스킬 유지, 45% 동종 카테고리 스킬 변주
+    if (Math.random() < 0.55) return wbase.autoSkill
+    const pool = wbase.isMagic ? MAGIC_SKILL_POOL : PHYSICAL_SKILL_POOL
+    return pickOne(pool)
+  }
+  const chance = ARMOR_IMPRINT_CHANCE[traitTier] ?? 0.25
+  if (Math.random() < chance) {
+    return pickOne(ARMOR_IMPRINT_POOL)
+  }
+  return undefined
 }
 
 export function rollItem(opts: RollOptions): ItemInstance {
@@ -181,6 +223,9 @@ export function rollItem(opts: RollOptions): ItemInstance {
   // 6) 가격
   const { sell, buy, buyback } = calculatePrices(traitDef, grade)
 
+  // 7) 인스턴스 고유 각인 스킬 (무기 변주 / 갑옷 비전 각인)
+  const skillKey = rollItemSkillKey(kind, baseKey, trait_tier, opts.forceSkillKey)
+
   return {
     id: uniqueId(),
     kind,
@@ -193,6 +238,7 @@ export function rollItem(opts: RollOptions): ItemInstance {
     buyPrice: buy,
     buyback,
     effects,
+    ...(skillKey ? { skillKey } : {}),
   }
 }
 

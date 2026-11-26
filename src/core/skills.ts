@@ -104,7 +104,7 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       // 관통: 살아있는 적 앞에서 최대 3마리 일렬 적중
       const alive = aliveMonsters(ctx).slice(0, 3)
       if (alive.length === 0) break
-      magicAttackMulti(ctx, alive, 2.2, '둔화', 1.0)
+      magicAttackMulti(ctx, alive, 3.4, '둔화', 1.0)
       if (alive.length > 1) pushLog(ctx, `빙결의 화살: ${alive.length}마리 관통`, 'skill')
       break
     }
@@ -121,11 +121,11 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       break
     }
     case '폭풍칼날': {
-      // 3히트 분산: 살아있는 적 ≤3 → 1마리씩 / ≥4 → 무작위 3마리
+      // 3히트 분산: 살아있는 적 <=3 -> 1마리씩 / >=4 -> 무작위 3마리
       const alive = aliveMonsters(ctx)
       if (alive.length === 0) break
       const picks = alive.length <= 3 ? alive : shuffled(alive).slice(0, 3)
-      magicAttackMulti(ctx, picks, 1.05, undefined, 0, { accBonus: 50 })
+      magicAttackMulti(ctx, picks, 1.8, undefined, 0, { accBonus: 50 })
       if (picks.length > 1) pushLog(ctx, `폭풍 칼날: ${picks.length}마리 동시 가격`, 'skill')
       break
     }
@@ -162,10 +162,16 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       break
     }
     case '그림자일격':
-      magicAttack(ctx, 2.2, '암흑', 1.0)  // 단일 타겟 유지
+      magicAttack(ctx, 4.6, '암흑', 1.0, { penBoost: 1.5 })
       break
     case '정화의광선': {
-      magicAttack(ctx, 1.8, undefined, 0)  // 단일 타겟 + 자기 정화
+      const main = currentTarget(ctx)
+      if (main) {
+        const isUndeadOrDark = main.template.element === '암흑'
+          || /언데드|해골|좀비|구울|리치|강령|망령|뱀파이어|흡혈|어둠|암흑|공허/.test(main.template.name)
+        const mult = isUndeadOrDark ? 6.0 : 4.0
+        magicAttackOnTarget(ctx, main, mult, undefined, 0)
+      }
       const purged = purgeDebuffs(ctx.player)
       if (purged.length > 0) pushLog(ctx, `디버프 ${purged.length}개 정화`, 'heal')
       break
@@ -182,8 +188,8 @@ export function useSkill(ctx: CombatContext, key: string): boolean {
       break
     }
     case '저항의결계':
-      ctx.buffs.set('resist_ward', { duration: 10, effect: { statusResistMult: 2 } })
-      pushLog(ctx, '저항의 결계', 'skill')
+      ctx.buffs.set('resist_ward', { duration: 10, effect: { statusResistMult: 50, defMult: 1.3 } })
+      pushLog(ctx, '저항의 결계 (상태저항 +50%p, 방어 ×1.3)', 'skill')
       break
 
     default:
@@ -270,7 +276,7 @@ function magicAttack(
   multiplier: number,
   statusKind: '점화' | '둔화' | '감전' | '암흑' | undefined,
   procChance: number,
-  opts: { accBonus?: number } = {}
+  opts: { accBonus?: number; penBoost?: number } = {}
 ) {
   const target = currentTarget(ctx)
   if (!target) return
@@ -285,7 +291,7 @@ function magicAttackOnTarget(
   multiplier: number,
   statusKind: StatusKind | undefined,
   procChance: number,
-  opts: { accBonus?: number; silent?: boolean } = {}
+  opts: { accBonus?: number; penBoost?: number; silent?: boolean } = {}
 ) {
   if (target.hp <= 0) return
   const eff = computeEffectiveStats(ctx.player)
@@ -319,7 +325,7 @@ function magicAttackOnTarget(
   const { dmg, isCrit } = computeDamage(
     { 공격력: eff.마법공격력, 민첩: eff.민첩, 행운: eff.행운, 관통: eff.관통 },
     { 방어: target.def },
-    { multiplier: finalMult, forceCrit, critBonusChance, flatPenBonus }
+    { multiplier: finalMult, penBoost: opts.penBoost ?? 1.0, forceCrit, critBonusChance, flatPenBonus }
   )
   target.hp -= dmg
   target._hitsTaken = (target._hitsTaken ?? 0) + 1
@@ -376,16 +382,18 @@ function shuffled<T>(arr: T[]): T[] {
   return a
 }
 
-// 무기 자동 부여 스킬 + 갑옷 자동 스킬
+// 무기 자동 부여 스킬 + 갑옷 자동 스킬 + 갑옷 비전 각인 스킬
 export function getAvailableSkills(player: { weapon: ItemInstance | null; armor: ItemInstance | null }): string[] {
   const skills: string[] = []
   if (player.weapon) {
     const wbase = WEAPONS[player.weapon.baseKey]
-    if (wbase?.autoSkill) skills.push(wbase.autoSkill)
+    const wSkill = player.weapon.skillKey ?? wbase?.autoSkill
+    if (wSkill) skills.push(wSkill)
   }
   if (player.armor) {
     const abase = ARMORS[player.armor.baseKey as keyof typeof ARMORS]
     if (abase?.autoSkill && !skills.includes(abase.autoSkill)) skills.push(abase.autoSkill)
+    if (player.armor.skillKey && !skills.includes(player.armor.skillKey)) skills.push(player.armor.skillKey)
   }
   return skills
 }
@@ -393,7 +401,11 @@ export function getAvailableSkills(player: { weapon: ItemInstance | null; armor:
 export function getWeaponSkillKey(player: Character): string | null {
   if (!player.weapon) return null
   const wbase = WEAPONS[player.weapon.baseKey]
-  return wbase?.autoSkill ?? null
+  return player.weapon.skillKey ?? wbase?.autoSkill ?? null
+}
+
+export function getArmorImprintSkillKey(player: Character): string | null {
+  return player.armor?.skillKey ?? null
 }
 
 export function getArmorSkillKey(player: Character): string | null {
@@ -404,7 +416,7 @@ export function getArmorSkillKey(player: Character): string | null {
 
 // ============================================================
 // 자동 전투: 게이지 100 도달 시 액션 선택
-// 우선순위: 갑옷 방어/회피 (조건부) → 무기 스킬 (확률) → 평타
+// 우선순위: 갑옷 비전 각인 (조건부) -> 무기 스킬 (확률) -> 평타
 // ============================================================
 
 export type AutoAction =
@@ -418,7 +430,23 @@ export function pickAutoAction(ctx: CombatContext, options: {
   const eff = computeEffectiveStats(ctx.player)
   const player = ctx.player
 
-  // 갑옷 자동 발동은 monsterAttack 내부의 피격 반응으로 이동 (combat.ts)
+  // 1) 갑옷 비전 각인 방어 스킬 (HP <= 65% 또는 상태이상 보유 & 버프 미중첩 시 35% 확률)
+  const armorImprint = getArmorImprintSkillKey(player)
+  if (armorImprint && !options.forbidActiveSkills && !options.forceActiveSkills) {
+    const skill = SKILLS[armorImprint]
+    const bKey = armorBuffKey(armorImprint)
+    const hpLow = player.hp / Math.max(1, player.maxHp) <= 0.65
+    const hasStatus = player.statuses.length > 0
+    if (skill && !ctx.buffs.has(bKey) && (hpLow || hasStatus)) {
+      let mpCost = skill.mp
+      if (skill.kind === 'magic_atk' || skill.kind === 'magic_def') {
+        mpCost = Math.max(0, mpCost + eff.weaponMpBonus)
+      }
+      if (player.mp >= mpCost && Math.random() < 0.35) {
+        return { kind: 'skill', key: armorImprint }
+      }
+    }
+  }
 
   // 2) 무기 스킬 (액티브 공격) — 챌린지 forbidActiveSkills면 스킵
   const weaponKey = getWeaponSkillKey(player)
