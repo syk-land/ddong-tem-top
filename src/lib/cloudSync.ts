@@ -39,6 +39,9 @@ export interface CloudMeta {
   prologueRiftSeen?: boolean
   prologueBonusGranted?: boolean
   discoveredQuirks?: TraitQuirkId[]
+  completedChallenges?: string[]
+  dailyTowerBest?: { date: string; rank: string; score: number; ticks: number }
+  dailyBonusDate?: string
   updatedAt?: unknown
 }
 
@@ -91,6 +94,9 @@ export async function saveCloudMeta(uid: string, meta: MetaBonuses): Promise<voi
     prologueRiftSeen: meta.prologueRiftSeen ?? false,
     prologueBonusGranted: meta.prologueBonusGranted ?? false,
     discoveredQuirks: meta.discoveredQuirks ?? [],
+    completedChallenges: meta.completedChallenges ?? [],
+    ...(meta.dailyTowerBest ? { dailyTowerBest: meta.dailyTowerBest } : {}),
+    ...(meta.dailyBonusDate ? { dailyBonusDate: meta.dailyBonusDate } : {}),
     updatedAt: serverTimestamp(),
   }
   await setDoc(doc(firestore, 'meta', uid), payload, { merge: true })

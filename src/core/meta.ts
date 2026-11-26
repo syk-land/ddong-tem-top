@@ -112,6 +112,9 @@ export function loadMeta(): MetaBonuses {
       prologueRiftSeen: m.prologueRiftSeen ?? ((m.clearCount ?? 0) > 0),
       prologueBonusGranted: m.prologueBonusGranted ?? false,
       discoveredQuirks: Array.isArray(m.discoveredQuirks) ? m.discoveredQuirks : [],
+      completedChallenges: Array.isArray(m.completedChallenges) ? m.completedChallenges : [],
+      dailyTowerBest: m.dailyTowerBest,
+      dailyBonusDate: m.dailyBonusDate,
     }
     // 불변식 정합성 — permanentStartBonus = clearCount×60 + floor(60×bestDrain) + (prologueBonusGranted ? 5 : 0).
     {
@@ -196,6 +199,23 @@ export function defaultMeta(): MetaBonuses {
     prologueRiftSeen: false,
     prologueBonusGranted: false,
     discoveredQuirks: [],
+    completedChallenges: [],
+  }
+}
+
+export interface ChallengeMasteryBonuses {
+  startGoldBonus: number
+  shopCapBonus: number
+  allStatBonus: number
+  loopholeMultBonus: number
+}
+
+export function getChallengeMasteryBonuses(completedCount: number): ChallengeMasteryBonuses {
+  return {
+    startGoldBonus: completedCount >= 5 ? 50 : 0,
+    shopCapBonus: completedCount >= 15 ? 1 : 0,
+    allStatBonus: completedCount >= 25 ? 2 : 0,
+    loopholeMultBonus: completedCount >= 40 ? 0.15 : 0,
   }
 }
 

@@ -16,6 +16,9 @@ import HpMpBar from '@/ui/components/HpMpBar.vue'
 import ComicImage from '@/ui/components/ComicImage.vue'
 const LeaderboardModal = defineAsyncComponent(() => import('@/ui/components/LeaderboardModal.vue'))
 const QuirkCodexModal = defineAsyncComponent(() => import('@/ui/components/QuirkCodexModal.vue'))
+const ChallengeCodexModal = defineAsyncComponent(() => import('@/ui/components/ChallengeCodexModal.vue'))
+import { getDailyTowerConfig } from '@/core/dailyTower'
+import { CHALLENGES, CHALLENGES_MAP } from '@/data/challenges'
 import type { TowerRun } from '@/types'
 import { REAL_BOSS_ORDER, getRealBossProgress } from '@/core/realboss'
 import { QUIRK_INFO } from '@/core/junkSynergy'
@@ -88,9 +91,27 @@ const codexSlots = computed<CodexSlot[]>(() => {
   return slots
 })
 
-// ── 랭킹 / 똥템 도감 모달 ──
+// ── 랭킹 / 똥템 도감 / 챌린지 도감 모달 ──
 const leaderboardOpen = ref(false)
 const quirkCodexOpen = ref(false)
+const challengeCodexOpen = ref(false)
+
+const dailyCfg = computed(() => getDailyTowerConfig())
+const dailyChallengeTitle = computed(() => {
+  const def = CHALLENGES_MAP[dailyCfg.value.challengeKey]
+  return def ? t(`challenge.${def.key}`, def.name) : dailyCfg.value.challengeKey
+})
+const dailyClearedToday = computed(() => {
+  const best = game.meta.dailyTowerBest
+  return best && best.date === dailyCfg.value.date ? best : null
+})
+const completedChallengeCount = computed(() => (game.meta.completedChallenges ?? []).length)
+const totalChallengesCount = CHALLENGES.length
+
+function startDaily() {
+  if (game.triggerRealBossIfDue()) return
+  game.startDailyTower()
+}
 
 // ── 도감 모달 (썸네일 클릭 시) ──
 const codexModalOpen = ref(false)
@@ -297,6 +318,15 @@ async function resetMeta() {
           <span>[CODEX] {{ t('menu.quirk.label', '발견한 똥템 허점') }}</span>
           <span class="font-mono font-bold tabular-nums">{{ discoveredQuirkCount }} / {{ totalQuirkCount }} · {{ t('menu.codex.open', '도감 열기') }}</span>
         </button>
+        <button
+          type="button"
+          data-testid="open-challenge-codex-btn"
+          class="w-full flex items-center justify-between text-[11px] text-pink-200/90 hover:text-pink-100 rounded px-1 py-0.5 hover:bg-pink-950/40 transition"
+          @click="challengeCodexOpen = true"
+        >
+          <span>[CHALLENGE] {{ t('menu.challengeCodex.label', '40종 챌린지 정복') }}</span>
+          <span class="font-mono font-bold tabular-nums">{{ completedChallengeCount }} / {{ totalChallengesCount }} · {{ t('menu.codex.open', '도감 열기') }}</span>
+        </button>
       </div>
 
       <!-- ── 헤더 (제목) ── -->
@@ -423,6 +453,32 @@ async function resetMeta() {
         @click="startNew"
       >{{ t('menu.newChar', '새 캐릭터 시작') }} <span class="opacity-80 text-sm font-normal ml-1">{{ t('menu.newChar.sub', '(3챌린지 선택)') }}</span></button>
 
+      <!-- ── 일일 고정 시드 탑 ── -->
+      <button
+        type="button"
+        data-testid="start-daily-tower-btn"
+        class="w-full rounded-xl border border-cyan-400/50 bg-cyan-950/35 hover:bg-cyan-900/45 px-3 py-2.5 text-left transition active:scale-[0.99] flex items-center justify-between gap-2"
+        @click="startDaily"
+      >
+        <div class="min-w-0">
+          <div class="text-xs font-bold text-cyan-200 flex items-center gap-1.5">
+            <span>[DAILY] {{ t('menu.daily.title', '일일 균열 탑') }}</span>
+            <span class="font-mono text-[11px] text-cyan-300/80">{{ dailyCfg.date }}</span>
+          </div>
+          <div class="text-[11px] text-gray-300 truncate">
+            {{ t('menu.daily.challengeFmt', `고정 챌린지: ${dailyChallengeTitle}`, { name: dailyChallengeTitle }) }}
+          </div>
+        </div>
+        <div class="text-right shrink-0">
+          <div v-if="dailyClearedToday" class="text-xs font-mono font-bold text-amber-300">
+            {{ dailyClearedToday.rank }} · {{ dailyClearedToday.ticks }}t
+          </div>
+          <div v-else class="text-[11px] font-bold text-emerald-300">
+            {{ t('menu.daily.firstBonus', '첫 클리어 +3pt') }}
+          </div>
+        </div>
+      </button>
+
       <!-- ── Google 로그인 / 로그아웃 (포털 iframe 임베드 환경에서는 숨김) ── -->
       <template v-if="!IS_PORTAL_EMBED">
       <div
@@ -490,6 +546,10 @@ async function resetMeta() {
     <QuirkCodexModal
       :open="quirkCodexOpen"
       @close="quirkCodexOpen = false"
+    />
+    <ChallengeCodexModal
+      :open="challengeCodexOpen"
+      @close="challengeCodexOpen = false"
     />
   </section>
 </template>

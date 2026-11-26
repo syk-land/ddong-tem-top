@@ -10,6 +10,7 @@ import {
   loadMeta, saveMeta, saveRun, loadRun, clearRun, defaultMeta, commitClearBonus, consumeBonusFromPool,
   computePendingBonus, type PendingClearBonus,
   pushCharacterHistory, incrementRunCounter, consumeChallengeTrigger, accumulateClearGold,
+  getChallengeMasteryBonuses,
 } from '@/core/meta'
 import {
   isChallengeDue, pickChallengeRecord, makeRealBoss, makePrologueRiftBoss,
@@ -21,7 +22,8 @@ import { createShop, refreshShop, getItemBuyPrice, getShopTemperCost } from '@/c
 import type { ShopState } from '@/types'
 import { rollItem } from '@/core/items'
 import { CHAPTER_THEMES } from '@/data/chapters'
-import { pickOne, pickN, weightedChoice } from '@/core/rng'
+import { pickOne, pickN, weightedChoice, setRngSeed } from '@/core/rng'
+import { getDailyTowerConfig } from '@/core/dailyTower'
 import { computeClearScore, getClearRank } from '@/core/character'
 import {
   SPECIAL_EVENTS, SPECIAL_EVENT_INFO, type SpecialEventKey,
@@ -172,6 +174,7 @@ interface GameState {
   // 캐릭터 생성: 주사위 굴림 결과 + 남은 회수
   rolledStats: Stats | null
   rollsLeft: number
+  extraDiceAdUsed: boolean
   // 캐릭터 생성: 자동 랜덤 아바타 (선택 UI 없음)
   selectedAvatar: string | null
   // 진행 중 런의 캐릭터 아바타 (영구 저장)
@@ -287,6 +290,7 @@ export const useGameStore = defineStore('game', {
     listDialog: null,
     rolledStats: null,
     rollsLeft: 3,
+    extraDiceAdUsed: false,
     selectedAvatar: null,
     runAvatar: null,
     playerName: null,
@@ -482,8 +486,17 @@ export const useGameStore = defineStore('game', {
       this.selectedChallengeKey = null
       this.rolledStats = null
       this.rollsLeft = 3
+      this.extraDiceAdUsed = false
       this.selectedAvatar = resolveInitialAvatar(this.selectedAvatar)
       this.persistCreation()
+    },
+
+    grantExtraDiceFromAd(): boolean {
+      if (this.extraDiceAdUsed) return false
+      this.extraDiceAdUsed = true
+      this.rollsLeft += 2
+      this.persistCreation()
+      return true
     },
 
     // 현재 캐릭터 생성 상태 저장
@@ -556,13 +569,20 @@ export const useGameStore = defineStore('game', {
         }
       }
       // 주사위 굴린 결과가 있으면 사용, 없으면 균등 시작 (모두 8)
+      setRngSeed(null)
       const customStats = this.rolledStats ?? uniformStartingStats()
       // 영구 누적 시작 스탯 보너스 (진짜 보스 도전 누적). 1회성 pending은 deprecated.
       this.carriedSurgeGauge = 0
       this.pendingRelicDraft = false
+      this.extraDiceAdUsed = false
+      const mastery = getChallengeMasteryBonuses((this.meta.completedChallenges ?? []).length)
       const startBonus = (this.meta.permanentStartBonus ?? 0) + (this.meta.pendingStartBonus ?? 0)
       const character = createCharacter(bonusAllocation, customStats, startBonus)
       character.relics = []
+      if (mastery.allStatBonus > 0) {
+        const five: StatKey[] = ['힘', '민첩', '체력', '마력', '행운']
+        for (const k of five) character.stats[k] += mastery.allStatBonus
+      }
       // 메타 풀에서 분배한 만큼 차감
       consumeBonusFromPool(this.meta, bonusAllocation)
       // pending 보너스는 1회성이라 소진 (영구는 그대로 유지)
@@ -574,6 +594,9 @@ export const useGameStore = defineStore('game', {
       const challengeKeys = this.selectedChallengeKey ? [this.selectedChallengeKey] : []
       const cctx = makeChallengeContext(challengeKeys, startStatScale(this.meta))
       applyInstantRewards(character, cctx)
+      if (mastery.startGoldBonus > 0 && !mergedFlags(cctx).goldZero) {
+        character.gold += mastery.startGoldBonus
+      }
       this.challengeContext = cctx
 
       // 튜토리얼 학습 흐름 보장:
@@ -583,6 +606,10 @@ export const useGameStore = defineStore('game', {
         tutorialForceCh1Layout: !this.meta.tutorialSeen.second_combat,
         tutorialForceCh2FirstFloor: !this.meta.tutorialSeen.first_chapter_clear,
       })
+      if (mastery.shopCapBonus > 0) {
+        run.refreshState.cap += mastery.shopCapBonus
+        run.refreshState.charges += mastery.shopCapBonus
+      }
       run.challengeKeys = challengeKeys
       // 선택한 아바타 — run 데이터에 보존 + reactive state
       ;(run as any).avatarKey = this.selectedAvatar
@@ -603,6 +630,50 @@ export const useGameStore = defineStore('game', {
       this.screen = 'dungeon'
     },
 
+    // v12: 일일 고정 시드 탑 시작
+    startDailyTower() {
+      if (this.combatSpeed === 4) this.setCombatSpeed(1)
+      if (this.autoEnter) this.setAutoEnter(false)
+      const cfg = getDailyTowerConfig()
+      setRngSeed(cfg.seed)
+      const mastery = getChallengeMasteryBonuses((this.meta.completedChallenges ?? []).length)
+      const startBonus = (this.meta.permanentStartBonus ?? 0) + (this.meta.pendingStartBonus ?? 0)
+      const character = createCharacter({}, { ...cfg.stats }, startBonus)
+      character.relics = []
+      if (mastery.allStatBonus > 0) {
+        const five: StatKey[] = ['힘', '민첩', '체력', '마력', '행운']
+        for (const k of five) character.stats[k] += mastery.allStatBonus
+      }
+      const cctx = makeChallengeContext([cfg.challengeKey], startStatScale(this.meta))
+      applyInstantRewards(character, cctx)
+      if (mastery.startGoldBonus > 0 && !mergedFlags(cctx).goldZero) {
+        character.gold += mastery.startGoldBonus
+      }
+      this.challengeContext = cctx
+      const run = makeTowerRun(character)
+      run.isDailyRun = true
+      run.dailyDate = cfg.date
+      run.challengeKeys = [cfg.challengeKey]
+      if (mastery.shopCapBonus > 0) {
+        run.refreshState.cap += mastery.shopCapBonus
+        run.refreshState.charges += mastery.shopCapBonus
+      }
+      const avatar = resolveInitialAvatar(null)
+      ;(run as any).avatarKey = avatar
+      this.runAvatar = avatar
+      if (cfg.challengeKey === '미니멀리스트') run.inventoryCap = 1
+      this.carriedSurgeGauge = 0
+      this.pendingRelicDraft = false
+      this.run = run
+      this.combat = null
+      this.shop = null
+      this.pendingClear = null
+      this.pendingAllocation = {}
+      saveRun(run)
+      this.savedRunExists = true
+      this.screen = 'dungeon'
+    },
+
     // 진행 중인 게임 이어하기
     loadGame(): boolean {
       const loaded = loadRun()
@@ -612,6 +683,11 @@ export const useGameStore = defineStore('game', {
       if (typeof loaded.inventoryCap !== 'number') loaded.inventoryCap = 4
       if (!Array.isArray(loaded.challengeKeys)) loaded.challengeKeys = []
       if (!Array.isArray(loaded.character.relics)) loaded.character.relics = []
+      if (loaded.isDailyRun && loaded.dailyDate) {
+        setRngSeed(getDailyTowerConfig(loaded.dailyDate).seed)
+      } else {
+        setRngSeed(null)
+      }
       this.run = loaded
       // 옛 키(F_r*_c* / M_r*_c*) 마이그레이션
       const rawKey = (loaded as any).avatarKey as string | undefined
@@ -753,9 +829,11 @@ export const useGameStore = defineStore('game', {
         }
       }
 
+      const mastery = getChallengeMasteryBonuses((this.meta.completedChallenges ?? []).length)
       this.combat = createCombatContext(this.run.character, monsters, this.meta.realBossClearCount ?? 0, {
         initialSurgeGauge: this.carriedSurgeGauge,
         onQuirkTriggered: (q) => this.recordDiscoveredQuirk(q),
+        masteryLoopholeBonus: mastery.loopholeMultBonus,
       })
       const intro = monsters.length === 1
         ? `${monsters[0].template.name}와(과)의 전투!`
@@ -1181,6 +1259,7 @@ export const useGameStore = defineStore('game', {
 
     handleTowerClear() {
       if (!this.run) return
+      setRngSeed(null)
       sfx.victory()
       if (this.challengeContext) {
         evaluateFinalChallenges(this.challengeContext, this.run.character)
@@ -1204,12 +1283,31 @@ export const useGameStore = defineStore('game', {
         if (extra > 0) {
           this.pendingClear.bonus += extra
         }
+        // v12: 40챌린지 정복 도감 기록 (실패하지 않은 챌린지 저장)
+        if (!this.meta.completedChallenges) this.meta.completedChallenges = []
+        for (const ac of this.challengeContext.active) {
+          if (!ac.failed && !this.meta.completedChallenges.includes(ac.key)) {
+            this.meta.completedChallenges.push(ac.key)
+          }
+        }
       }
       // 캐릭터 히스토리 적재 (도전 모드용) — 마지막 도달 챕터 테마 기준
       const lastChIdx = Math.max(0, this.run.currentChapterIndex)
       const lastCh = this.run.chapters[lastChIdx] ?? this.run.chapters[this.run.chapters.length - 1]
       const score = this.pendingClear?.score ?? computeClearScore(this.run.character, 10)
       const rank = this.pendingClear?.rank ?? getClearRank(score).rank
+      // v12: 일일 균열 탑 기록 및 일일 첫 클리어 보너스 (+3pt)
+      if (this.run.isDailyRun && this.run.dailyDate) {
+        const prev = this.meta.dailyTowerBest
+        const ticks = this.run.tickCount ?? 0
+        if (!prev || prev.date !== this.run.dailyDate || score < prev.score || (score === prev.score && ticks < prev.ticks)) {
+          this.meta.dailyTowerBest = { date: this.run.dailyDate, rank, score, ticks }
+        }
+        if (this.meta.dailyBonusDate !== this.run.dailyDate && this.pendingClear) {
+          this.meta.dailyBonusDate = this.run.dailyDate
+          this.pendingClear.bonus += 3
+        }
+      }
       pushCharacterHistory(this.meta, this.run.character, score, rank, this.runAvatar, lastCh.theme, true)
       // 리더보드 제출 (로그인 시) — fire-and-forget. 실패해도 게임 흐름엔 영향 없음.
       try {
@@ -2211,6 +2309,29 @@ export const useGameStore = defineStore('game', {
       return true
     },
 
+    grantAdShopRefresh(): boolean {
+      if (!this.run || !this.shop) return false
+      if (this.shop.adRefreshUsed) return false
+      if (this.challengeContext && shopRefreshForbidden(this.challengeContext)) return false
+      this.shop.adRefreshUsed = true
+      this.run.refreshState.charges += 1
+      return this.refreshShopAction()
+    },
+
+    grantAdShopGold(): number {
+      if (!this.run) return 0
+      if (this.run.adShopGoldUsed) return 0
+      if (this.challengeContext && mergedFlags(this.challengeContext).goldZero) return 0
+      const ch = currentChapter(this.run).chapter
+      const amount = 80 * ch
+      this.run.adShopGoldUsed = true
+      this.run.character.gold += amount
+      if (this.challengeContext) onGoldGain(this.challengeContext, amount)
+      saveRun(this.run)
+      sfx.gold()
+      return amount
+    },
+
     leaveShop() {
       this.shop = null
       this.advance()
@@ -2288,6 +2409,7 @@ export const useGameStore = defineStore('game', {
     },
 
     resetGame() {
+      setRngSeed(null)
       clearRun()
       this.run = null
       this.combat = null
@@ -2378,9 +2500,11 @@ export const useGameStore = defineStore('game', {
         statuses: [],
         actionGauge: 0,
       }
+      const mastery = getChallengeMasteryBonuses((this.meta.completedChallenges ?? []).length)
       this.combat = createCombatContext(character, [boss], this.meta.realBossClearCount ?? 0, {
         onQuirkTriggered: (q) => this.recordDiscoveredQuirk(q),
         paradoxPenBonus: blessing.bonusPen,
+        masteryLoopholeBonus: mastery.loopholeMultBonus,
       })
       pushLog(this.combat, i18nT('log.realBossChallenge', `진짜 보스 [${boss.template.name}]와의 도전!`, { name: i18nTd('monster', boss.template.name) }), 'info')
       this.screen = 'combat'
@@ -2388,6 +2512,7 @@ export const useGameStore = defineStore('game', {
 
     // v11: 사망 후 GameOver 마무리 (프롤로그 조우전 후에도 재사용)
     finalizeDeathGameOver() {
+      setRngSeed(null)
       if (!this.run) {
         this.screen = 'gameover'
         return

@@ -91,13 +91,14 @@ function pickBgm(): BgmKind {
   const realBossOn = !!game.realBossMonster
   if (s === 'realboss' || s === 'realboss_result') return 'splash'
   if (s === 'combat' && realBossOn) return 'splash'
-  if (s === 'create' || s === 'dungeon' || s === 'shop'
-      || s === 'combat' || s === 'event') return 'gemini'
+  if (s === 'shop') return 'shop'
+  if (s === 'combat' && game.combat?.monsters.some((m) => m.isBoss || m.isMimic)) return 'boss'
+  if (s === 'create' || s === 'dungeon' || s === 'combat' || s === 'event') return 'gemini'
   return 'splash'
 }
 
 watch(
-  [currentScreen, () => game.introVisible, () => !!game.realBossMonster, showSplash],
+  [currentScreen, () => game.introVisible, () => !!game.realBossMonster, () => game.combat?.monsters, showSplash],
   () => {
     if (game.paused) return  // 백그라운드 동안에는 새 BGM 시작 보류
     playBgm(pickBgm())

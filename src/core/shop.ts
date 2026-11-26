@@ -1,6 +1,7 @@
 import type { ShopState, ShopRefreshState, ItemInstance, Character } from '@/types'
 import { rollItem } from './items'
 import { hasRelic } from './junkSynergy'
+import { nextRandom } from './rng'
 
 export function getItemBuyPrice(item: ItemInstance, character?: Character | null): number {
   if (character && hasRelic(character, 'lead_dice')) {
@@ -31,7 +32,7 @@ export function generateShopInventory(chapter: number, opts: { tutorialForceAcc?
   const count = shopSlotCount(chapter)
   const items: ItemInstance[] = []
   for (let i = 0; i < count; i++) {
-    const kind = Math.random() < 0.5 ? 'weapon' : 'armor'
+    const kind = nextRandom() < 0.5 ? 'weapon' : 'armor'
     const forceTraitName = opts.tutorialForceAcc
       ? (kind === 'weapon' ? '날카로운' : '정밀한')
       : undefined

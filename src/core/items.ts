@@ -6,7 +6,7 @@ import { GRADE_COEF, GRADE_PRICE_MULT, TRAIT_TIER_LEVEL, GRADE_LEVEL } from '@/t
 import { WEAPONS, WEAPON_KEYS } from '@/data/weapons'
 import { ARMORS, ARMOR_KEYS } from '@/data/armor'
 import { WEAPON_TRAITS, WEAPON_TRAIT_POOL, ARMOR_TRAITS, ARMOR_TRAIT_POOL } from '@/data/traits'
-import { randFloat, pickOne, weightedChoice, clamp, uniqueId } from './rng'
+import { randFloat, pickOne, weightedChoice, clamp, uniqueId, nextRandom } from './rng'
 
 // 16-tier 인덱스 — v3 등급 우선 공식
 // tier = (grade_level - 1) × 4 + trait_level
@@ -146,12 +146,12 @@ function rollItemSkillKey(
     const wbase = WEAPONS[baseKey]
     if (!wbase) return undefined
     // 55% 무기 고유 스킬 유지, 45% 동종 카테고리 스킬 변주
-    if (Math.random() < 0.55) return wbase.autoSkill
+    if (nextRandom() < 0.55) return wbase.autoSkill
     const pool = wbase.isMagic ? MAGIC_SKILL_POOL : PHYSICAL_SKILL_POOL
     return pickOne(pool)
   }
   const chance = ARMOR_IMPRINT_CHANCE[traitTier] ?? 0.25
-  if (Math.random() < chance) {
+  if (nextRandom() < chance) {
     return pickOne(ARMOR_IMPRINT_POOL)
   }
   return undefined

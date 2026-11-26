@@ -328,6 +328,10 @@ export interface TowerRun {
   adReviveUsed?: boolean        // 부활 (보상으로 1회 부활 후 사용됨)
   adFastSpeedUnlocked?: boolean // 광고 시청 후 4배속 자유롭게 토글 가능
   adAutoEnterUnlocked?: boolean // 광고 시청 후 자동 진입 자유롭게 토글 가능
+  adShopGoldUsed?: boolean      // 상점 긴급 군자금 광고 (런당 1회)
+  // v12: 일일 고정 시드 탑 여부
+  isDailyRun?: boolean
+  dailyDate?: string
 }
 
 // ====== 상점 ======
@@ -342,6 +346,7 @@ export interface ShopState {
   inventory: ItemInstance[]
   slotCount: number
   temperUsed?: boolean
+  adRefreshUsed?: boolean
 }
 
 // ====== 메타 (영구 누적 보너스) ======
@@ -369,6 +374,10 @@ export interface MetaBonuses {
   prologueRiftSeen?: boolean        // 1회차 1챕터 클리어/첫 사망 시 진짜 보스 환영 조우 완료 여부
   prologueBonusGranted?: boolean    // 프롤로그 조우 보상 (+5pt 영구 시작 스탯) 지급 여부
   discoveredQuirks?: TraitQuirkId[] // 전투 중 최초 발동으로 해금된 똥템 허점 목록
+  // ── v12: 40챌린지 정복 도감 & 일일 고정 시드 탑 ──
+  completedChallenges?: string[]
+  dailyTowerBest?: { date: string; rank: string; score: number; ticks: number }
+  dailyBonusDate?: string
 }
 
 // 인게임 튜토리얼 — 각 단계는 처음 만날 때 1회만 노출.

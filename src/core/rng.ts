@@ -1,21 +1,41 @@
-// 간단한 RNG 유틸. 시드 RNG가 필요하면 추후 Mulberry32 등으로 교체.
+// 시드 지원 RNG 유틸 (Mulberry32). null 이면 기본 Math.random 사용.
+let seededFn: (() => number) | null = null
+
+export function setRngSeed(seed: number | null) {
+  if (seed === null || !Number.isFinite(seed)) {
+    seededFn = null
+    return
+  }
+  let s = seed >>> 0
+  seededFn = () => {
+    s = (s + 0x6D2B79F5) >>> 0
+    let t = Math.imul(s ^ (s >>> 15), 1 | s)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+export function nextRandom(): number {
+  return seededFn ? seededFn() : Math.random()
+}
+
 export function randInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min
+  return Math.floor(nextRandom() * (max - min + 1)) + min
 }
 
 export function randFloat(min: number, max: number): number {
-  return Math.random() * (max - min) + min
+  return nextRandom() * (max - min) + min
 }
 
 export function pickOne<T>(arr: readonly T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]
+  return arr[Math.floor(nextRandom() * arr.length)]
 }
 
 export function pickN<T>(arr: readonly T[], n: number): T[] {
   const copy = [...arr]
   const result: T[] = []
   while (result.length < n && copy.length > 0) {
-    const idx = Math.floor(Math.random() * copy.length)
+    const idx = Math.floor(nextRandom() * copy.length)
     result.push(copy[idx])
     copy.splice(idx, 1)
   }
@@ -25,7 +45,7 @@ export function pickN<T>(arr: readonly T[], n: number): T[] {
 export function shuffle<T>(arr: T[]): T[] {
   const copy = [...arr]
   for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
+    const j = Math.floor(nextRandom() * (i + 1))
     ;[copy[i], copy[j]] = [copy[j], copy[i]]
   }
   return copy
@@ -34,7 +54,7 @@ export function shuffle<T>(arr: T[]): T[] {
 // 가중 추첨: [{value, weight}, ...]
 export function weightedChoice<T>(items: { value: T; weight: number }[]): T {
   const total = items.reduce((sum, it) => sum + it.weight, 0)
-  let roll = Math.random() * total
+  let roll = nextRandom() * total
   for (const it of items) {
     roll -= it.weight
     if (roll <= 0) return it.value

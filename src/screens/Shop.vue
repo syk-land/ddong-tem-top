@@ -4,9 +4,10 @@ import { useGameStore } from '@/stores/game'
 import ItemDetail from '@/ui/components/ItemDetail.vue'
 import type { ItemInstance } from '@/types'
 import { themeBgUrl, shopIconUrl } from '@/ui/images'
-import { canEquipItem, shopForbidden } from '@/core/challengeRuntime'
+import { canEquipItem, shopForbidden, shopRefreshForbidden, mergedFlags } from '@/core/challengeRuntime'
 import { getItemBuyPrice, getShopTemperCost } from '@/core/shop'
 import { CHALLENGES_MAP } from '@/data/challenges'
+import { showRewardedAd } from '@/lib/ads'
 import { useI18n } from '@/lib/i18n'
 
 const game = useGameStore()
@@ -41,7 +42,30 @@ const bgUrl = computed(() => {
 })
 const currentChapterNum = computed(() => game.currentChapterState?.chapter ?? 1)
 const temperCost = computed(() => getShopTemperCost(currentChapterNum.value, player.value))
+const emergencyGoldAmount = computed(() => 80 * currentChapterNum.value)
+const goldZeroForbidden = computed(() => !!game.challengeContext && !!mergedFlags(game.challengeContext).goldZero)
+const refreshBlocked = computed(() => !!game.challengeContext && shopRefreshForbidden(game.challengeContext))
 const shopListingRef = ref<HTMLElement | null>(null)
+
+async function watchShopRefreshAd() {
+  if (shop.value.adRefreshUsed || refreshBlocked.value) return
+  const ok = await showRewardedAd('shopRefresh')
+  if (!ok) {
+    await game.alertModal(t('speed.adNotWatchedBody', '광고 시청이 완료되지 않았습니다.'), t('speed.adNotWatchedTitle', '활성화 실패'))
+    return
+  }
+  game.grantAdShopRefresh()
+}
+
+async function watchShopGoldAd() {
+  if (game.run?.adShopGoldUsed || goldZeroForbidden.value) return
+  const ok = await showRewardedAd('shopGold')
+  if (!ok) {
+    await game.alertModal(t('speed.adNotWatchedBody', '광고 시청이 완료되지 않았습니다.'), t('speed.adNotWatchedTitle', '활성화 실패'))
+    return
+  }
+  game.grantAdShopGold()
+}
 
 function priceOf(item: ItemInstance): number {
   return getItemBuyPrice(item, player.value)
@@ -369,20 +393,36 @@ void bgUrl  // 추후 배경 활용 여지
     <!-- ====================================================== -->
     <!-- 하단 액션 (sticky)                                       -->
     <!-- ====================================================== -->
-    <div class="flex gap-2 sticky bottom-0 z-10 pt-2 pb-1 bg-gradient-to-t from-bg-primary/95 to-bg-primary/0">
-      <button
-        data-tutorial-target="shop-refresh"
-        class="flex-1 min-h-12 px-4 rounded-md font-bold text-sm transition active:scale-[0.98] border-2 disabled:opacity-40 disabled:cursor-not-allowed"
-        :class="refresh.charges <= 0
-          ? 'bg-slate-800/70 text-gray-500 border-slate-700/60'
-          : 'bg-bg-tertiary text-gray-100 border-slate-600/70 hover:bg-slate-700'"
-        :disabled="refresh.charges <= 0"
-        @click="refreshShop"
-      >{{ t('shop.refreshBtn', '🔄 새로고침') }} <span class="text-gray-400 font-mono ml-1">({{ refresh.charges }})</span></button>
-      <button
-        class="min-h-12 px-5 rounded-md font-bold text-sm bg-bg-tertiary text-gray-100 border-2 border-slate-600/70 hover:bg-slate-700 active:scale-[0.98] transition"
-        @click="leave"
-      >{{ t('shop.leaveBtn', '나가기') }}</button>
+    <div class="space-y-1.5 sticky bottom-0 z-10 pt-2 pb-1 bg-gradient-to-t from-bg-primary/95 to-bg-primary/0">
+      <div v-if="(refresh.charges <= 0 && !refreshBlocked && !shop.adRefreshUsed) || (!game.run?.adShopGoldUsed && !goldZeroForbidden)" class="flex gap-2">
+        <button
+          v-if="refresh.charges <= 0 && !refreshBlocked && !shop.adRefreshUsed"
+          type="button"
+          class="flex-1 min-h-9 px-3 rounded-md font-bold text-xs border border-amber-400/60 bg-amber-950/50 hover:bg-amber-900/60 text-amber-200 transition"
+          @click="watchShopRefreshAd"
+        >[AD] {{ t('shop.adRefresh', '광고: 무료 새로고침 +1') }}</button>
+        <button
+          v-if="!game.run?.adShopGoldUsed && !goldZeroForbidden"
+          type="button"
+          class="flex-1 min-h-9 px-3 rounded-md font-bold text-xs border border-emerald-400/60 bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-200 transition"
+          @click="watchShopGoldAd"
+        >[AD] {{ t('shop.adGold', `긴급 군자금 +${emergencyGoldAmount}G`, { gold: emergencyGoldAmount }) }}</button>
+      </div>
+      <div class="flex gap-2">
+        <button
+          data-tutorial-target="shop-refresh"
+          class="flex-1 min-h-12 px-4 rounded-md font-bold text-sm transition active:scale-[0.98] border-2 disabled:opacity-40 disabled:cursor-not-allowed"
+          :class="refresh.charges <= 0
+            ? 'bg-slate-800/70 text-gray-500 border-slate-700/60'
+            : 'bg-bg-tertiary text-gray-100 border-slate-600/70 hover:bg-slate-700'"
+          :disabled="refresh.charges <= 0"
+          @click="refreshShop"
+        >{{ t('shop.refreshBtn', '🔄 새로고침') }} <span class="text-gray-400 font-mono ml-1">({{ refresh.charges }})</span></button>
+        <button
+          class="min-h-12 px-5 rounded-md font-bold text-sm bg-bg-tertiary text-gray-100 border-2 border-slate-600/70 hover:bg-slate-700 active:scale-[0.98] transition"
+          @click="leave"
+        >{{ t('shop.leaveBtn', '나가기') }}</button>
+      </div>
     </div>
   </section>
 </template>

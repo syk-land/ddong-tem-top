@@ -522,11 +522,55 @@ const MENU_BGM: BgmTrack = (() => {
   return { notes, loopMs: 4000 }
 })()
 
+// 긴박한 보스전 — D minor 140BPM
+const BOSS_BGM: BgmTrack = (() => {
+  const notes: BgmNote[] = []
+  const bass = [146.8, 146.8, 174.6, 130.8] // D3 D3 F3 C3
+  bass.forEach((f, i) => {
+    notes.push({ freq: f, startMs: i * 800, durationMs: 360, type: 'sawtooth', gain: 0.22, attack: 5, release: 80 })
+    notes.push({ freq: f * 1.5, startMs: i * 800 + 400, durationMs: 320, type: 'square', gain: 0.14, attack: 5, release: 80 })
+  })
+  const arp = [293.7, 349.2, 440.0, 587.3] // Dm7
+  for (let i = 0; i < 16; i++) {
+    notes.push({
+      freq: arp[i % arp.length],
+      startMs: i * 200,
+      durationMs: 140,
+      type: 'square',
+      gain: 0.12,
+      attack: 5,
+      release: 50,
+    })
+  }
+  return { notes, loopMs: 3200 }
+})()
+
+// 한가로운 황금고블린 상점 — F major 포근한 플럭
+const SHOP_BGM: BgmTrack = (() => {
+  const notes: BgmNote[] = []
+  const chords = [
+    [174.6, 349.2, 440.0, 523.3], // F
+    [196.0, 392.0, 466.2, 587.3], // Gm
+    [130.8, 392.0, 493.9, 587.3], // C7/G
+    [174.6, 349.2, 440.0, 523.3], // F
+  ]
+  chords.forEach((c, ci) => {
+    const base = ci * 1000
+    notes.push({ freq: c[0], startMs: base, durationMs: 850, type: 'triangle', gain: 0.24, attack: 20, release: 150 })
+    notes.push({ freq: c[1], startMs: base + 200, durationMs: 220, type: 'sine', gain: 0.16, attack: 10, release: 90 })
+    notes.push({ freq: c[2], startMs: base + 450, durationMs: 220, type: 'sine', gain: 0.16, attack: 10, release: 90 })
+    notes.push({ freq: c[3], startMs: base + 700, durationMs: 250, type: 'triangle', gain: 0.15, attack: 10, release: 100 })
+  })
+  return { notes, loopMs: 4000 }
+})()
+
 const PROCEDURAL_BGM_TRACKS: Record<string, BgmTrack> = {
   gemini: MENU_BGM,
+  boss: BOSS_BGM,
+  shop: SHOP_BGM,
 }
 
-export type BgmKind = 'splash' | 'gemini'
+export type BgmKind = 'splash' | 'gemini' | 'boss' | 'shop'
 
 let bgmCurrent: BgmKind | null = null
 let bgmAudioEl: HTMLAudioElement | null = null

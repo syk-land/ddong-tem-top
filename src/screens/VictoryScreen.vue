@@ -28,6 +28,9 @@ function confirm() {
       class="w-full rounded-xl border-2 border-amber-400/70 bg-bg-secondary/95 shadow-[0_0_40px_rgba(251,191,36,0.45)] p-6 space-y-4 text-center animate-fadein"
     >
       <!-- 헤더 -->
+      <div v-if="game.run?.isDailyRun" class="text-xs font-mono font-bold text-cyan-300">
+        [DAILY] {{ game.run.dailyDate }} · {{ game.run.tickCount }}t
+      </div>
       <div class="text-amber-300 text-5xl font-bold tracking-widest leading-tight">{{ t('victory.title', '탑 클리어') }}</div>
       <div class="text-sm text-gray-300 -mt-1">{{ t('victory.subtitle', '최종 클리어 등급') }}</div>
 

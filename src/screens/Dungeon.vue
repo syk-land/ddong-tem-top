@@ -205,6 +205,7 @@ const floorAccent = computed(() => {
     <div class="rounded-lg border border-slate-700/70 bg-bg-secondary/60 backdrop-blur-sm px-3 py-2 flex items-center gap-2">
       <div class="flex-1 min-w-0">
         <div :class="['text-sm font-bold truncate', themeClass]">
+          <span v-if="game.run?.isDailyRun" class="mr-1 px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-400/50 text-cyan-200 text-[10px] font-mono">[DAILY]</span>
           {{ t('dungeon.chapterFmt', `제 ${ch.chapter}챕터 · ${td('chapter', ch.theme)}`, { chapter: ch.chapter, theme: td('chapter', ch.theme) }) }}
           <span v-if="ch.isHard" class="text-rose-400 ml-1 text-xs">{{ t('dungeon.hardBadge', '[강화]') }}</span>
         </div>

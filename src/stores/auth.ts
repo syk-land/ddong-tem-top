@@ -179,6 +179,9 @@ export const useAuthStore = defineStore('auth', {
           if (cloud.prologueRiftSeen !== undefined) game.meta.prologueRiftSeen = cloud.prologueRiftSeen
           if (cloud.prologueBonusGranted !== undefined) game.meta.prologueBonusGranted = cloud.prologueBonusGranted
           if (Array.isArray(cloud.discoveredQuirks)) game.meta.discoveredQuirks = cloud.discoveredQuirks
+          if (Array.isArray(cloud.completedChallenges)) game.meta.completedChallenges = cloud.completedChallenges
+          if (cloud.dailyTowerBest) game.meta.dailyTowerBest = cloud.dailyTowerBest
+          if (cloud.dailyBonusDate) game.meta.dailyBonusDate = cloud.dailyBonusDate
           game.persistMeta()
           // UI 즉시 갱신 — Vue/Pinia 일부 화면이 onMounted 시점 값에 의존하므로 reload 가 가장 안전.
           window.location.reload()

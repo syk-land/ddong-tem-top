@@ -2,7 +2,7 @@ import type {
   ChapterState, FloorEvent, FloorEventType, ChapterTheme, TowerRun, Character,
 } from '@/types'
 import { CHAPTER_THEMES, ALL_THEME_KEYS } from '@/data/chapters'
-import { pickN, pickOne, shuffle } from './rng'
+import { pickN, pickOne, shuffle, nextRandom } from './rng'
 
 // 1.3 챕터 테마 선정 (11개 풀에서 5개 무작위, 1~5 base, 6~10 hard)
 export function selectThemes(): ChapterTheme[] {
@@ -47,7 +47,7 @@ export function generateChapterFloors(
       // 전체 인덱스 기준: shuffled idx 0 = 2층, ... idx 7 = 9층. 4층 이상 = shuffled idx 2 이상
       if (hsIdx >= 2) break
       if (tries > 100) {
-        const validIdx = 2 + Math.floor(Math.random() * 6)
+        const validIdx = 2 + Math.floor(nextRandom() * 6)
         const orig = shuffled[hsIdx]
         shuffled[hsIdx] = shuffled[validIdx]
         shuffled[validIdx] = orig
@@ -83,7 +83,7 @@ export function generateChapterFloors(
     if (hsIdx >= 3) break
     if (tries > 100) {
       // 강제 스왑
-      const validIdx = 3 + Math.floor(Math.random() * 6)
+      const validIdx = 3 + Math.floor(nextRandom() * 6)
       const orig = shuffled[hsIdx]
       shuffled[hsIdx] = shuffled[validIdx]
       shuffled[validIdx] = orig
@@ -95,7 +95,7 @@ export function generateChapterFloors(
   let eventPlaced = false
   for (let i = 0; i < shuffled.length; i++) {
     if (shuffled[i] === 'monster' && !eventPlaced) {
-      if (Math.random() < 0.05) {
+      if (nextRandom() < 0.05) {
         shuffled[i] = 'special_event'
         eventPlaced = true
       }
@@ -116,14 +116,14 @@ export function generateChapterFloors(
   for (let i = minAltIdx; i < floors.length - 1 && altCount < 4; i++) {
     const f = floors[i]
     if (f.type === 'monster') {
-      if (!extraEventPlaced && Math.random() < 0.30) {
+      if (!extraEventPlaced && nextRandom() < 0.30) {
         f.altChoice = { type: 'special_event' }
         extraEventPlaced = true
       } else {
         f.altChoice = { type: 'monster', isElite: true }
       }
       altCount++
-    } else if (f.type === 'healing_spring' && Math.random() < 0.65) {
+    } else if (f.type === 'healing_spring' && nextRandom() < 0.65) {
       f.altChoice = { type: 'monster', isElite: true }
       altCount++
     }

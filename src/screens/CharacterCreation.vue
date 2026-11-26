@@ -7,6 +7,7 @@ import { uniformStartingStats } from '@/core/character'
 import { mainImageUrl, allUserAvatarKeys, userAvatarUrl, userBustUrl } from '@/ui/images'
 import { describeChallengeForScale } from '@/data/challenges'
 import { startStatScale } from '@/core/realboss'
+import { showRewardedAd } from '@/lib/ads'
 import { useI18n } from '@/lib/i18n'
 
 const { t, td } = useI18n()
@@ -69,6 +70,21 @@ async function rollDice() {
   game.rollCharacterDice()
   rolling.value = false
 }
+
+async function watchExtraDiceAd() {
+  if (game.extraDiceAdUsed) return
+  const ok = await showRewardedAd('extraDice')
+  if (!ok) {
+    await game.alertModal(
+      t('speed.adNotWatchedBody', '광고 시청이 완료되지 않았습니다.'),
+      t('speed.adNotWatchedTitle', '활성화 실패'),
+    )
+    return
+  }
+  game.grantExtraDiceFromAd()
+}
+
+const completedChallengeSet = computed(() => new Set(game.meta.completedChallenges ?? []))
 
 function adjust(stat: StatKey, delta: number) {
   const cur = allocation.value[stat] ?? 0
@@ -294,6 +310,13 @@ async function editPlayerName() {
           <span v-else-if="game.rollsLeft > 0">{{ t('create.dice.roll', `🎲 주사위 굴리기 (${game.rollsLeft} 남음)`, { left: game.rollsLeft }) }}</span>
           <span v-else>{{ t('create.dice.exhausted', '주사위 모두 사용함') }}</span>
         </button>
+        <button
+          v-if="game.rollsLeft <= 0 && !game.extraDiceAdUsed"
+          type="button"
+          data-testid="extra-dice-ad-btn"
+          class="w-full min-h-10 rounded-md border border-amber-400/60 bg-amber-950/40 hover:bg-amber-900/50 text-amber-200 text-xs font-bold transition active:scale-[0.98]"
+          @click="watchExtraDiceAd"
+        >[AD] {{ t('create.dice.adExtra', '광고 보고 주사위 +2회') }}</button>
       </div>
     </div>
 
@@ -330,7 +353,10 @@ async function editPlayerName() {
             </span>
             <span class="text-xs text-gray-500">{{ td('challenge.group', c.group) }}</span>
           </div>
-          <h3 :class="[isSelected(c.key) ? 'text-pink-200' : 'text-gray-100', 'font-bold text-sm']">{{ t(`challenge.${c.key}`, c.name) }}</h3>
+          <h3 :class="[isSelected(c.key) ? 'text-pink-200' : 'text-gray-100', 'font-bold text-sm flex items-center gap-1.5 flex-wrap']">
+            <span>{{ t(`challenge.${c.key}`, c.name) }}</span>
+            <span v-if="completedChallengeSet.has(c.key)" class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-200 border border-emerald-500/40">{{ t('codex.challenge.clearedTag', 'CLEARED') }}</span>
+          </h3>
           <p class="text-xs text-gray-400 mt-1 leading-snug">{{ t(`challenge.desc.${c.key}`, c.description) }}</p>
           <div class="mt-2 space-y-0.5 text-xs">
             <div class="text-log-reward">✦ {{ t(`challenge.reward.${c.key}`, c.reward) }}</div>

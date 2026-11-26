@@ -52,7 +52,13 @@ import { IS_PORTAL_EMBED } from './platform'
 // 활성화 완료 후 false 로 바꾸면 됨.
 const BYPASS_ADS = false
 
-export type AdUseCase = 'revive' | 'fastSpeed' | 'autoEnter'
+export type AdUseCase =
+  | 'revive'
+  | 'fastSpeed'
+  | 'autoEnter'
+  | 'extraDice'
+  | 'shopRefresh'
+  | 'shopGold'
 
 function isSdkReady(): boolean {
   if (typeof window === 'undefined') return false
