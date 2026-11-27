@@ -78,7 +78,7 @@
           s.id = 'gamemonetize-sdk'
           s.src = 'https://api.gamemonetize.com/sdk.js'
         } else {
-          if ('serviceWorker' in navigator && window.self === window.top) {
+          if ('serviceWorker' in navigator && window.self === window.top && !(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) {
             window.addEventListener('load', function () {
               navigator.serviceWorker.register('./sw.js').catch(function () {})
             })
@@ -115,6 +115,11 @@
           Clear floors to discover <strong>Junk Loopholes</strong>, stack permanent starting stats, and challenge the Real Boss!
         </div>
       </aside>
+    </div>
+    <div class="rotate-overlay" id="rotate-overlay" role="dialog" aria-label="Portrait orientation recommended">
+      <div class="rotate-overlay-title">Rotate to Portrait Mode</div>
+      <div class="rotate-overlay-desc">Junk Gear Tower is designed for vertical portrait play. Rotate your device upright for the best experience.</div>
+      <button type="button" class="rotate-overlay-btn" onclick="document.getElementById('rotate-overlay').classList.add('dismissed')">Continue Anyway</button>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

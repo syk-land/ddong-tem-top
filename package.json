@@ -14,11 +14,15 @@
     "sim": "npx tsx src/core/__sim__/runChapter.ts"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.4.2",
+    "@capacitor/core": "^8.6.3",
     "firebase": "^11.10.0",
     "pinia": "^2.1.7",
     "vue": "^3.4.27"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.6.3",
+    "@capacitor/cli": "^8.6.3",
     "@vitejs/plugin-vue": "^5.0.4",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.38",

@@ -45,6 +45,7 @@ declare global {
 }
 
 import { IS_PORTAL_EMBED } from './platform'
+import { isNativeAdMobAvailable, showNativeRewardedAd } from './admob'
 
 // ─── 임시 우회 (GameMonetize 활성화 전) ─────────────────────
 // 콘솔 게임 상태가 "New" 단계에선 광고 호출이 no-fill 로 실패함.
@@ -98,8 +99,10 @@ function callShowAd(type?: string): void {
 // useCase 는 통계/분석용 메타 — GameMonetize SDK 가 광고 단위를 자체 관리해서
 // 코드에선 분기만 가능 (광고 단위 ID 를 직접 넘기지 않는다).
 export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
-  void useCase
   if (BYPASS_ADS) return true
+  if (isNativeAdMobAvailable()) {
+    return showNativeRewardedAd(useCase)
+  }
   // CrazyGames SDK v3 우선 처리
   const cg = (window as unknown as {
     __cgSdkReady?: boolean
@@ -231,6 +234,7 @@ export async function showRewardedAd(useCase: AdUseCase): Promise<boolean> {
 // 인터스티셜 광고 — 프리롤/스테이지 간 노출용. rewarded 와 달리 결과 판정 없음 (표시 자체가 목적).
 export function showInterstitial(): void {
   if (BYPASS_ADS) return
+  if (isNativeAdMobAvailable()) return
   const cg = (window as unknown as {
     __cgSdkReady?: boolean
     CrazyGames?: {

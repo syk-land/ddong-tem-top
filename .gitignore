@@ -38,4 +38,14 @@ bananaimages/_watermarked_backup/
 # Firebase CLI 로컬 캐시
 .firebase/
 
+# Android / Capacitor secrets & build outputs
+*.jks
+*.keystore
+android/keystore.properties
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+
+
 
